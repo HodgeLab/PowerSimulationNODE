@@ -3,6 +3,20 @@ module PowerSimulationNODE
 #export the functions I currently use in the scripts? 
 export train
 export NODETrainParams
+export serialize
+export node_load_system
+export SummitHPCTrain
+export SavioHPCTrain
+export fault_data_generator
+export build_pvs
+export label_area!
+export check_single_connecting_line_condition
+export remove_area
+export build_train_system
+export generate_train_data
+export NODETrainDataParams
+export visualize_summary
+export visualize_training
 
 #Import vs using?
 using Mustache
