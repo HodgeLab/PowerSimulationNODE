@@ -18,6 +18,12 @@ export NODETrainDataParams
 export visualize_summary
 export visualize_training
 
+
+export INPUT_FOLDER_NAME
+export OUTPUT_FOLDER_NAME
+export INPUT_SYSTEM_FOLDER_NAME
+export HPC_TRAIN_FILE 
+
 #Import vs using?
 using Mustache
 using DifferentialEquations
