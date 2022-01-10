@@ -1,33 +1,25 @@
 module PowerSimulationNODE
 
+#export the functions I currently use in the scripts? 
 export train
 export NODETrainParams
 
-import Mustache
-import Revise
-import DifferentialEquations
-import DiffEqSensitivity
-import Logging
-import PowerSystems
-import PowerSimulationsDynamics
-import GalacticOptim
-import Plots
-import IterTools
-import NLsolve
-import DiffEqFlux: group_ranges
-import DiffEqFlux
-import Flux
-import Flux.Losses: mae, mse
-import ForwardDiff
-import Statistics
+#Import vs using?
+using Mustache
+using DifferentialEquations
+using DiffEqSensitivity   
+using Logging
+using PowerSystems 
+using PowerSimulationsDynamics
+using GalacticOptim
+using Plots
+using DiffEqFlux
+using Flux
+using Flux.Losses: mae, mse
+
 import Arrow
 import YAML
-import Sundials
 import StructTypes
-import JSON3
-import DataFrames
-import Random
-import FFTW
 
 include("surrogate_models.jl")
 include("NODETrainParams.jl")
@@ -42,5 +34,4 @@ include("visualize.jl")
 
 end 
 
-# Where do these dependencies go? 
 
