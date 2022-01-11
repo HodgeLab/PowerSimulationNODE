@@ -1,2 +1,2 @@
 # PowerSimulationNODE
-CODECOV_TOKEN='20fc1b40-e49c-40c7-84dc-094dbf792333'
+
