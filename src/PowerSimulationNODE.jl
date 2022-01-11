@@ -34,6 +34,8 @@ using Flux.Losses: mae, mse
 import Arrow
 import YAML
 import StructTypes
+const PSY = PowerSystems
+const PSID = PowerSimulationsDynamics
 
 include("surrogate_models.jl")
 include("NODETrainParams.jl")

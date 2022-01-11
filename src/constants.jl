@@ -22,6 +22,3 @@ const PSID_FILE_LEVEL = Logging.Info
 
 const NODE_CONSOLE_LEVEL = Logging.Info
 const NODE_FILE_LEVEL = Logging.Info
-
-const PSID = PowerSimulationsDynamics
-const PSY = PowerSystems
