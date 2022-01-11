@@ -1,6 +1,6 @@
 module PowerSimulationNODE
 
-#export the functions I currently use in the scripts? 
+#export the structs / functions I currently use in the scripts
 export train
 export NODETrainParams
 export serialize
@@ -18,11 +18,6 @@ export NODETrainDataParams
 export visualize_summary
 export visualize_training
 
-
-export INPUT_FOLDER_NAME
-export OUTPUT_FOLDER_NAME
-export INPUT_SYSTEM_FOLDER_NAME
-export HPC_TRAIN_FILE 
 
 #Import vs using?
 using Mustache
