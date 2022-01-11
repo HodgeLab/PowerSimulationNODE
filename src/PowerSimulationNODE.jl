@@ -18,13 +18,12 @@ export NODETrainDataParams
 export visualize_summary
 export visualize_training
 
-
 #Import vs using?
 using Mustache
 using DifferentialEquations
-using DiffEqSensitivity   
+using DiffEqSensitivity
 using Logging
-using PowerSystems 
+using PowerSystems
 using PowerSimulationsDynamics
 using GalacticOptim
 using Plots
@@ -47,6 +46,4 @@ include("train.jl")
 include("utils.jl")
 include("visualize.jl")
 
-end 
-
-
+end

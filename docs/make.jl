@@ -1,8 +1,8 @@
-push!(LOAD_PATH,"../src/")
+push!(LOAD_PATH, "../src/")
 
 using Documenter, PowerSimulationNODE
 
-makedocs(sitename="My Documentation")
+makedocs(sitename = "My Documentation")
 makedocs(
     format = Documenter.HTML(mathengine = Documenter.MathJax()),
     sitename = "PowerSimulationNODE",
