@@ -1,4 +1,5 @@
 [deps]
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Mustache = "ffc61752-8dc7-55ee-8c37-f3e9cdd09e70"
+PowerSimulationNODE = "4b7d6be9-769c-4710-86e6-88f799a27627"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
