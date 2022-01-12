@@ -308,7 +308,7 @@ function train(params::NODETrainParams)
         return true
     #catch
     #    return false
-    end
+    #end
 end
 
 # TODO: We want to add types in here to make the function performant
