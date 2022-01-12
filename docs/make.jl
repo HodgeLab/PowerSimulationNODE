@@ -8,6 +8,4 @@ makedocs(
     sitename = "PowerSimulationNODE",
 )
 
-deploydocs(
-    repo = "https://github.com/HodgeLab/PowerSimulationNODE.git",
-)
+deploydocs(repo = "https://github.com/HodgeLab/PowerSimulationNODE.git")

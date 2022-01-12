@@ -389,7 +389,7 @@ function get_total_current_series(sim)
 end
 
 #Doesn't actually plot
-function plot_pvs(tsteps, pvs::PeriodicVariableSource, xaxis)   
+function plot_pvs(tsteps, pvs::PeriodicVariableSource, xaxis)
     V = zeros(length(tsteps))
     V = V .+ get_internal_voltage_bias(pvs)
     retrieved_freqs = get_internal_voltage_frequencies(pvs)
@@ -504,7 +504,11 @@ function get_parameters(inv::DynamicInverter)
     return p
 end
 
-function build_train_system(sys_surr_original, sys_pvs_original, surrogate_area_name)
+function build_train_system(
+    sys_surr_original::System,
+    sys_pvs_original::System,
+    surrogate_area_name::String,
+)
     sys_surr = deepcopy(sys_surr_original)
     sys_pvs = deepcopy(sys_pvs_original)
     non_surrogate_buses = collect(

@@ -86,21 +86,11 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS)
 
         transformer = collect(get_components(Transformer2W, sys_train))[1]
         p_network = [get_x(transformer) + get_X_th(pvs), get_r(transformer) + get_R_th(pvs)]
-
-        #flow_results = solve_powerflow(sys_train)["flow_results"]
         bus_results = solve_powerflow(sys_train)["bus_results"]
         @info "full system", bus_results
         surrogate_bus_result = bus_results[in([SURROGATE_BUS]).(bus_results.bus_number), :]
-        #=         if flow_results[1,:bus_from] == SURROGATE_BUS
-                    P_pf = flow_results[1,:P_from_to]      
-                    Q_pf = flow_results[1,:Q_from_to]
-                elseif flow_results[1,:bus_to] == SURROGATE_BUS
-                    P_pf = flow_results[1,:P_to_from]     
-                    Q_pf = flow_results[1,:Q_to_from]
-                else 
-                    @error "Surrogate bus not found in the system"
-                end  =#
-        P_pf = surrogate_bus_result[1, :P_gen] / get_base_power(sys_train)   #TODO- divide by base power  
+
+        P_pf = surrogate_bus_result[1, :P_gen] / get_base_power(sys_train)
         Q_pf = surrogate_bus_result[1, :Q_gen] / get_base_power(sys_train)
         V_pf = surrogate_bus_result[1, :Vm]
         θ_pf = surrogate_bus_result[1, :θ]
@@ -110,7 +100,7 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS)
 
         fault_data[get_name(pvs)] = Dict(
             :p_network => p_network,
-            :p_pf => [P_pf, Q_pf, V_pf, θ_pf],  #Expand to include all PF data [P,Q,V,θ] (p_pf)
+            :p_pf => [P_pf, Q_pf, V_pf, θ_pf],
             :ir_ground_truth => ode_data[1, :],
             :ii_ground_truth => ode_data[2, :],
         )

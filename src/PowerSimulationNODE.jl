@@ -26,7 +26,7 @@ using Flux
 using Flux.Losses: mae, mse
 using GalacticOptim
 using Logging
-import Mustache          #Render 
+import Mustache          #Render
 using OrdinaryDiffEq     #Rodas4
 using PowerSimulationsDynamics
 using PowerSystems
@@ -38,7 +38,7 @@ const PSY = PowerSystems
 const PSID = PowerSimulationsDynamics
 
 function __init__()
-    @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("visualize.jl")
+    @require Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("visualize.jl")
 end
 include("surrogate_models.jl")
 include("NODETrainParams.jl")
@@ -48,9 +48,5 @@ include("HPCTrain.jl")
 include("instantiate.jl")
 include("NODETrainInputs.jl")
 include("train.jl")
-
-
 include("utils.jl")
-
-
 end

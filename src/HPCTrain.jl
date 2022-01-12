@@ -1,5 +1,3 @@
-#using Mustache
-
 const bash_file_template = """
 #!/bin/bash
 # Job name:

@@ -12,37 +12,19 @@ const surr_map = Dict(
     "none_v_t_3" => none_v_t_3,
     "none_v_t_4" => none_v_t_4,
     "none_v_t_5" => none_v_t_5,
-
-    #=  "vsm_v_t_3" => vsm_v_t_3,
-        "vsm_v_t_4" => vsm_v_t_4,
-        "vsm_v_t_5" => vsm_v_t_5,
-        "vsm_v_t_6" => vsm_v_t_6,
-        "vsm_v_t_7" => vsm_v_t_7,
-        "vsm_v_t_8" => vsm_v_t_8,
-        "vsm_v_t_9" => vsm_v_t_9,
-        "vsm_v_t_10" => vsm_v_t_10,
-        "vsm_v_t_11" => vsm_v_t_11,
-        "vsm_v_t_12" => vsm_v_t_12,
-        "vsm_v_t_13" => vsm_v_t_13,
-        "vsm_v_t_14" => vsm_v_t_14,
-        "vsm_v_t_15" => vsm_v_t_15,
-        "vsm_v_t_16" => vsm_v_t_16,
-        "vsm_v_t_17" => vsm_v_t_17,
-        "vsm_v_t_18" => vsm_v_t_18,
-        "vsm_v_t_19" => vsm_v_t_19, =#
 )
 
 const activation_map = Dict("relu" => relu)
 
-function instantiate_solver(inputs)
+function instantiate_solver(inputs::NODETrainParams)
     return solver_map[inputs.solver]()
 end
 
-function instantiate_sensealg(inputs)
+function instantiate_sensealg(inputs::NODETrainParams)
     return sensealg_map[inputs.sensealg]()
 end
 
-function instantiate_optimizer(inputs)
+function instantiate_optimizer(inputs::NODETrainParams)
     if inputs.optimizer == "Adam"
         return optimizer_map[inputs.optimizer](inputs.optimizer_η)
     elseif inputs.optimizer == "Bfgs"
@@ -50,7 +32,7 @@ function instantiate_optimizer(inputs)
     end
 end
 
-function instantiate_optimizer_adjust(inputs)
+function instantiate_optimizer_adjust(inputs::NODETrainParams)
     if inputs.optimizer_adjust == "Adam"
         return optimizer_map[inputs.optimizer_adjust](inputs.optimizer_adjust_η)
     elseif inputs.optimizer_adjust == "Bfgs"
@@ -58,7 +40,7 @@ function instantiate_optimizer_adjust(inputs)
     end
 end
 
-function instantiate_nn(inputs)
+function instantiate_nn(inputs::NODETrainParams)
     nn_activation = activation_map[inputs.node_activation]
     nn_hidden = inputs.node_layers
     nn_width = inputs.node_width
@@ -75,7 +57,7 @@ function instantiate_nn(inputs)
     return build_nn(nn_input, nn_output, nn_width, nn_hidden, nn_activation)
 end
 
-function instantiate_M(inputs)
+function instantiate_M(inputs::NODETrainParams)
     if inputs.ode_model == "vsm"
         ODE_ORDER = 19
         N_ALGEBRAIC = 2
