@@ -16,20 +16,20 @@ const surr_map = Dict(
 
 const activation_map = Dict("relu" => relu)
 
-function instantiate_solver(inputs::NODETrainParams)
+function instantiate_solver(inputs)
     return solver_map[inputs.solver]()
 end
 
-function instantiate_solver(inputs::NODETrainDataParams)
+function instantiate_solver(inputs)
     return solver_map[inputs.solver]()
     @warn "IN NEW METHOD "
 end
 
-function instantiate_sensealg(inputs::NODETrainParams)
+function instantiate_sensealg(inputs)
     return sensealg_map[inputs.sensealg]()
 end
 
-function instantiate_optimizer(inputs::NODETrainParams)
+function instantiate_optimizer(inputs)
     if inputs.optimizer == "Adam"
         return optimizer_map[inputs.optimizer](inputs.optimizer_η)
     elseif inputs.optimizer == "Bfgs"
@@ -37,7 +37,7 @@ function instantiate_optimizer(inputs::NODETrainParams)
     end
 end
 
-function instantiate_optimizer_adjust(inputs::NODETrainParams)
+function instantiate_optimizer_adjust(inputs)
     if inputs.optimizer_adjust == "Adam"
         return optimizer_map[inputs.optimizer_adjust](inputs.optimizer_adjust_η)
     elseif inputs.optimizer_adjust == "Bfgs"
@@ -45,7 +45,7 @@ function instantiate_optimizer_adjust(inputs::NODETrainParams)
     end
 end
 
-function instantiate_nn(inputs::NODETrainParams)
+function instantiate_nn(inputs)
     nn_activation = activation_map[inputs.node_activation]
     nn_hidden = inputs.node_layers
     nn_width = inputs.node_width
@@ -62,7 +62,7 @@ function instantiate_nn(inputs::NODETrainParams)
     return build_nn(nn_input, nn_output, nn_width, nn_hidden, nn_activation)
 end
 
-function instantiate_M(inputs::NODETrainParams)
+function instantiate_M(inputs)
     if inputs.ode_model == "vsm"
         ODE_ORDER = 19
         N_ALGEBRAIC = 2
@@ -81,7 +81,7 @@ function instantiate_surr(surr, nn, Vm, Vθ)
     return (dx, x, p, t) -> surr(dx, x, p, t, nn, Vm, Vθ)
 end
 
-function instantiate_surr(inputs::NODETrainParams, nn, Vm, Vθ)
+function instantiate_surr(inputs, nn, Vm, Vθ)
     if inputs.ode_model == "vsm"
         N_ALGEBRAIC_STATES = 2
         ODE_ORDER = 19
