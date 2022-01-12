@@ -7,7 +7,7 @@ end
 
 """
 docs for serialize
-""" 
+"""
 function serialize(inputs::NODETrainInputs, file_path::String)
     open(file_path, "w") do io
         JSON3.write(io, inputs)

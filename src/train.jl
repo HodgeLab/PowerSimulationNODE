@@ -255,7 +255,7 @@ function train(params::NODETrainParams)
     end
 
     min_θ = initial_params(nn)
-    #try
+    try
         total_time = @elapsed begin
             for group_pvs in partition(pvss, params.groupsize_faults)
                 @info "start of fault" min_θ[end]
@@ -306,9 +306,9 @@ function train(params::NODETrainParams)
         (params.graphical_report_mode != 0) &&
             visualize_training(params, visualize_level = params.graphical_report_mode)
         return true
-    #catch
-    #    return false
-    #end
+    catch
+        return false
+    end
 end
 
 # TODO: We want to add types in here to make the function performant
