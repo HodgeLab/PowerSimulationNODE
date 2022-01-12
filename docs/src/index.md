@@ -1,5 +1,5 @@
 # PowerSimulationNODE Documentation
 
 ```@docs
-greet()
+train
 ```
