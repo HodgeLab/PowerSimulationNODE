@@ -12,13 +12,6 @@ function serialize(inputs::NODETrainInputs, file_path::String)
     return
 end
 
-function serialize(inputs, file_path::String)
-    open(file_path, "w") do io
-        JSON3.write(io, inputs)
-    end
-    return
-end
-
 mutable struct NODETrainDataParams
     solver::String
     solver_tols::Tuple{Float64, Float64}
@@ -30,8 +23,10 @@ mutable struct NODETrainDataParams
     output_data_path::String
 end
 
+#For serializing 
 StructTypes.StructType(::Type{NODETrainDataParams}) = StructTypes.Struct()
 StructTypes.StructType(::Type{NODETrainInputs}) = StructTypes.Struct()
+
 function NODETrainDataParams(;
     solver = "Rodas4",
     solver_tols = (1e-6, 1e-9),

@@ -1,15 +1,12 @@
 using Mustache
 using Logging
 using PowerSimulationNODE
-#include("../src/constants.jl")
-#include("../src/HPCTrain.jl")
 
 struct TestParams
     train_id::String
 end
 
-#@test occursin("a", "aa")
-test = [TestParams("test"), TestParams("test2")]
+test = [NODETrainParams(train_id = "test2"), NODETrainParams(train_id = "test2")]
 
 hpc_params = SavioHPCTrain(;
     username = "test_user",
