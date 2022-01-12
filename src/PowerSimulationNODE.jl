@@ -7,6 +7,8 @@ export serialize
 export node_load_system
 export SummitHPCTrain
 export SavioHPCTrain
+export generate_train_files
+export run_parallel_train
 export fault_data_generator
 export build_pvs
 export label_area!
