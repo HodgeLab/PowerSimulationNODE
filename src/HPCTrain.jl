@@ -121,10 +121,10 @@ function SummitHPCTrain(;
 end
 
 function generate_train_files(train::HPCTrain)
-    mkpath(INPUT_FOLDER_NAME)
-    mkpath(INPUT_SYSTEM_FOLDER_NAME)
-    mkpath(OUTPUT_FOLDER_NAME)
-    touch(HPC_TRAIN_FILE)
+    mkpath(PowerSimulationNODE.INPUT_FOLDER_NAME)
+    mkpath(PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME)
+    mkpath(PowerSimulationNODE.OUTPUT_FOLDER_NAME)
+    touch(PowerSimulationNODE.HPC_TRAIN_FILE)
     #touch(joinpath(INPUT_FOLDER_NAME,"data.json"))
 
     data = Dict()
@@ -155,7 +155,7 @@ function generate_train_files(train::HPCTrain)
             param_file_path = joinpath(
                 train.scratch_path,
                 train.project_folder,
-                INPUT_FOLDER_NAME,
+                PowerSimulationNODE.INPUT_FOLDER_NAME,
                 "train_$(param.train_id).json",
             )
             if !isfile(param_file_path)

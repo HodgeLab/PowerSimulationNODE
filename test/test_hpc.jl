@@ -2,11 +2,8 @@ using Mustache
 using Logging
 using PowerSimulationNODE
 
-struct TestParams
-    train_id::String
-end
 
-test = [NODETrainParams(train_id = "test2"), NODETrainParams(train_id = "test2")]
+test = [NODETrainParams(train_id = "test1"), NODETrainParams(train_id = "test2")]
 
 hpc_params = SavioHPCTrain(;
     username = "test_user",
