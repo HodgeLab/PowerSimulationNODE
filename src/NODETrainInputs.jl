@@ -52,6 +52,10 @@ function NODETrainDataParams(;
     )
 end
 
+function NODETrainDataParams(file::AbstractString)
+    return JSON3.read(read(file), NODETrainDataParams)
+end
+
 #TODO - break up this function for ease of understanding/debugging 
 function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, DynamicInverter)
     tspan = NODETrainDataParams.tspan
