@@ -1,7 +1,8 @@
 using Mustache
 using Logging
-include("../src/constants.jl")
-include("../src/HPCTrain.jl")
+using PowerSimulationNODE
+#include("../src/constants.jl")
+#include("../src/HPCTrain.jl")
 
 struct TestParams
     train_id::String
