@@ -20,6 +20,11 @@ function instantiate_solver(inputs::NODETrainParams)
     return solver_map[inputs.solver]()
 end
 
+function instantiate_solver(inputs::NODETrainDataParams)
+    return solver_map[inputs.solver]()
+    @warn "IN NEW METHOD "
+end
+
 function instantiate_sensealg(inputs::NODETrainParams)
     return sensealg_map[inputs.sensealg]()
 end

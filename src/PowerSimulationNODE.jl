@@ -24,6 +24,8 @@ export visualize_training
 import Arrow
 using DiffEqFlux    #BFGS  
 using DiffEqSensitivity
+using DataFrames
+using FFTW
 using Flux
 using Flux.Losses: mae, mse
 using GalacticOptim
@@ -33,6 +35,7 @@ import Mustache          #Render
 using OrdinaryDiffEq     #Rodas4
 using PowerSimulationsDynamics
 using PowerSystems
+import Random
 using Requires
 import StructTypes
 import YAML

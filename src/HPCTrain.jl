@@ -125,7 +125,6 @@ function generate_train_files(train::HPCTrain)
     mkpath(PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME)
     mkpath(PowerSimulationNODE.OUTPUT_FOLDER_NAME)
     touch(PowerSimulationNODE.HPC_TRAIN_FILE)
-    #touch(joinpath(INPUT_FOLDER_NAME,"data.json"))
 
     data = Dict()
     data["username"] = train.username

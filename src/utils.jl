@@ -170,11 +170,12 @@ function build_disturbances(sys)  #TODO make this more flexible, add options for
     return disturbances
 end
 
-function add_devices_to_surrogatize!(
+#= function add_devices_to_surrogatize!(
     sys::System,
     n_devices::Integer,
     surrogate_bus_number::Integer,
     inf_bus_number::Integer,
+    DynamicInverter::DynamicInverter,
 )
     param_range = (0.5, 2.0)
     surrogate_bus =
@@ -217,7 +218,8 @@ function add_devices_to_surrogatize!(
         )
         add_component!(sys, g)
         if (i == 1)
-            inv_typ = inv_case78(get_name(g))
+            inv_typ = DynamicInverter
+            set_name!(inv_typ, get_name(g)))
             add_component!(sys, inv_typ, g)
         end
         if (i == 2)
@@ -229,7 +231,7 @@ function add_devices_to_surrogatize!(
             add_component!(sys, inv_typ, g)
         end
     end
-end
+end =#
 
 """
     activate_next_source!(sys::System)
@@ -290,7 +292,7 @@ end
 """
 Test function description
 """
-function build_sys_init(sys_train::System)
+function build_sys_init(sys_train::System, DynamicInverter::DynamicInverter)
     sys_init = deepcopy(sys_train)
     base_power_total = 0.0
     power_total = 0.0
@@ -319,7 +321,8 @@ function build_sys_init(sys_train::System)
         base_power = base_power_total,
     )
     add_component!(sys_init, g)
-    inv_typ = inv_case78(get_name(g))
+    inv_typ = DynamicInverter # inv_case78(get_name(g))
+    set_name!(inv_typ, get_name(g))
     add_component!(sys_init, inv_typ, g)
     p_inv = get_parameters(inv_typ)
     return sys_init, p_inv

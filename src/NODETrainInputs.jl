@@ -5,6 +5,9 @@ struct NODETrainInputs      #could move common data to fields outside of dict
     fault_data::Dict{String, Dict{Symbol, Any}}
 end
 
+"""
+docs for serialize
+""" 
 function serialize(inputs::NODETrainInputs, file_path::String)
     open(file_path, "w") do io
         JSON3.write(io, inputs)
@@ -50,7 +53,7 @@ function NODETrainDataParams(;
 end
 
 #TODO - break up this function for ease of understanding/debugging 
-function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS)
+function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, DynamicInverter)
     tspan = NODETrainDataParams.tspan
     steps = NODETrainDataParams.steps
     if NODETrainDataParams.tsteps_spacing == "linear"
@@ -108,7 +111,7 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS)
         )
         if NODETrainDataParams.ode_model == "vsm"
             #################### BUILD INITIALIZATION SYSTEM ###############################
-            sys_init, p_inv = build_sys_init(sys_train) #returns p_inv, the set of average parameters 
+            sys_init, p_inv = build_sys_init(sys_train, DynamicInverter) #returns p_inv, the set of average parameters 
             x₀, refs, Vr0, Vi0 = initialize_sys!(sys_init, "gen1")
             Vm, Vθ = Source_to_function_of_time(get_dynamic_injector(active_source))
             p_ode = vcat(p_inv, refs)
