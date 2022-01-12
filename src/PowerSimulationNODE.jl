@@ -20,14 +20,15 @@ export visualize_training
 
 #Import vs using?
 using Mustache
-using DifferentialEquations
+#using DifferentialEquations
+using DiffEqBase
 using DiffEqSensitivity
 using Logging
 using PowerSystems
 using PowerSimulationsDynamics
 using GalacticOptim
 using Plots
-using DiffEqFlux
+#using DiffEqFlux
 using Flux
 using Flux.Losses: mae, mse
 
