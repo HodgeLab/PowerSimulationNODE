@@ -27,7 +27,7 @@ to_json(sys_train, joinpath(TEST_FILES_DIR,PowerSimulationNODE.INPUT_FOLDER_NAME
 d = generate_train_data(sys_train, NODETrainDataParams(ode_model = "vsm"), SURROGATE_BUS, inv_case78("aa"))
 @warn d 
 @warn typeof(d)
-serialize(d, joinpath(TEST_FILES_DIR,PowerSimulationNODE.INPUT_FOLDER_NAME, "data.json"))
+PowerSimulationNODE.serialize(d, joinpath(TEST_FILES_DIR,PowerSimulationNODE.INPUT_FOLDER_NAME, "data.json"))
 
 #TODO: Add real @test statements 
 @test 1 == 1 

@@ -77,7 +77,7 @@ function instantiate_M(inputs)
     return MassMatrix(n_differential, N_ALGEBRAIC)
 end
 
-function instantiate_surr(surr, nn, Vm, Vθ)
+function _instantiate_surr(surr, nn, Vm, Vθ)
     return (dx, x, p, t) -> surr(dx, x, p, t, nn, Vm, Vθ)
 end
 
@@ -88,10 +88,10 @@ function instantiate_surr(inputs, nn, Vm, Vθ)
         if inputs.node_inputs == "voltage"
             if inputs.node_feedback_current
                 surr = surr_map[string("vsm_v_t_", inputs.node_feedback_states)]
-                return instantiate_surr(surr, nn, Vm, Vθ), N_ALGEBRAIC_STATES, ODE_ORDER
+                return _instantiate_surr(surr, nn, Vm, Vθ), N_ALGEBRAIC_STATES, ODE_ORDER
             else
                 surr = surr_map[string("vsm_v_f_", inputs.node_feedback_states)]
-                return instantiate_surr(surr, nn, Vm, Vθ), N_ALGEBRAIC_STATES, ODE_ORDER
+                return _instantiate_surr(surr, nn, Vm, Vθ), N_ALGEBRAIC_STATES, ODE_ORDER
             end
         else
             @warn "node input type not found during surrogate instantiatiion"
@@ -102,10 +102,10 @@ function instantiate_surr(inputs, nn, Vm, Vθ)
         if inputs.node_inputs == "voltage"
             if inputs.node_feedback_current
                 surr = surr_map[string("none_v_t_", inputs.node_feedback_states)]
-                return instantiate_surr(surr, nn, Vm, Vθ), N_ALGEBRAIC_STATES, ODE_ORDER
+                return _instantiate_surr(surr, nn, Vm, Vθ), N_ALGEBRAIC_STATES, ODE_ORDER
             else
                 surr = surr_map[string("none_v_f_", inputs.node_feedback_states)]
-                return instantiate_surr(surr, nn, Vm, Vθ), N_ALGEBRAIC_STATES, ODE_ORDER
+                return _instantiate_surr(surr, nn, Vm, Vθ), N_ALGEBRAIC_STATES, ODE_ORDER
             end
         else
             @warn "node input type not found during surrogate instantiatiion"

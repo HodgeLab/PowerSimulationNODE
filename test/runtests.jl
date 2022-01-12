@@ -13,7 +13,7 @@ const PSY = PowerSystems
 
 
 include("test_generate_train_files.jl")
-#include("test_train.jl")
-#include("test_hpc.jl")
+include("test_train.jl")
+include("test_hpc.jl")
 
 
