@@ -18,17 +18,16 @@ export NODETrainDataParams
 export visualize_summary
 export visualize_training
 
-#Import vs using?
-using Mustache
-#using DifferentialEquations
-using DiffEqBase
+#Change to import for clarit of namespace
+using Requires
+import Mustache          #Render 
+using OrdinaryDiffEq     #Rodas4
 using DiffEqSensitivity
 using Logging
 using PowerSystems
 using PowerSimulationsDynamics
 using GalacticOptim
-using Plots     #Need to get rid 
-using DiffEqFlux        
+using DiffEqFlux    #BFGS     
 using Flux
 using Flux.Losses: mae, mse
 
@@ -38,6 +37,9 @@ import StructTypes
 const PSY = PowerSystems
 const PSID = PowerSimulationsDynamics
 
+function __init__()
+    @require Plots="91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("visualize.jl")
+end
 include("surrogate_models.jl")
 include("NODETrainParams.jl")
 include("constants.jl")
@@ -46,7 +48,9 @@ include("HPCTrain.jl")
 include("instantiate.jl")
 include("NODETrainInputs.jl")
 include("train.jl")
+
+
 include("utils.jl")
-include("visualize.jl")
+
 
 end

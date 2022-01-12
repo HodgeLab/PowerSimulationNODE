@@ -1,11 +1,3 @@
-#using Pkg
-#Pkg.activate("Project.toml")
-#Pkg.instantiate
-#using PowerSimulationsDynamics
-#using PowerSystems
-#using Sundials
-#using Plots
-#using YAML
 
 function fault_data_generator(path_to_config)
     configuration = YAML.load_file(path_to_config)

@@ -388,7 +388,8 @@ function get_total_current_series(sim)
     return data_array
 end
 
-function plot_pvs(tsteps, pvs::PeriodicVariableSource, xaxis)
+#Doesn't actually plot
+function plot_pvs(tsteps, pvs::PeriodicVariableSource, xaxis)   
     V = zeros(length(tsteps))
     V = V .+ get_internal_voltage_bias(pvs)
     retrieved_freqs = get_internal_voltage_frequencies(pvs)
@@ -406,10 +407,7 @@ function plot_pvs(tsteps, pvs::PeriodicVariableSource, xaxis)
         θ += coeffs[i][1] * sin.(ω .* tsteps)
         θ += coeffs[i][2] * cos.(ω .* tsteps)
     end
-    p1 =
-        plot(tsteps, V, label = "plot from pvs coefficients", xaxis = xaxis, legend = false)
-    p2 = plot(tsteps, θ, label = "plot from pvs coefficients", xaxis = xaxis)
-    return p1, p2
+    return tsteps, V, θ
 end
 
 function extending_ranges(datasize::Integer, groupsize::Integer)
