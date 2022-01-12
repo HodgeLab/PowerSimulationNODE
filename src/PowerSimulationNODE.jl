@@ -19,21 +19,21 @@ export visualize_summary
 export visualize_training
 
 #Change to import for clarit of namespace
-using Requires
-import Mustache          #Render 
-using OrdinaryDiffEq     #Rodas4
+import Arrow
+using DiffEqFlux    #BFGS  
 using DiffEqSensitivity
-using Logging
-using PowerSystems
-using PowerSimulationsDynamics
-using GalacticOptim
-using DiffEqFlux    #BFGS     
 using Flux
 using Flux.Losses: mae, mse
-
-import Arrow
-import YAML
+using GalacticOptim
+using Logging
+import Mustache          #Render 
+using OrdinaryDiffEq     #Rodas4
+using PowerSimulationsDynamics
+using PowerSystems
+using Requires
 import StructTypes
+import YAML
+
 const PSY = PowerSystems
 const PSID = PowerSimulationsDynamics
 
