@@ -23,6 +23,9 @@ docs/site/
 # environment.
 Manifest.toml
 
+test/input_data
+test/output_data
+
 #log files
 *.log
 *.png
