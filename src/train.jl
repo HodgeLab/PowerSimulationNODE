@@ -188,7 +188,6 @@ Executes training according to params. Assumes the existence of the necessary in
 
 """
 function train(params::NODETrainParams)
-
     #INSTANTIATE
     sensealg = instantiate_sensealg(params)
     solver = instantiate_solver(params)
@@ -211,13 +210,13 @@ function train(params::NODETrainParams)
 
     res = nothing
     output = Dict{String, Any}(
-        "loss" => DataFrame(
+        "loss" => DataFrames.DataFrame(
             PVS_name = Vector{String}[],
             RangeCount = Int[],
             Loss = Float64[],
         ),
-        "parameters" => DataFrame(Parameters = Vector{Any}[]),
-        "predictions" => DataFrame(
+        "parameters" => DataFrames.DataFrame(Parameters = Vector{Any}[]),
+        "predictions" => DataFrames.DataFrame(
             t_prediction = Vector{Any}[],
             ir_prediction = Vector{Any}[],
             ii_prediction = Vector{Any}[],
@@ -450,7 +449,7 @@ function capture_output(output_dict, output_directory, id)
     output_path = joinpath(output_directory, id)
     mkpath(output_path)
     for (key, value) in output_dict
-        if typeof(value) == DataFrame
+        if typeof(value) == DataFrames.DataFrame
             df = pop!(output_dict, key)
             open(joinpath(output_path, key), "w") do io
                 Arrow.write(io, df)

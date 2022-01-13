@@ -29,14 +29,14 @@ function visualize_training(params::NODETrainParams; visualize_level = 1)
 end
 
 function visualize_2(params, path_to_output, path_to_input)
-    df_loss = DataFrame(Arrow.Table(joinpath(path_to_output, "loss")))
+    df_loss = DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "loss")))
     p1 = plot(df_loss.Loss, title = "Loss")
     p2 = plot(df_loss.RangeCount, title = "Range Count")
     return plot(p1, p2, layout = (2, 1))
 end
 
 function visualize_3(params, path_to_output, path_to_input, visualize_level)
-    df_loss = DataFrame(Arrow.Table(joinpath(path_to_output, "loss")))
+    df_loss = DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "loss")))
     list_plots = []
     p1 = plot(df_loss.Loss, title = "Loss")
     p2 = plot(df_loss.RangeCount, title = "Range Count")
@@ -57,7 +57,7 @@ function visualize_3(params, path_to_output, path_to_input, visualize_level)
     else
         @warn "Invalid value for parameter visualize_level"
     end
-    df_predictions = DataFrame(Arrow.Table(joinpath(path_to_output, "predictions")))
+    df_predictions = DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "predictions")))
     TrainInputs =
         JSON3.read(read(joinpath(params.input_data_path, "data.json")), NODETrainInputs)
     tsteps = TrainInputs.tsteps

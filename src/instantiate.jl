@@ -1,8 +1,10 @@
-const optimizer_map = Dict("Adam" => ADAM, "Bfgs" => BFGS)
+const optimizer_map = Dict("Adam" => ADAM, "Bfgs" => Optim.BFGS)  #use requires - wrap the methods so they are found in the current session 
+                                                            #These shouldn't be constants, make a function that only tries to find what ADAM is when it iscalled. 
+                                                            #function that receives the string and returns the method. 
 
-const solver_map = Dict("Rodas4" => Rodas4)
+const solver_map = Dict("Rodas4" => Rodas4) #use requires 
 
-const sensealg_map = Dict("ForwardDiffSensitivity" => ForwardDiffSensitivity)
+const sensealg_map = Dict("ForwardDiffSensitivity" => DiffEqSensitivity.ForwardDiffSensitivity)   #use requires 
 
 const surr_map = Dict(
     "vsm_v_t_0" => vsm_v_t_0,
@@ -18,11 +20,6 @@ const activation_map = Dict("relu" => relu)
 
 function instantiate_solver(inputs)
     return solver_map[inputs.solver]()
-end
-
-function instantiate_solver(inputs)
-    return solver_map[inputs.solver]()
-    @warn "IN NEW METHOD "
 end
 
 function instantiate_sensealg(inputs)

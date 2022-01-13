@@ -4,7 +4,6 @@
 
 Builds a train system by combining a system with pre-defined faults and a system with the structure
 """
-
 function build_sys_train(sys_faults::System, sys_full::System, Ref_bus_number::Integer)
     sys_train = deepcopy(sys_full)
     #remove_components!(sys_train, FixedAdmittance) #BUG add back if you include fixed admittance

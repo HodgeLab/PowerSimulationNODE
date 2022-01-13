@@ -22,13 +22,13 @@ export visualize_training
 
 #TODO - Change to import for clarity of namespace
 import Arrow
-using DiffEqFlux    #BFGS  
-using DiffEqSensitivity
-using DataFrames
+import Optim
+#using DiffEqSensitivity #get rid 
+import DataFrames    
 using FFTW
-using Flux
+using Flux  #get rid 
 using Flux.Losses: mae, mse
-using GalacticOptim
+using GalacticOptim #Need this OptimizationProblem, OptimizationFunction, etc. 
 using IterTools
 import JSON3
 using Logging
@@ -46,6 +46,7 @@ const PSY = PowerSystems
 const PSID = PowerSimulationsDynamics
 
 function __init__()
+    @require DiffEqSensitivity = "41bf760c-e81c-5289-8e54-58b1f1f8abe2" include("instantiate.jl")
     @require Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("visualize.jl")
 end
 include("surrogate_models.jl")
@@ -53,7 +54,7 @@ include("NODETrainParams.jl")
 include("constants.jl")
 include("fault_pvs.jl")
 include("HPCTrain.jl")
-include("instantiate.jl")
+#include("instantiate.jl")
 include("NODETrainInputs.jl")
 include("train.jl")
 include("utils.jl")
