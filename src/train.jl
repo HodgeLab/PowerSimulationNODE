@@ -180,8 +180,12 @@ function calculate_per_solve_maxiters(params, tsteps, n_faults)
     return per_solve_maxiters
 end
 
+
 """
-The train function takes parameters and trains a NODE
+    train(params::NODETrainParams)
+
+Executes training according to params. Assumes the existence of the necessary input files. 
+
 """
 function train(params::NODETrainParams)
 

@@ -1,4 +1,6 @@
 """
+    mutable struct NODETrainParams
+
 # Fields
 - `train_id::Int64`: id for the training instance, used for naming output data folder.
 - `solver::String`: solver used for the NODE problem. Valid Values ["Rodas4"]
@@ -161,6 +163,11 @@ function read_input_data(pvs, d)
     return id, tsteps, i_ground_truth, i_node_off, p_ode, x₀, p_V₀
 end
 
+"""
+    serialize(inputs::NODETrainParams, file_path::String)
+
+Serializes  the input to JSON file.
+"""
 function serialize(inputs::NODETrainParams, file_path::String)
     open(file_path, "w") do io
         JSON3.write(io, inputs)

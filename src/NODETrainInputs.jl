@@ -6,7 +6,9 @@ struct NODETrainInputs      #could move common data to fields outside of dict
 end
 
 """
-docs for serialize
+    serialize(inputs::NODETrainInputs, file_path::String)
+
+Serializes  the input to JSON file.
 """
 function serialize(inputs::NODETrainInputs, file_path::String)
     open(file_path, "w") do io

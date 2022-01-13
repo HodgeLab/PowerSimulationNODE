@@ -618,6 +618,11 @@ function remove_area(sys_original::System, area_name::String)
     return sys
 end
 
+"""
+    node_load_system(inputs...)
+
+Configures logging and calls PSY.System(inputs...). 
+""" 
 function node_load_system(inputs...)
     logger =
         configure_logging(console_level = PSY_CONSOLE_LEVEL, file_level = PSY_FILE_LEVEL)
