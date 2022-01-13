@@ -1,5 +1,5 @@
 
-function fault_data_generator(path_to_config)
+function fault_data_generator(path_to_config, path_to_full_system)
     configuration = YAML.load_file(path_to_config)
 
     SimulationParameters = configuration["SimulationParameters"]
@@ -7,7 +7,7 @@ function fault_data_generator(path_to_config)
     OutputParameters = configuration["OutputParameters"]
 
     t_fault = SimulationParameters["FaultTime"]
-    system = node_load_system(configuration["CompleteSystemPath"])
+    system = node_load_system(path_to_full_system)
 
     faults = []
     append_faults!(faults, FaultParameters, system, t_fault) #Build list of PSID faults based on FaultParameters

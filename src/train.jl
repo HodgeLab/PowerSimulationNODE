@@ -256,56 +256,56 @@ function train(params::NODETrainParams)
 
     min_θ = initial_params(nn)
     #try
-        total_time = @elapsed begin
-            for group_pvs in partition(pvss, params.groupsize_faults)
-                @info "start of fault" min_θ[end]
-                @show pvs_names_subset = get_name.(group_pvs)
+    total_time = @elapsed begin
+        for group_pvs in partition(pvss, params.groupsize_faults)
+            @info "start of fault" min_θ[end]
+            @show pvs_names_subset = get_name.(group_pvs)
 
-                res, output = _train(
-                    min_θ,
-                    params,
-                    sensealg,
-                    solver,
-                    optimizer,
-                    Ir_scale,
-                    Ii_scale,
-                    output,
-                    tsteps,
-                    pvs_names_subset,
-                    fault_data,
-                    per_solve_maxiters,
-                )
+            res, output = _train(
+                min_θ,
+                params,
+                sensealg,
+                solver,
+                optimizer,
+                Ir_scale,
+                Ii_scale,
+                output,
+                tsteps,
+                pvs_names_subset,
+                fault_data,
+                per_solve_maxiters,
+            )
 
-                min_θ = copy(res.u)
-                @info "end of fault" min_θ[end]
-            end
-
-            #TRAIN ADJUSTMENTS GO HERE (TODO)
+            min_θ = copy(res.u)
+            @info "end of fault" min_θ[end]
         end
-        @info "min_θ[end] (end of training)" min_θ[end]
-        output["total_time"] = total_time
 
-        pvs_names = get_name.(pvss)
-        final_loss_for_comparison = calculate_final_loss(
-            params,
-            res.u,
-            solver,
-            nn,
-            M,
-            pvs_names,
-            fault_data,
-            tsteps,
-            sensealg,
-            Ir_scale,
-            Ii_scale,
-            output,
-        )
-        output["final_loss"] = final_loss_for_comparison
+        #TRAIN ADJUSTMENTS GO HERE (TODO)
+    end
+    @info "min_θ[end] (end of training)" min_θ[end]
+    output["total_time"] = total_time
 
-        capture_output(output, params.output_data_path, params.train_id)
-        (params.graphical_report_mode != 0) &&
-            visualize_training(params, visualize_level = params.graphical_report_mode)
-        return true
+    pvs_names = get_name.(pvss)
+    final_loss_for_comparison = calculate_final_loss(
+        params,
+        res.u,
+        solver,
+        nn,
+        M,
+        pvs_names,
+        fault_data,
+        tsteps,
+        sensealg,
+        Ir_scale,
+        Ii_scale,
+        output,
+    )
+    output["final_loss"] = final_loss_for_comparison
+
+    capture_output(output, params.output_data_path, params.train_id)
+    (params.graphical_report_mode != 0) &&
+        visualize_training(params, visualize_level = params.graphical_report_mode)
+    return true
     #catch
     #    return false
     #end
