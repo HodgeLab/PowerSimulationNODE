@@ -1,33 +1,41 @@
+path = (joinpath(pwd(), "hpc-test-dir"))
+!isdir(path) && mkdir(path)
 
-test = [NODETrainParams(train_id = "test1"), NODETrainParams(train_id = "test2")]
+try 
+    test = [NODETrainParams(train_id = "test1"), NODETrainParams(train_id = "test2")]
 
-hpc_params = SavioHPCTrain(;
-    username = "test_user",
-    params_data = test,
-    project_folder = "test",
-    scratch_path = mktempdir(),
-    n_nodes = 2,
-)
-mkpath(joinpath(hpc_params.scratch_path, hpc_params.project_folder))
-cd(joinpath(hpc_params.scratch_path, hpc_params.project_folder))
+    hpc_params = SavioHPCTrain(;
+        username = "test_user",
+        params_data = test,
+        project_folder = "test",
+        scratch_path = path,
+        n_nodes = 2,
+    )
+    mkpath(joinpath(hpc_params.scratch_path, hpc_params.project_folder))
+    #cd(joinpath(hpc_params.scratch_path, hpc_params.project_folder))
 
-generate_train_files(hpc_params)
-file = read(hpc_params.train_bash_file, String)
+    generate_train_files(hpc_params)
+    file = read(hpc_params.train_bash_file, String)
 
-@test occursin("--slf hostfile", file)
-@test !occursin("SLURM_NPROCS", file)
+    @test occursin("--slf hostfile", file)
+    @test !occursin("SLURM_NPROCS", file)
 
-hpc_params = SavioHPCTrain(;
-    username = "test_user",
-    params_data = test,
-    project_folder = "test",
-    scratch_path = mktempdir(),
-)
+    hpc_params = SavioHPCTrain(;
+        username = "test_user",
+        params_data = test,
+        project_folder = "test",
+        scratch_path = mktempdir(),
+    )
 
-mkpath(joinpath(hpc_params.scratch_path, hpc_params.project_folder))
-cd(joinpath(hpc_params.scratch_path, hpc_params.project_folder))
+    mkpath(joinpath(hpc_params.scratch_path, hpc_params.project_folder))
+    cd(joinpath(hpc_params.scratch_path, hpc_params.project_folder))
 
-generate_train_files(hpc_params)
-file = read(hpc_params.train_bash_file, String)
-@test !occursin("--slf hostfile", file)
-@test occursin("SLURM_NPROCS", file)
+    generate_train_files(hpc_params)
+    file = read(hpc_params.train_bash_file, String)
+    @test !occursin("--slf hostfile", file)
+    @test occursin("SLURM_NPROCS", file)
+
+finally
+    @info("removing test files")
+    rm(path, force = true, recursive = true)
+end 

@@ -121,10 +121,12 @@ function SummitHPCTrain(;
 end
 
 function generate_train_files(train::HPCTrain)
-    mkpath(PowerSimulationNODE.INPUT_FOLDER_NAME)
-    mkpath(PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME)
-    mkpath(PowerSimulationNODE.OUTPUT_FOLDER_NAME)
-    touch(PowerSimulationNODE.HPC_TRAIN_FILE)
+    scratch_path = train.scratch_path
+    project_folder = train.project_folder
+    mkpath(joinpath(scratch_path,project_folder,PowerSimulationNODE.INPUT_FOLDER_NAME))
+    mkpath(joinpath(scratch_path,project_folder,PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME))
+    mkpath(joinpath(scratch_path,project_folder,PowerSimulationNODE.OUTPUT_FOLDER_NAME))
+    touch(joinpath(scratch_path,project_folder,PowerSimulationNODE.HPC_TRAIN_FILE))
 
     data = Dict()
     data["username"] = train.username
