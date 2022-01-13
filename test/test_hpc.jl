@@ -23,12 +23,12 @@ try
     hpc_params = SavioHPCTrain(;
         username = "test_user",
         params_data = test,
-        project_folder = "test",
-        scratch_path = mktempdir(),
+        project_folder = "test2",
+        scratch_path = path,
     )
 
     mkpath(joinpath(hpc_params.scratch_path, hpc_params.project_folder))
-    cd(joinpath(hpc_params.scratch_path, hpc_params.project_folder))
+    #cd(joinpath(hpc_params.scratch_path, hpc_params.project_folder))
 
     generate_train_files(hpc_params)
     file = read(hpc_params.train_bash_file, String)

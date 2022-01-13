@@ -20,7 +20,7 @@ export NODETrainDataParams
 export visualize_summary
 export visualize_training
 
-#Change to import for clarit of namespace
+#TODO - Change to import for clarity of namespace
 import Arrow
 using DiffEqFlux    #BFGS  
 using DiffEqSensitivity
