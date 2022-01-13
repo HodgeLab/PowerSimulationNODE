@@ -162,7 +162,7 @@ function _pred_function(θ, tsteps, P, solver, surr_prob, tols, sensealg, u₀)
         reltol = tols[2],
         saveat = tsteps,
         save_idxs = [1, 2],  #First 2 states always the output currents?  , I__II_OUT, I__IR_FILTER, I__II_FILTER, I__IR_NN, I__II_NN], #first two for loss function, rest for data export TODO - should not be constant, depends on surrogate model 
-        sensealg = ForwardDiffSensitivity(),
+        sensealg = sensealg, #ForwardDiffSensitivity(),
     )
     #@warn "sol", Array(sol)
     return Array(sol)
