@@ -187,7 +187,7 @@ function build_fault_data_dataframe(faults, system, OutputParameters, Simulation
         end
         d = Dict(
             "fault" => fault,
-            "data" => DataFrame(timeseries_data, Symbol.(column_names)),
+            "data" => DataFrames.DataFrame(timeseries_data, Symbol.(column_names)),
         )
 
         if OutputParameters["PVS"]["SavePVSData"]
