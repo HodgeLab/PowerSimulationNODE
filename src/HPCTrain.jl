@@ -36,7 +36,7 @@ dataecho \$SLURM_JOB_NODELIST |sed s/\\,/\\\\n/g > hostfile
 
 {{#n_nodes}}parallel --jobs \$SLURM_CPUS_ON_NODE --slf hostfile \\ {{/n_nodes}}{{^n_nodes}}parallel --jobs \$SLURM_NPROCS \\{{/n_nodes}}
     --wd {{{project_path}}} \\
-    --progress -a {{{train_set_file}}}\\
+    -a {{{train_set_file}}}\\
     --joblog {{{project_path}}}/hpc_train.log \\
     julia --project={{{project_path}}} {{{project_path}}}/scripts/train_node.jl {}
 """
