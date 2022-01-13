@@ -54,16 +54,16 @@ function build_pvs(dict_fault_data; pad_signal = true)
         #Dft 
         N = length(t)
         fs = (N - 1) / (t[end] - t[1])
-        freqs = fftfreq(N, fs)
+        freqs = FFTW.fftfreq(N, fs)
         freqs_pos = freqs[freqs .>= 0] * (2 * pi)
 
-        F_V = fft(Vm)
+        F_V = FFTW.fft(Vm)
         F_V = F_V[freqs .>= 0]
         F_V = F_V / N
         F_V[2:end] = F_V[2:end] * 2
         internal_voltage_coefficients = [(-imag(f), real(f)) for f in F_V[2:end]]
 
-        F_θ = fft(Vθ)
+        F_θ = FFTW.fft(Vθ)
         F_θ = F_θ[freqs .>= 0]
         F_θ = F_θ / N
         F_θ[2:end] = F_θ[2:end] * 2

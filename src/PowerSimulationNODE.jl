@@ -23,9 +23,8 @@ export visualize_training
 #TODO - Change to import for clarity of namespace
 import Arrow
 import Optim
-#using DiffEqSensitivity #get rid 
 import DataFrames    
-using FFTW
+import FFTW
 using Flux  #get rid 
 using Flux.Losses: mae, mse
 using GalacticOptim #Need this OptimizationProblem, OptimizationFunction, etc. 

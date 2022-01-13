@@ -360,12 +360,12 @@ function _train(
             batchsize = batchsize,
         )   #TODO - default for shuffle is false, make new parameter? 
 
-        optfun = OptimizationFunction(
+        optfun = GalacticOptim.OptimizationFunction(
             (θ, p, batch, time_batch, pvs_name_batch) ->
                 loss_function(θ, batch, time_batch, pvs_name_batch),
             GalacticOptim.AutoForwardDiff(),
         )
-        optprob = OptimizationProblem(optfun, min_θ)
+        optprob = GalacticOptim.OptimizationProblem(optfun, min_θ)
         cb = instantiate_cb!(
             output,
             params.lb_loss,
