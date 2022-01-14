@@ -26,25 +26,25 @@ import Optim
 import DataFrames    
 import DiffEqSensitivity
 import FFTW
-import Flux  #get rid 
+import Flux 
 import Flux.Losses: mae, mse
-import GalacticOptim #Need this OptimizationProblem, OptimizationFunction, etc. 
+import GalacticOptim
 import IterTools
 import JSON3
 import Logging
-import Mustache          #Render
+import Mustache         
 import NLsolve
-import OrdinaryDiffEq     #Rodas4
+import OrdinaryDiffEq    
 using PowerSimulationsDynamics
 using PowerSystems
 import Random
-using Requires
 import StructTypes
 import YAML
 
 const PSY = PowerSystems
 const PSID = PowerSimulationsDynamics
 
+using Requires
 function __init__()
     #@require DiffEqSensitivity = "41bf760c-e81c-5289-8e54-58b1f1f8abe2" include("instantiate.jl")  #instantiations called from other files 
     @require Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("visualize.jl")

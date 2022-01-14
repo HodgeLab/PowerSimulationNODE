@@ -421,48 +421,48 @@ end
 
 function build_nn(input_dim, output_dim, nn_width, nn_hidden, nn_activation)
     if nn_hidden == 1
-        nn = FastChain(
-            FastDense(input_dim, nn_width, nn_activation),
-            FastDense(nn_width, nn_width, nn_activation),
-            FastDense(nn_width, output_dim),
+        nn = Flux.Chain(
+            Flux.Dense(input_dim, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, output_dim),
         )
         return nn
     elseif nn_hidden == 2
-        nn = FastChain(
-            FastDense(input_dim, nn_width, nn_activation),
-            FastDense(nn_width, nn_width, nn_activation),
-            FastDense(nn_width, nn_width, nn_activation),
-            FastDense(nn_width, output_dim),
+        nn = Flux.Chain(
+            Flux.Dense(input_dim, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, output_dim),
         )
         return nn
     elseif nn_hidden == 3
-        nn = FastChain(
-            FastDense(input_dim, nn_width, nn_activation),
-            FastDense(nn_width, nn_width, nn_activation),
-            FastDense(nn_width, nn_width, nn_activation),
-            FastDense(nn_width, nn_width, nn_activation),
-            FastDense(nn_width, output_dim),
+        nn = Flux.Chain(
+            Flux.Dense(input_dim, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, output_dim),
         )
         return nn
     elseif nn_hidden == 4
-        nn = FastChain(
-            FastDense(input_dim, nn_width, nn_activation),
-            FastDense(nn_width, nn_width, nn_activation),
-            FastDense(nn_width, nn_width, nn_activation),
-            FastDense(nn_width, nn_width, nn_activation),
-            FastDense(nn_width, nn_width, nn_activation),
-            FastDense(nn_width, output_dim),
+        nn = Flux.Chain(
+            Flux.Dense(input_dim, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, output_dim),
         )
         return nn
     elseif nn_hidden == 5
-        nn = FastChain(
-            FastDense(input_dim, nn_width, nn_activation),
-            FastDense(nn_width, nn_width, nn_activation),
-            FastDense(nn_width, nn_width, nn_activation),
-            FastDense(nn_width, nn_width, nn_activation),
-            FastDense(nn_width, nn_width, nn_activation),
-            FastDense(nn_width, nn_width, nn_activation),
-            FastDense(nn_width, output_dim),
+        nn = Flux.Chain(
+            Flux.Dense(input_dim, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, output_dim),
         )
         return nn
     else
