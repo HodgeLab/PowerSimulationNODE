@@ -51,7 +51,7 @@ function initialize_surrogate(
     end
     P.pf = fault_dict[:p_pf]
     P.network = fault_dict[:p_network]
-    P.nn = initial_params(nn)
+    P.nn = DiffEqFlux.initial_params(nn)
     P.n_weights = [Float64(length(P.nn))]
     if params.ode_model == "none"
         P.scale = [params.node_input_scale, params.node_output_scale]
@@ -257,7 +257,7 @@ function train(params::NODETrainParams)
         fault_data[get_name(pvs)][:P] = P   #parameters are stored in surr_prob, but as a single vector. The P struct allows for easier handling. 
     end
 
-    min_θ = initial_params(nn)
+    min_θ = DiffEqFlux.initial_params(nn)
     #try
     total_time = @elapsed begin
         for group_pvs in partition(pvss, params.groupsize_faults)

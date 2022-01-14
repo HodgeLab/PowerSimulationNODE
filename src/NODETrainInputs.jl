@@ -137,7 +137,7 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, Dyna
                 solver,
                 abstol = abstol,
                 reltol = reltol,
-                initializealg = NoInit(),
+                initializealg = OrdinaryDiffEq.NoInit(),
                 reset_simulation = false,
                 saveat = tsteps,
             )

@@ -1,6 +1,5 @@
 module PowerSimulationNODE
 
-#export the structs / functions I currently use in the scripts
 export train
 export NODETrainParams
 export serialize
@@ -20,11 +19,10 @@ export NODETrainDataParams
 export visualize_summary
 export visualize_training
 
-#TODO - Change to import for clarity of namespace
 import Arrow
-import Optim
-import DataFrames    
-import DiffEqSensitivity
+import DataFrames 
+import DiffEqFlux
+import DiffEqSensitivity    #TODO - use requires for this, but will require some reorganization of code
 import FFTW
 import Flux 
 import Flux.Losses: mae, mse
@@ -34,9 +32,10 @@ import JSON3
 import Logging
 import Mustache         
 import NLsolve
+import Optim
 import OrdinaryDiffEq    
-using PowerSimulationsDynamics
-using PowerSystems
+using PowerSimulationsDynamics #TODO - Change to import for clarity of namespace
+using PowerSystems             #TODO - Change to import for clarity of namespace
 import Random
 import StructTypes
 import YAML
