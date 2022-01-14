@@ -1,4 +1,4 @@
-const optimizer_map = Dict("Adam" => ADAM, "Bfgs" => Optim.BFGS)  #use requires - wrap the methods so they are found in the current session 
+const optimizer_map = Dict("Adam" => Flux.Optimise.ADAM, "Bfgs" => Optim.BFGS)  #use requires - wrap the methods so they are found in the current session 
                                                             #These shouldn't be constants, make a function that only tries to find what ADAM is when it iscalled. 
                                                             #function that receives the string and returns the method. 
 
@@ -16,7 +16,7 @@ const surr_map = Dict(
     "none_v_t_5" => none_v_t_5,
 )
 
-const activation_map = Dict("relu" => relu)
+const activation_map = Dict("relu" => Flux.relu)
 
 function instantiate_solver(inputs)
     return solver_map[inputs.solver]()
