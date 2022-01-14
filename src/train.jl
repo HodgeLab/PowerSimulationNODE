@@ -75,7 +75,7 @@ function initialize_surrogate(
     if params.ode_model != "none"   #only do an NL solve if there is an ODE part. Otherwise, set initial conditions and try to solve.
         @warn "Power flow results", P.pf
         h = get_init_surr(p, Ir_pf, Ii_pf, surr)
-        res_surr = nlsolve(h, x₀_surr)
+        res_surr = NLsolve.nlsolve(h, x₀_surr)
         @assert converged(res_surr)
         dx = similar(x₀_surr)
         surr(dx, res_surr.zero, p, 0.0)
@@ -379,7 +379,7 @@ function _train(
         res = GalacticOptim.solve(
             optprob,
             optimizer,
-            ncycle(train_loader, per_solve_maxiters),
+            IterTools.ncycle(train_loader, per_solve_maxiters),
             cb = cb,
         )
         min_θ = copy(res.u)

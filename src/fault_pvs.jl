@@ -121,7 +121,7 @@ function build_fault_data_dataframe(faults, system, OutputParameters, Simulation
         @warn fault
         execute!(
             sim,
-            Rodas4(),  #TODO use from yaml 
+            OrdinaryDiffEq.Rodas4(),  #TODO use from yaml 
             abstol = abstol,
             reltol = reltol,
             reset_simulation = false,

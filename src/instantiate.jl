@@ -2,7 +2,7 @@ const optimizer_map = Dict("Adam" => ADAM, "Bfgs" => Optim.BFGS)  #use requires 
                                                             #These shouldn't be constants, make a function that only tries to find what ADAM is when it iscalled. 
                                                             #function that receives the string and returns the method. 
 
-const solver_map = Dict("Rodas4" => Rodas4) #use requires 
+const solver_map = Dict("Rodas4" => OrdinaryDiffEq.Rodas4) #use requires 
 
 const sensealg_map = Dict("ForwardDiffSensitivity" => DiffEqSensitivity.ForwardDiffSensitivity)   #use requires 
 

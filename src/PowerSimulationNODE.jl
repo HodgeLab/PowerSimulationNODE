@@ -24,16 +24,17 @@ export visualize_training
 import Arrow
 import Optim
 import DataFrames    
+import DiffEqSensitivity
 import FFTW
-using Flux  #get rid 
-using Flux.Losses: mae, mse
-using GalacticOptim #Need this OptimizationProblem, OptimizationFunction, etc. 
-using IterTools
+import Flux  #get rid 
+import Flux.Losses: mae, mse
+import GalacticOptim #Need this OptimizationProblem, OptimizationFunction, etc. 
+import IterTools
 import JSON3
-using Logging
+import Logging
 import Mustache          #Render
-using NLsolve
-using OrdinaryDiffEq     #Rodas4
+import NLsolve
+import OrdinaryDiffEq     #Rodas4
 using PowerSimulationsDynamics
 using PowerSystems
 import Random
@@ -45,7 +46,7 @@ const PSY = PowerSystems
 const PSID = PowerSimulationsDynamics
 
 function __init__()
-    @require DiffEqSensitivity = "41bf760c-e81c-5289-8e54-58b1f1f8abe2" include("instantiate.jl")
+    #@require DiffEqSensitivity = "41bf760c-e81c-5289-8e54-58b1f1f8abe2" include("instantiate.jl")  #instantiations called from other files 
     @require Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("visualize.jl")
 end
 include("surrogate_models.jl")
