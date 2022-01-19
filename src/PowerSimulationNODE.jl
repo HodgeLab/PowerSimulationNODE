@@ -21,6 +21,7 @@ export visualize_training
 
 import Arrow
 import DataFrames
+import DataStructures
 import DiffEqFlux
 import DiffEqSensitivity    #TODO - use requires for this, but will require some reorganization of code
 import FFTW
