@@ -161,14 +161,13 @@ function get_init_surr(p, Ir_pf, Ii_pf, surr)
     end
 end
 
-#TODO - recalculate, per_solve_maxiters 
-function calculate_per_solve_maxiters(params, n_faults) 
-
+#TODO - verify this is correct 
+function calculate_per_solve_maxiters(params, n_faults)
     total_maxiters = params.maxiters
     groupsize_faults = params.groupsize_faults
     @warn n_groups = length(params.training_groups)   #check what this gives
-    per_solve_maxiters = Int(
-        floor( (total_maxiters * groupsize_faults) / (n_faults * n_groups)))
+    per_solve_maxiters =
+        Int(floor((total_maxiters * groupsize_faults) / (n_faults * n_groups)))
     @info "per solve maxiters" per_solve_maxiters
     if per_solve_maxiters == 0
         @error "maxiters is too low. The calculated maxiters per solve is 0! cannot train"
@@ -221,8 +220,7 @@ function train(params::NODETrainParams)
         "final_loss" => [],
         "train_id" => params.train_id,
     )
-    per_solve_maxiters =
-        calculate_per_solve_maxiters(params, length(pvss))
+    per_solve_maxiters = calculate_per_solve_maxiters(params, length(pvss))
 
     #PREPARE SURROGATES FOR EACH FAULT - this is what is different for pure NODE 
     for pvs in pvss
@@ -324,7 +322,7 @@ function _train(
     fault_data,
     per_solve_maxiters,
 )
-#Pred function will change because you sum over multiple loss functions instead of making a giant prediction and calling loss function once. 
+    #Pred function will change because you sum over multiple loss functions instead of making a giant prediction and calling loss function once. 
     pred_function = instantiate_pred_function(
         solver,
         pvs_names_subset,
@@ -342,8 +340,10 @@ function _train(
     )
 
     #TODO - instantiate the outerloss function -> splits up the input data based on name, define a multiple shoot problem for each fault, sum the losses, concatonate the predictions. 
+
     datasize = length(tsteps)
-    ranges = extending_ranges(datasize, params.groupsize_steps)
+    #ranges = extending_ranges(datasize, params.groupsize_steps)
+    ranges = derive_ranges(params.training_groups, tsteps)              #ranges are ranges of the data corresponding to the groups
     res = nothing
     min_θ = θ
     range_count = 1

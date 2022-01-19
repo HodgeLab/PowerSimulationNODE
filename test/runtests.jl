@@ -10,4 +10,4 @@ const TEST_FILES_DIR = test_file_dir
 const PSY = PowerSystems
 
 include("test_generate_and_train.jl")
-include("test_hpc.jl")
+#include("test_hpc.jl")

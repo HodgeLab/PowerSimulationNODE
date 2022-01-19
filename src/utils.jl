@@ -412,7 +412,20 @@ function plot_pvs(tsteps, pvs::PeriodicVariableSource, xaxis)
     return tsteps, V, θ
 end
 
-function extending_ranges(datasize::Integer, groupsize::Integer)
+function derive_ranges(training_groups, tsteps)
+    ranges = Vector{UnitRange{Int64}}()
+    for (k, v) in training_groups
+        @show k
+        @show v
+        first_index = findfirst(x -> x >= k[1], tsteps)
+        last_index = findlast(x -> x <= k[2], tsteps)
+        push!(ranges, first_index:last_index)
+    end
+    return ranges
+end
+
+#replaced with derive_ranges 
+#= function extending_ranges(datasize::Integer, groupsize::Integer)
     1 <= groupsize <= datasize || throw(
         DomainError(
             groupsize,
@@ -420,7 +433,7 @@ function extending_ranges(datasize::Integer, groupsize::Integer)
         ),
     )
     return [1:min(datasize, i + groupsize - 1) for i in 1:groupsize:datasize]
-end
+end =#
 
 function build_nn(input_dim, output_dim, nn_width, nn_hidden, nn_activation)
     if nn_hidden == 1

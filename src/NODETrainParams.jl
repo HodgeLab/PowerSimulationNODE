@@ -51,7 +51,13 @@ mutable struct NODETrainParams
     maxiters::Int64
     lb_loss::Float64
     #batching::Bool
-    training_groups::Dict{Tuple{Float64,Float64}, NamedTuple{(:multiple_shoot_time_interval, :batching_sample_factor), Tuple{Float64, Float64}}}
+    training_groups::DataStructures.SortedDict{
+        Tuple{Float64, Float64},
+        NamedTuple{
+            (:multiple_shoot_time_interval, :batching_sample_factor),
+            Tuple{Float64, Float64},
+        },
+    }
     #batch_factor::Float64
     #groupsize_steps::Int64
     groupsize_faults::Int64
@@ -88,7 +94,10 @@ function NODETrainParams(;
     optimizer_adjust_η = 0.01,
     maxiters = 15,
     lb_loss = 0.0,
-    training_groups = Dict((0.0,1.0) => (multiple_shoot_time_segment=1.0, batching_sample_factor=1.0)),
+    training_groups = DataStructures.SortedDict(
+        (0.0, 1.0) => (multiple_shoot_time_interval = 1.0, batching_sample_factor = 1.0),
+        (0.0, 2.0) => (multiple_shoot_time_interval = 1.0, batching_sample_factor = 1.0),
+    ),
     #batching = false,
     #batch_factor = 1.0,
     #groupsize_steps = 55,
@@ -155,7 +164,8 @@ function NODETrainParams(file::AbstractString)
     return JSON3.read(read(file), NODETrainParams)
 end
 
-function read_input_data(pvs, d)
+#No longer used 
+#= function read_input_data(pvs, d)
     id = get_name(pvs)
     tsteps = Float64.(d[:tsteps])
     i_ground_truth = vcat(Float64.(d[:ir_ground_truth])', Float64.(d[:ii_ground_truth])')
@@ -164,7 +174,7 @@ function read_input_data(pvs, d)
     x₀ = Float64.(d[:x₀])
     p_V₀ = Float64.(d[:V₀])
     return id, tsteps, i_ground_truth, i_node_off, p_ode, x₀, p_V₀
-end
+end =#
 
 """
     serialize(inputs::NODETrainParams, file_path::String)

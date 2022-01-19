@@ -6,7 +6,7 @@ This struct contains the input data needed for training.
 - `tsteps::Vector{Float64}`: The time steps corresponding to ground truth data
 - `fault_data::Dict{String, Dict{Symbol, Any}}`: The data for each fault including...
 """
-struct NODETrainInputs      
+struct NODETrainInputs
     tsteps::Vector{Float64}
     fault_data::Dict{String, Dict{Symbol, Any}}
 end
