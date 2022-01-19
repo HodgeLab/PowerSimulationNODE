@@ -1,7 +1,7 @@
 path = (joinpath(pwd(), "hpc-test-dir"))
 !isdir(path) && mkdir(path)
 
-try 
+try
     test = [NODETrainParams(train_id = "test1"), NODETrainParams(train_id = "test2")]
 
     hpc_params = SavioHPCTrain(;
@@ -38,4 +38,4 @@ try
 finally
     @info("removing test files")
     rm(path, force = true, recursive = true)
-end 
+end

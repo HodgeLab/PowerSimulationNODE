@@ -1,10 +1,11 @@
 const optimizer_map = Dict("Adam" => Flux.Optimise.ADAM, "Bfgs" => Optim.BFGS)  #use requires - wrap the methods so they are found in the current session 
-                                                            #These shouldn't be constants, make a function that only tries to find what ADAM is when it iscalled. 
-                                                            #function that receives the string and returns the method. 
+#These shouldn't be constants, make a function that only tries to find what ADAM is when it iscalled. 
+#function that receives the string and returns the method. 
 
 const solver_map = Dict("Rodas4" => OrdinaryDiffEq.Rodas4) #use requires 
 
-const sensealg_map = Dict("ForwardDiffSensitivity" => DiffEqSensitivity.ForwardDiffSensitivity)   #use requires 
+const sensealg_map =
+    Dict("ForwardDiffSensitivity" => DiffEqSensitivity.ForwardDiffSensitivity)   #use requires 
 
 const surr_map = Dict(
     "vsm_v_t_0" => vsm_v_t_0,

@@ -1,7 +1,7 @@
 
 #Load Data fro building system 
 include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
-include(joinpath(TEST_FILES_DIR, "scripts", "build_full_system.jl")) 
+include(joinpath(TEST_FILES_DIR, "scripts", "build_full_system.jl"))
 
 path = (joinpath(pwd(), "test-train-dir"))
 !isdir(path) && mkdir(path)
@@ -16,14 +16,21 @@ try
     yaml_path = joinpath(path, "scripts", "config.yml")
     SURROGATE_BUS = 16
 
-    
-    cp(joinpath(TEST_FILES_DIR, "system_data", "full_system.json"), full_system_path, force=true)
-    cp(joinpath(TEST_FILES_DIR, "system_data", "full_system_validation_descriptors.json"), joinpath(path, "system_data", "full_system_validation_descriptors.json") , force=true)
-    cp(joinpath(TEST_FILES_DIR, "scripts", "config.yml"), yaml_path, force=true )
+    cp(
+        joinpath(TEST_FILES_DIR, "system_data", "full_system.json"),
+        full_system_path,
+        force = true,
+    )
+    cp(
+        joinpath(TEST_FILES_DIR, "system_data", "full_system_validation_descriptors.json"),
+        joinpath(path, "system_data", "full_system_validation_descriptors.json"),
+        force = true,
+    )
+    cp(joinpath(TEST_FILES_DIR, "scripts", "config.yml"), yaml_path, force = true)
 
     @warn "Rebuilding input data files"
     sys_full = node_load_system(full_system_path)
-    
+
     pvs_data = fault_data_generator(yaml_path, full_system_path)
     sys_pvs = build_pvs(pvs_data)
     label_area!(sys_full, [SURROGATE_BUS], "surrogate")
@@ -59,4 +66,3 @@ finally
     @info("removing test files")
     rm(path, force = true, recursive = true)
 end
-

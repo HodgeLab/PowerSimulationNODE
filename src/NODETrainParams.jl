@@ -16,7 +16,6 @@
 - `batching::Bool`: If `batching = false` the full set of data points are used for each training step.
 - `batching_factor::Float64`: The number of data points in the current range is multiplied by `batching_factor` to get the size of the batch. Batches of this size are used sequentially in time.
     The final batch is used even if it is incomplete.
-- `rng_seed::Int64`: Seed for the random number generator used for initializing the NN for reproducibility across training runs.
 - `groupsize_steps::Int64`: Number of data-points in each extension of the range of data used.
 - `groupsize_faults::Int64`: Number of faults trained on simultaneous `1`:sequential training. if equal to number of pvs in sys_train, parallel training.
 - `loss_function_weights::Tuple{Float64, Float64}`: weights used for loss function `(mae_weight, mse_weight)`.
@@ -31,6 +30,7 @@
 - `node_layers::Int64`: Number of hidden layers in the NODE. Does not include the input or output layer.
 - `node_width::Int64`: Number of neurons in each hidden layer. Each hidden layer has the same number of neurons. The width of the input and output layers are determined by the combination of other parameters.
 - `node_activation::String`: Activation function for NODE. The output layer always uses the identity activation. Valid Values ["relu"]
+- `rng_seed::Int64`: Seed for the random number generator used for initializing the NN for reproducibility across training runs.
 - `output_mode::Int`: `1`: do not collect any data during training, only save high-level data related to training and final results `2`: Same as `1`, also save value of loss throughout training. Valid values [1,2,3]
     `3`: same as `2`, also save parameters and predictions during training.
 - `base_path:String`: Directory for training where input data is found and output data is written.
@@ -50,10 +50,10 @@ mutable struct NODETrainParams
     optimizer_adjust_η::Float64
     maxiters::Int64
     lb_loss::Float64
-    batching::Bool
-    batch_factor::Float64
-    rng_seed::Int64
-    groupsize_steps::Int64
+    #batching::Bool
+    training_groups::Dict{Tuple{Float64,Float64}, NamedTuple{(:multiple_shoot_time_interval, :batching_sample_factor), Tuple{Float64, Float64}}}
+    #batch_factor::Float64
+    #groupsize_steps::Int64
     groupsize_faults::Int64
     loss_function_weights::Tuple{Float64, Float64}
     loss_function_scale::String
@@ -66,6 +66,7 @@ mutable struct NODETrainParams
     node_layers::Int64
     node_width::Int64
     node_activation::String
+    rng_seed::Int64
     output_mode::Int64
     base_path::String
     input_data_path::String
@@ -87,10 +88,10 @@ function NODETrainParams(;
     optimizer_adjust_η = 0.01,
     maxiters = 15,
     lb_loss = 0.0,
-    batching = false,
-    batch_factor = 1.0,
-    rng_seed = 1234,
-    groupsize_steps = 55,
+    training_groups = Dict((0.0,1.0) => (multiple_shoot_time_segment=1.0, batching_sample_factor=1.0)),
+    #batching = false,
+    #batch_factor = 1.0,
+    #groupsize_steps = 55,
     groupsize_faults = 1,
     loss_function_weights = (0.5, 0.5),
     loss_function_scale = "range",
@@ -103,6 +104,7 @@ function NODETrainParams(;
     node_layers = 2,
     node_width = 2,
     node_activation = "relu",
+    rng_seed = 1234,
     export_mode = 3,
     base_path = pwd(),
     input_data_path = joinpath(base_path, "input_data"),
@@ -123,10 +125,10 @@ function NODETrainParams(;
         optimizer_adjust_η,
         maxiters,
         lb_loss,
-        batching,
-        batch_factor,
-        rng_seed,
-        groupsize_steps,
+        training_groups,
+        #batching,
+        #batch_factor,
+        #groupsize_steps,
         groupsize_faults,
         loss_function_weights,
         loss_function_scale,
@@ -139,6 +141,7 @@ function NODETrainParams(;
         node_layers,
         node_width,
         node_activation,
+        rng_seed,
         export_mode,
         base_path,
         input_data_path,

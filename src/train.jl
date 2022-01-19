@@ -161,25 +161,20 @@ function get_init_surr(p, Ir_pf, Ii_pf, surr)
     end
 end
 
-function calculate_per_solve_maxiters(params, tsteps, n_faults)
-    n_timesteps = length(tsteps)
+#TODO - recalculate, per_solve_maxiters 
+function calculate_per_solve_maxiters(params, n_faults) 
+
     total_maxiters = params.maxiters
-    groupsize_steps = params.groupsize_steps
     groupsize_faults = params.groupsize_faults
-    factor_ranges = ceil(n_timesteps / groupsize_steps)
-    factor_faults = ceil(groupsize_faults)
-    @warn factor_faults
-    factor_batches = ceil(1 / params.batch_factor)
+    @warn n_groups = length(params.training_groups)   #check what this gives
     per_solve_maxiters = Int(
-        floor(total_maxiters * factor_faults / factor_ranges / factor_batches / n_faults),
-    )
+        floor( (total_maxiters * groupsize_faults) / (n_faults * n_groups)))
     @info "per solve maxiters" per_solve_maxiters
     if per_solve_maxiters == 0
         @error "maxiters is too low. The calculated maxiters per solve is 0! cannot train"
     end
     return per_solve_maxiters
 end
-
 
 """
     train(params::NODETrainParams)
@@ -227,7 +222,7 @@ function train(params::NODETrainParams)
         "train_id" => params.train_id,
     )
     per_solve_maxiters =
-        calculate_per_solve_maxiters(params, TrainInputs.tsteps, length(pvss))
+        calculate_per_solve_maxiters(params, length(pvss))
 
     #PREPARE SURROGATES FOR EACH FAULT - this is what is different for pure NODE 
     for pvs in pvss
@@ -329,6 +324,7 @@ function _train(
     fault_data,
     per_solve_maxiters,
 )
+#Pred function will change because you sum over multiple loss functions instead of making a giant prediction and calling loss function once. 
     pred_function = instantiate_pred_function(
         solver,
         pvs_names_subset,
@@ -337,6 +333,7 @@ function _train(
         sensealg,
     )
 
+    #Don't think this should change at all for multiple shooting development (this becomes the inner loss function)
     loss_function = instantiate_loss_function(
         params.loss_function_weights,
         Ir_scale,
@@ -344,6 +341,7 @@ function _train(
         pred_function,
     )
 
+    #TODO - instantiate the outerloss function -> splits up the input data based on name, define a multiple shoot problem for each fault, sum the losses, concatonate the predictions. 
     datasize = length(tsteps)
     ranges = extending_ranges(datasize, params.groupsize_steps)
     res = nothing
@@ -354,15 +352,15 @@ function _train(
         i_current_range = concatonate_i_true(fault_data, pvs_names_subset, range)
         t_current_range = concatonate_t(tsteps, pvs_names_subset, range)
         pvs_names_current_range = concatonate_pvs_names(pvs_names_subset, length(range))
-        batchsize = Int(floor(length(i_current_range[1, :]) * params.batch_factor))
+        batchsize = length(i_current_range[1, :]) #take the full range as the batch. # Int(floor(length(i_current_range[1, :]) * params.batch_factor)) #Todo, remove batchsize here, implement in inner pred function
         train_loader = Flux.Data.DataLoader(
             (i_current_range, t_current_range, pvs_names_current_range),
-            batchsize = batchsize,
+            batchsize = batchsize,                                          #Todo, remove batchsize here, implement in inner pred function 
         )   #TODO - default for shuffle is false, make new parameter? 
 
         optfun = GalacticOptim.OptimizationFunction(
             (θ, p, batch, time_batch, pvs_name_batch) ->
-                loss_function(θ, batch, time_batch, pvs_name_batch),
+                loss_function(θ, batch, time_batch, pvs_name_batch),        #This calls "outer_loss_function()" which in turn uses "inner_loss_function()"
             GalacticOptim.AutoForwardDiff(),
         )
         optprob = GalacticOptim.OptimizationProblem(optfun, min_θ)

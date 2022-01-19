@@ -1,22 +1,29 @@
-# TODO: Use Dict temporarily during dev while the fields are defined
-# WHich things change with fault? 
-struct NODETrainInputs      #could move common data to fields outside of dict 
+"""
+    struct NODETrainInputs
+
+This struct contains the input data needed for training. 
+# Fields
+- `tsteps::Vector{Float64}`: The time steps corresponding to ground truth data
+- `fault_data::Dict{String, Dict{Symbol, Any}}`: The data for each fault including...
+"""
+struct NODETrainInputs      
     tsteps::Vector{Float64}
     fault_data::Dict{String, Dict{Symbol, Any}}
 end
 
 """
-    serialize(inputs::NODETrainInputs, file_path::String)
+    mutable struct NODETrainDataParams
 
-Serializes  the input to JSON file.
+# Fields
+- `solver::String`: solver used for the generating ground truth data. Valid Values ["Rodas4"]
+- `solver_tols:: Tuple{Float64, Float64}`: solver tolerances (abstol, reltol).
+- `tspan::Tuple{Float64, Float64}`: timespan of ground truth data.
+- `steps::Int64`: Total number of steps for a single fault in ground truth data. The distribution of steps is determined by `tsteps_spacing`.
+- `tsteps_spacing:: ["linear"]`: Determines the distribution of save data points. 
+- `ode_model:: ["none","vsm"]`: The ode model is used to save initial conditions/parameters for use during training. 
+- `base_path::String`: Project directory
+- `output_data_path::String`: Relative path from project directory to where outputs are written (inputs to training)
 """
-function serialize(inputs::NODETrainInputs, file_path::String)
-    open(file_path, "w") do io
-        JSON3.write(io, inputs)
-    end
-    return
-end
-
 mutable struct NODETrainDataParams
     solver::String
     solver_tols::Tuple{Float64, Float64}
@@ -29,7 +36,7 @@ mutable struct NODETrainDataParams
 end
 
 #For serializing 
-StructTypes.StructType(::Type{NODETrainDataParams}) = StructTypes.Struct()
+#StructTypes.StructType(::Type{NODETrainDataParams}) = StructTypes.Struct()
 StructTypes.StructType(::Type{NODETrainInputs}) = StructTypes.Struct()
 
 function NODETrainDataParams(;
@@ -152,4 +159,16 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, Dyna
         end
     end
     return NODETrainInputs(tsteps, fault_data)
+end
+
+"""
+    serialize(inputs::NODETrainInputs, file_path::String)
+
+Serializes  the input to JSON file.
+"""
+function serialize(inputs::NODETrainInputs, file_path::String)
+    open(file_path, "w") do io
+        JSON3.write(io, inputs)
+    end
+    return
 end

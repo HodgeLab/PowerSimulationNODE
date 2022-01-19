@@ -57,7 +57,8 @@ function visualize_3(params, path_to_output, path_to_input, visualize_level)
     else
         @warn "Invalid value for parameter visualize_level"
     end
-    df_predictions = DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "predictions")))
+    df_predictions =
+        DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "predictions")))
     TrainInputs =
         JSON3.read(read(joinpath(params.input_data_path, "data.json")), NODETrainInputs)
     tsteps = TrainInputs.tsteps

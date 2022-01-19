@@ -10,26 +10,29 @@ function build_sys_train(sys_faults::System, sys_full::System, Ref_bus_number::I
     remove_components!(sys_train, PowerLoad)
     remove_components!(sys_train, LoadZone)
     remove_components!(
-        x -> !(
-            get_name(get_area(get_to(x))) == "surrogate" &&
-            get_name(get_area(get_from(x))) == "surrogate"
-        ),
+        x ->
+            !(
+                get_name(get_area(get_to(x))) == "surrogate" &&
+                get_name(get_area(get_from(x))) == "surrogate"
+            ),
         sys_train,
         Arc,
     )
     remove_components!(
-        x -> !(
-            get_name(get_area(get_to(get_arc(x)))) == "surrogate" &&
-            get_name(get_area(get_from(get_arc(x)))) == "surrogate"
-        ),
+        x ->
+            !(
+                get_name(get_area(get_to(get_arc(x)))) == "surrogate" &&
+                get_name(get_area(get_from(get_arc(x)))) == "surrogate"
+            ),
         sys_train,
         Transformer2W,
     )
     remove_components!(
-        x -> !(
-            get_name(get_area(get_to(get_arc(x)))) == "surrogate" &&
-            get_name(get_area(get_from(get_arc(x)))) == "surrogate"
-        ),
+        x ->
+            !(
+                get_name(get_area(get_to(get_arc(x)))) == "surrogate" &&
+                get_name(get_area(get_from(get_arc(x)))) == "surrogate"
+            ),
         sys_train,
         Line,
     )
@@ -621,7 +624,7 @@ end
     node_load_system(inputs...)
 
 Configures logging and calls PSY.System(inputs...). 
-""" 
+"""
 function node_load_system(inputs...)
     logger =
         configure_logging(console_level = PSY_CONSOLE_LEVEL, file_level = PSY_FILE_LEVEL)
