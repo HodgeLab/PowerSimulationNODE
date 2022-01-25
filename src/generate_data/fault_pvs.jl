@@ -22,22 +22,20 @@ function fault_data_generator(path_to_config, path_to_full_system)
 end
 
 function build_pvs(dict_fault_data; pad_signal = true)
-    pad_signal
-
     sys_pvs = node_load_system(100.0)
-    add_component!(
+    PSY.add_component!(
         sys_pvs,
-        Bus(
+        PSY.Bus(
             number = 1,
             name = "1",
-            bustype = BusTypes.REF,
+            bustype = PSY.BusTypes.REF,
             angle = 0.0,
             magnitude = 1.0,
             voltage_limits = (min = 0.9, max = 1.1),
             base_voltage = 345.0,
         ),
     )
-    pvs_bus = collect(get_components(Bus, sys_pvs, x -> x.bustype == BusTypes.REF))[1]
+    pvs_bus = collect(PSY.get_components(PSY.Bus, sys_pvs, x -> x.bustype == PSY.BusTypes.REF))[1]
 
     for (key, value) in dict_fault_data
         t = value["data"][:, 1]
@@ -69,7 +67,7 @@ function build_pvs(dict_fault_data; pad_signal = true)
         F_θ[2:end] = F_θ[2:end] * 2
         internal_angle_coefficients = [(-imag(f), real(f)) for f in F_θ[2:end]]
 
-        inf_source = Source(
+        inf_source = PSY.Source(
             name = string("source", string(key)),
             active_power = value["pvs"]["P"],
             available = false,
@@ -81,10 +79,10 @@ function build_pvs(dict_fault_data; pad_signal = true)
             internal_angle = Vθ[1],
         )
 
-        fault_source = PeriodicVariableSource(
-            name = get_name(inf_source),
-            R_th = get_R_th(inf_source),
-            X_th = get_X_th(inf_source),
+        fault_source = PSY.PeriodicVariableSource(
+            name = PSY.get_name(inf_source),
+            R_th = PSY.get_R_th(inf_source),
+            X_th = PSY.get_X_th(inf_source),
             internal_voltage_bias = real(F_V[1]),
             internal_voltage_frequencies = freqs_pos[2:end],
             internal_voltage_coefficients = internal_voltage_coefficients,
@@ -92,14 +90,14 @@ function build_pvs(dict_fault_data; pad_signal = true)
             internal_angle_frequencies = freqs_pos[2:end],
             internal_angle_coefficients = internal_angle_coefficients,
         )
-        add_component!(sys_pvs, inf_source)
-        add_component!(sys_pvs, fault_source, inf_source)
+        PSY.add_component!(sys_pvs, inf_source)
+        PSY.add_component!(sys_pvs, fault_source, inf_source)
     end
     return sys_pvs
 end
 
 function build_fault_data_dataframe(faults, system, OutputParameters, SimulationParameters)
-    solver = SimulationParameters["Solver"] # TODO : instantiate solver 
+    solver = solver_map[SimulationParameters["Solver"]]()  
     abstol = SimulationParameters["AbsTol"]
     reltol = SimulationParameters["RelTol"]
     tspan = (SimulationParameters["TspanStart"], SimulationParameters["TspanEnd"])
@@ -109,8 +107,8 @@ function build_fault_data_dataframe(faults, system, OutputParameters, Simulation
 
     output = Dict{Int, Dict{String, Any}}()
     for (i, fault) in enumerate(faults)
-        sim = Simulation!(
-            MassMatrixModel,
+        sim = PSID.Simulation!(
+            PSID.MassMatrixModel,
             system,
             pwd(),
             tspan,
@@ -119,20 +117,20 @@ function build_fault_data_dataframe(faults, system, OutputParameters, Simulation
             file_level = PSID_FILE_LEVEL,
         )
         @warn fault
-        execute!(
+        PSID.execute!(
             sim,
-            OrdinaryDiffEq.Rodas4(),  #TODO use from yaml 
+            solver, 
             abstol = abstol,
             reltol = reltol,
             reset_simulation = false,
             saveat = tsteps,
         )
-        results = read_results(sim)
+        results = PSID.read_results(sim)
         timeseries_data = collect(tsteps)
         column_names = ["t"]
         pvs_data = Dict()
         if OutputParameters["PVS"]["SavePVSData"]
-            df = solve_powerflow(system)["flow_results"]
+            df = PSY.solve_powerflow(system)["flow_results"]
             pvs_branch_name = OutputParameters["PVS"]["PVSBranchName"]
             pvs_bus_number = OutputParameters["PVS"]["PVSBus"]
             #Grab the df row with the branch specified 
@@ -158,7 +156,7 @@ function build_fault_data_dataframe(faults, system, OutputParameters, Simulation
                     end
                     timeseries_data = hcat(
                         timeseries_data,
-                        get_voltage_magnitude_series(results, bus_number)[2],
+                        PSID.get_voltage_magnitude_series(results, bus_number)[2],
                     )
                 elseif OutputParameters["OutputData"]["BusData"][i] == "Vtheta"
                     push!(column_names, string(bus_number, "_Vtheta"))
@@ -167,7 +165,7 @@ function build_fault_data_dataframe(faults, system, OutputParameters, Simulation
                     end
                     timeseries_data = hcat(
                         timeseries_data,
-                        get_voltage_angle_series(results, bus_number)[2],
+                        PSID.get_voltage_angle_series(results, bus_number)[2],
                     )
                 else
                     @error "Invalid bus data, must be Vm or Vtheta"
@@ -221,17 +219,17 @@ end
 
 function get_all_names(fault_type, system)
     if fault_type[1] == "BranchTrip"
-        names = get_name.(collect(get_components(Line, system)))
+        names = PSY.get_name.(collect(PSY.get_components(Line, system)))
     elseif fault_type[1] == "BranchImpedanceChange"
-        names = get_name.(collect(get_components(Line, system)))
+        names = PSY.get_name.(collect(PSY.get_components(Line, system)))
     elseif fault_type[1] == "ControlReferenceChange"
-        names = get_name.(collect(get_components(DynamicInjection, system)))
+        names = PSY.get_name.(collect(PSY.get_components(DynamicInjection, system)))
     elseif fault_type[1] == "GeneratorTrip"
-        names = get_name.(collect(get_components(DynamicInjection, system)))
+        names = PSY.get_name.(collect(PSY.get_components(DynamicInjection, system)))
     elseif fault_type[1] == "LoadChange"
-        names = get_name.(collect(get_components(ElectricLoad, system)))
+        names = PSY.get_name.(collect(PSY.get_components(ElectricLoad, system)))
     elseif fault_type[1] == "LoadTrip"
-        names = get_name.(collect(get_components(ElectricLoad, system)))
+        names = PSY.get_name.(collect(PSY.get_components(ElectricLoad, system)))
     else
         @error "This type of fault is not supported"
     end
@@ -241,10 +239,10 @@ end
 function get_fault(fault_device_name, fault_type, system, t_fault)
     #fault_name = fault_parameters[fault_type]
     if fault_type[1] == "BranchTrip"
-        fault = BranchTrip(t_fault, Line, fault_device_name)    #Needs to be line?
+        fault = PSID.BranchTrip(t_fault, Line, fault_device_name)    #Needs to be line?
 
     elseif fault_type[1] == "BranchImpedanceChange"
-        fault = BranchImpedanceChange(
+        fault = PSID.BranchImpedanceChange(
             t_fault,
             Line,
             fault_device_name,
@@ -252,9 +250,9 @@ function get_fault(fault_device_name, fault_type, system, t_fault)
         )
 
     elseif fault_type[1] == "ControlReferenceChange"
-        g = get_component(DynamicInjection, system, fault_device_name)
-        starting_Pref = get_P_ref(g)
-        fault = ControlReferenceChange(
+        g = PSY.get_component(PSY.DynamicInjection, system, fault_device_name)
+        starting_Pref = PSY.get_P_ref(g)
+        fault = PSID.ControlReferenceChange(
             t_fault,
             g,
             :P_ref,
@@ -262,13 +260,13 @@ function get_fault(fault_device_name, fault_type, system, t_fault)
         )
 
     elseif fault_type[1] == "GeneratorTrip"
-        g = get_component(DynamicInjection, system, fault_device_name)
-        fault = GeneratorTrip(t_fault, g)
+        g = PSY.get_component(DynamicInjection, system, fault_device_name)
+        fault = PSID.GeneratorTrip(t_fault, g)
 
     elseif fault_type[1] == "LoadChange"
-        l = get_component(ElectricLoad, system, fault_device_name)
+        l = PSY.get_component(ElectricLoad, system, fault_device_name)
         starting_Pref = get_P_ref(l)
-        fault = PowerSimulationsDynamics.LoadChange(
+        fault = PSID.LoadChange(
             t_fault,
             l,
             :P_ref,
@@ -276,11 +274,31 @@ function get_fault(fault_device_name, fault_type, system, t_fault)
         )
 
     elseif fault_type[1] == "LoadTrip"
-        l = get_component(ElectricLoad, system, fault_device_name)
-        fault = LoadTrip(t_fault, l)
+        l = PSY.get_component(ElectricLoad, system, fault_device_name)
+        fault = PSID.LoadTrip(t_fault, l)
 
     else
         error("This type of fault is not supported")
     end
     return fault
+end
+
+
+function pad_tanh(t, y)
+    first = y[1]
+    last = y[end]
+    Δt = t[2] - t[1] #assume linear spacing
+    n = length(t)
+    A = (y[1] - y[end]) / 2
+    C = y[end] + A
+
+    B = 20 / (t[end] - t[1])
+    @info A, B, C
+    @info y[end]
+    @info y[1]
+    t_add = (t[end] + Δt):Δt:(t[end] + (t[end] - t[1]))
+    y_add = A * tanh.((t_add .- t_add[Int(length(t_add) / 2)]) .* B) .+ C
+    t_new = vcat(t, t_add)
+    y_new = vcat(y, y_add)
+    return (t_new, y_new)
 end

@@ -13,10 +13,12 @@
 - `maxiters::Int64`: The maximum possible iterations for the entire training instance. If `lb_loss = 0` and `optimizer = "Adam"` the training should never exit early and maxiters will be hit.
     Note that the number of saved data points can exceed maxiters because there is an additional callback at the end of each individual optimization.
 - `lb_loss::Float64`: If the value of the loss function moves below lb_loss during training, the current optimization ends (current range).
-- `batching::Bool`: If `batching = false` the full set of data points are used for each training step.
-- `batching_factor::Float64`: The number of data points in the current range is multiplied by `batching_factor` to get the size of the batch. Batches of this size are used sequentially in time.
-    The final batch is used even if it is incomplete.
-- `groupsize_steps::Int64`: Number of data-points in each extension of the range of data used.
+- `training_groups::DataStructures.SortedDict{
+    Tuple{Float64, Float64},
+    NamedTuple{
+        (:multiple_shoot_group_size, :multiple_shoot_continuity_term, :batching_sample_factor),
+        Tuple{Int64, Real, Float64},
+    }`: Specify the tspan for each group of training, and the multiple shooting and random batching parameter for each group.  
 - `groupsize_faults::Int64`: Number of faults trained on simultaneous `1`:sequential training. if equal to number of pvs in sys_train, parallel training.
 - `loss_function_weights::Tuple{Float64, Float64}`: weights used for loss function `(mae_weight, mse_weight)`.
 - `loss_function_scale::String`: Scaling of the loss function.  `"range"`: the range of the real current and imaginary current are used to scale both the mae. Valid values ["range", "none"]
@@ -29,7 +31,7 @@
 - `node_feedback_current::Bool`: Determines if current is also a feedback state.
 - `node_layers::Int64`: Number of hidden layers in the NODE. Does not include the input or output layer.
 - `node_width::Int64`: Number of neurons in each hidden layer. Each hidden layer has the same number of neurons. The width of the input and output layers are determined by the combination of other parameters.
-- `node_activation::String`: Activation function for NODE. The output layer always uses the identity activation. Valid Values ["relu"]
+- `node_activation::String`: Activation function for NODE. The output layer always uses the identity activation. Valid Values ["relu", "hardtanh", "sigmoid"]
 - `rng_seed::Int64`: Seed for the random number generator used for initializing the NN for reproducibility across training runs.
 - `output_mode::Int`: `1`: do not collect any data during training, only save high-level data related to training and final results `2`: Same as `1`, also save value of loss throughout training. Valid values [1,2,3]
     `3`: same as `2`, also save parameters and predictions during training.
@@ -50,16 +52,13 @@ mutable struct NODETrainParams
     optimizer_adjust_η::Float64
     maxiters::Int64
     lb_loss::Float64
-    #batching::Bool
     training_groups::DataStructures.SortedDict{
         Tuple{Float64, Float64},
         NamedTuple{
-            (:multiple_shoot_time_interval, :batching_sample_factor),
-            Tuple{Float64, Float64},
+            (:multiple_shoot_group_size, :multiple_shoot_continuity_term, :batching_sample_factor),
+            Tuple{Int64, Real, Float64},
         },
     }
-    #batch_factor::Float64
-    #groupsize_steps::Int64
     groupsize_faults::Int64
     loss_function_weights::Tuple{Float64, Float64}
     loss_function_scale::String
@@ -89,22 +88,18 @@ function NODETrainParams(;
     solver_tols = (1e-6, 1e-9),
     sensealg = "ForwardDiffSensitivity",
     optimizer = "Adam",
-    optimizer_η = 0.01,
+    optimizer_η = 0.001,
     optimizer_adjust = "nothing",
-    optimizer_adjust_η = 0.01,
+    optimizer_adjust_η = 0.001,
     maxiters = 15,
     lb_loss = 0.0,
     training_groups = DataStructures.SortedDict(
-        (0.0, 1.0) => (multiple_shoot_time_interval = 1.0, batching_sample_factor = 1.0),
-        (0.0, 2.0) => (multiple_shoot_time_interval = 1.0, batching_sample_factor = 1.0),
+        (0.0, 1.0) => (multiple_shoot_group_size = 101, multiple_shoot_continuity_term =100, batching_sample_factor = 1.0),
     ),
-    #batching = false,
-    #batch_factor = 1.0,
-    #groupsize_steps = 55,
     groupsize_faults = 1,
     loss_function_weights = (0.5, 0.5),
     loss_function_scale = "range",
-    ode_model = "vsm",
+    ode_model = "none",
     node_input_scale = 10e1,
     node_output_scale = 1.0,
     node_inputs = "voltage",
@@ -122,7 +117,6 @@ function NODETrainParams(;
     graphical_report_mode = 0,
 )
 
-    #HERE IS THE LOGIC OF FILLING IN SOME OF THE PARAMETERS THAT MIGHT NOT MAKE SENSE
     NODETrainParams(
         train_id,
         solver,
@@ -135,9 +129,6 @@ function NODETrainParams(;
         maxiters,
         lb_loss,
         training_groups,
-        #batching,
-        #batch_factor,
-        #groupsize_steps,
         groupsize_faults,
         loss_function_weights,
         loss_function_scale,
@@ -164,17 +155,6 @@ function NODETrainParams(file::AbstractString)
     return JSON3.read(read(file), NODETrainParams)
 end
 
-#No longer used 
-#= function read_input_data(pvs, d)
-    id = get_name(pvs)
-    tsteps = Float64.(d[:tsteps])
-    i_ground_truth = vcat(Float64.(d[:ir_ground_truth])', Float64.(d[:ii_ground_truth])')
-    i_node_off = vcat(Float64.(d[:ir_node_off])', Float64.(d[:ii_node_off])')
-    p_ode = Float64.(d[:p_ode])
-    x₀ = Float64.(d[:x₀])
-    p_V₀ = Float64.(d[:V₀])
-    return id, tsteps, i_ground_truth, i_node_off, p_ode, x₀, p_V₀
-end =#
 
 """
     serialize(inputs::NODETrainParams, file_path::String)

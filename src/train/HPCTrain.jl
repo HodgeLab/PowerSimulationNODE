@@ -47,13 +47,12 @@ struct HPCTrain
     QoS::String
     partition::String
     project_folder::String
-    # TODO: Coordinate properly with the data in the inputs vector base_path field
     scratch_path::String
     gnu_parallel_name::String
     n_tasks::Int
     n_nodes::Union{Int, Nothing}
     n_cpus_per_task::Int
-    params_data::Vector # TODO: return to Vector{NODETrainParams} after testing
+    params_data::Vector{NODETrainParams}
     time_limit::String
     train_bash_file::String
     force_generate_inputs::Bool

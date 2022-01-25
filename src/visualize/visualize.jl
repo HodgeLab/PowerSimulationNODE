@@ -1,3 +1,19 @@
+function Base.show(io::IO, ::MIME"text/plain", params::NODETrainParams)
+    for field_name in fieldnames(NODETrainParams)
+        if field_name == :training_groups
+            println(io, "$field_name =" )
+            for (k,v) in  getfield(params,field_name)
+                println(io, "\ttspan: ", k)
+                println(io, "\t\tmultiple shoot group size: ", v.multiple_shoot_group_size) 
+                println(io, "\t\tmultiple_shoot_continuity_term: ", v.multiple_shoot_continuity_term) 
+                println(io, "\t\tbatching factor", v.batching_sample_factor) 
+            end 
+        else 
+            println(io, "$field_name = ", getfield(params,field_name))
+        end 
+    end
+end
+
 function visualize_training(params::NODETrainParams; visualize_level = 1)
     @debug dump(params)
     path_to_input = joinpath(params.base_path, params.input_data_path)
@@ -20,9 +36,8 @@ function visualize_training(params::NODETrainParams; visualize_level = 1)
         return
     elseif params.output_mode == 3
         plots = visualize_3(params, path_to_output, path_to_input, visualize_level)
-
         for (i, p) in enumerate(plots)
-            png(p, joinpath(path_to_output, string("plot_", i)))
+            Plots.png(p, joinpath(path_to_output, string("plot_", i)))
         end
         return
     end
@@ -30,17 +45,17 @@ end
 
 function visualize_2(params, path_to_output, path_to_input)
     df_loss = DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "loss")))
-    p1 = plot(df_loss.Loss, title = "Loss")
-    p2 = plot(df_loss.RangeCount, title = "Range Count")
-    return plot(p1, p2, layout = (2, 1))
+    p1 = Plots.plot(df_loss.Loss, title = "Loss")
+    p2 = Plots.plot(df_loss.RangeCount, title = "Range Count")
+    return Plots.plot(p1, p2, layout = (2, 1))
 end
 
 function visualize_3(params, path_to_output, path_to_input, visualize_level)
     df_loss = DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "loss")))
     list_plots = []
-    p1 = plot(df_loss.Loss, title = "Loss")
-    p2 = plot(df_loss.RangeCount, title = "Range Count")
-    p = plot(p1, p2, layout = (2, 1))
+    p1 = Plots.plot(df_loss.Loss, title = "Loss")
+    p2 = Plots.plot(df_loss.RangeCount, title = "Range Count")
+    p = Plots.plot(p1, p2, layout = (2, 1))
     push!(list_plots, p)
 
     output_dict =
@@ -64,19 +79,23 @@ function visualize_3(params, path_to_output, path_to_input, visualize_level)
     tsteps = TrainInputs.tsteps
     fault_data = TrainInputs.fault_data
 
-    for i in transition_indices
-        ir_pred = df_predictions[i, "ir_prediction"]
-        ii_pred = df_predictions[i, "ii_prediction"]
-        t_pred = df_predictions[i, "t_prediction"]
+    for i in transition_indices #This changes to incorporate the new way data is saved. 
+        ir_preds = df_predictions[i, "ir_prediction"]
+        ii_preds = df_predictions[i, "ii_prediction"]
+        t_preds = df_predictions[i, "t_prediction"]
         i_true = concatonate_i_true(fault_data, df_loss[i, :PVS_name], :)
         ir_true = i_true[1, :]
         ii_true = i_true[2, :]
-        t_all = vec(Float64.(concatonate_t(tsteps, df_loss[i, :PVS_name], :))) #TODO fix this syntax 
-        p3 = scatter(t_pred, ir_pred, ms = 2, msw = 0, label = "prediction")
-        scatter!(p3, t_all, ir_true, ms = 2, msw = 0, label = "truth")
-        p4 = scatter(t_pred, ii_pred, ms = 2, msw = 0, label = "prediction")
-        scatter!(p4, t_all, ii_true, ms = 2, msw = 0, label = "truth")
-        p = plot(
+        t_all = concatonate_t(tsteps, df_loss[i, :PVS_name], :)
+        
+        p3 = Plots.scatter(t_all, ir_true, ms = 2, msw = 0, label = "truth")
+        p4 = Plots.scatter(t_all, ii_true, ms = 2, msw = 0, label = "truth")
+        
+        for (i, t_pred) in enumerate(t_preds)
+            Plots.scatter!(p3, t_preds[i], ir_preds[i], ms = 2, msw = 0, legend=false)
+            Plots.scatter!(p4, t_preds[i], ii_preds[i], ms = 2, msw = 0, legend=false)
+        end 
+        p = Plots.plot(
             p3,
             p4,
             title = string(df_loss[i, :PVS_name], " loss: ", output_dict["final_loss"]),
@@ -109,9 +128,9 @@ function visualize_summary(output_data_path)
         )
         high_level_outputs_dict[output_dict["train_id"]] = output_dict
     end
-    p = scatter()
+    p = Plots.scatter()
     for (key, value) in high_level_outputs_dict
-        scatter!(
+        Plots.scatter!(
             p,
             (value["total_time"], value["final_loss"]),
             label = value["train_id"],
@@ -120,18 +139,32 @@ function visualize_summary(output_data_path)
             markersize = 3,
             markerstrokewidth = 0,
         )
-        annotate!(
+        Plots.annotate!(
             value["total_time"],
             value["final_loss"],
-            text(value["train_id"], :red, 8),
+            Plots.text(value["train_id"], :red, 8),
         )
     end
     return p
 end
 
-#= using Plots, Random
-vals = rand(10,2)
-p = scatter(vals[:,1], vals[:,2],xlim=[0,1.1])
-some_labels=randstring.(fill(5,10))
-annotate!.(vals[:,1].+0.01, vals[:,2], text.(some_labels, :red, :left,11))
-p =#
+function plot_pvs(tsteps, pvs::PSY.PeriodicVariableSource, xaxis)
+    V = zeros(length(tsteps))
+    V = V .+ PSY.get_internal_voltage_bias(pvs)
+    retrieved_freqs = PSY.get_internal_voltage_frequencies(pvs)
+    coeffs = PSY.get_internal_voltage_coefficients(pvs)
+    for (i, ω) in enumerate(retrieved_freqs)
+        V += coeffs[i][1] * sin.(ω .* tsteps)
+        V += coeffs[i][2] * cos.(ω .* tsteps)
+    end
+
+    θ = zeros(length(tsteps))
+    θ = θ .+ PSY.get_internal_angle_bias(pvs)
+    retrieved_freqs = PSY.get_internal_angle_frequencies(pvs)
+    coeffs = PSY.get_internal_angle_coefficients(pvs)
+    for (i, ω) in enumerate(retrieved_freqs)
+        θ += coeffs[i][1] * sin.(ω .* tsteps)
+        θ += coeffs[i][2] * cos.(ω .* tsteps)
+    end
+    return tsteps, V, θ
+end

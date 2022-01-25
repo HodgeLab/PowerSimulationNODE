@@ -22,8 +22,8 @@ export visualize_training
 import Arrow
 import DataFrames
 import DataStructures
+import DiffEqBase
 import DiffEqFlux
-import DiffEqSensitivity    #TODO - use requires for this, but will require some reorganization of code
 import FFTW
 import Flux
 import Flux.Losses: mae, mse
@@ -35,9 +35,11 @@ import Mustache
 import NLsolve
 import Optim
 import OrdinaryDiffEq
-using PowerSimulationsDynamics #TODO - Change to import for clarity of namespace
-using PowerSystems             #TODO - Change to import for clarity of namespace
+import PowerSimulationsDynamics
+import PowerSystems            
 import Random
+import StatsBase
+import SciMLBase
 import StructTypes
 import YAML
 
@@ -46,16 +48,20 @@ const PSID = PowerSimulationsDynamics
 
 using Requires
 function __init__()
-    #@require DiffEqSensitivity = "41bf760c-e81c-5289-8e54-58b1f1f8abe2" include("instantiate.jl")  #instantiations called from other files 
-    @require Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80" include("visualize.jl")
+    @require Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80" include(joinpath("visualize","visualize.jl"))
+    @require GalacticOptim = "a75be94c-b780-496d-a8a9-0878b188d577" begin
+        @require ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"  include(joinpath("train","instantiate.jl"))
+    end
 end
-include("surrogate_models.jl")
-include("NODETrainParams.jl")
+
+#TODO Split up code and use Requires strategically to improve load times. 
+include(joinpath("train","surrogate_models.jl"))
+include(joinpath("train","NODETrainParams.jl"))
 include("constants.jl")
-include("fault_pvs.jl")
-include("HPCTrain.jl")
-include("instantiate.jl")
-include("NODETrainInputs.jl")
-include("train.jl")
+include(joinpath("generate_data","fault_pvs.jl"))
+include(joinpath("train","HPCTrain.jl"))
+include(joinpath("generate_data","NODETrainInputs.jl"))
+include(joinpath("train","train.jl"))
+include(joinpath("train","multiple_shoot.jl"))
 include("utils.jl")
 end

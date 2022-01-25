@@ -8,6 +8,7 @@
 #<#_feedback_states>: number of outputs of the nn. The states associated with each output are automatically inputs to the nn
 # 1-10
 # NOTE: Input dimension of nn =  <nn_external_inputs> + <#_feedback_states>
+# NOTE: THe output current (real and imaginary) should be the first two states. These should also be the algebraic states. 
 
 mutable struct SurrParams
     nn::Vector{}                    #needs to accept dual numbers during training 
