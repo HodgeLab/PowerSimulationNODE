@@ -80,7 +80,7 @@ mutable struct NODETrainParams
     graphical_report_mode::Int64
 end
 
-StructTypes.StructType(::Type{NODETrainParams}) = StructTypes.Struct()
+StructTypes.StructType(::Type{NODETrainParams}) = StructTypes.OrderedStruct()   #Struct vs OrderedStruct
 
 function NODETrainParams(;
     train_id = "train_instance_1",
