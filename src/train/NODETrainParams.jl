@@ -52,17 +52,17 @@ mutable struct NODETrainParams
     optimizer_adjust_η::Float64
     maxiters::Int64
     lb_loss::Float64
-    training_groups::DataStructures.SortedDict{
-        Tuple{Float64, Float64},
+    training_groups::Array{
         NamedTuple{
             (
+                :tspan,
                 :multiple_shoot_group_size,
                 :multiple_shoot_continuity_term,
                 :batching_sample_factor,
             ),
-            Tuple{Int64, Float64, Float64},
+            Tuple{Tuple{Float64, Float64}, Int64, Float64, Float64},
         },
-    }  #TODO - change from Real to concrete type (Float64) and test serialization
+    }                                                                #TODO - change from Real to concrete type (Float64) and test serialization
     groupsize_faults::Int64
     loss_function_weights::Tuple{Float64, Float64}
     loss_function_scale::String
@@ -97,13 +97,7 @@ function NODETrainParams(;
     optimizer_adjust_η = 0.001,
     maxiters = 15,
     lb_loss = 0.0,
-    training_groups = DataStructures.SortedDict(
-        (0.0, 1.0) => (
-            multiple_shoot_group_size = 101,
-            multiple_shoot_continuity_term = 100.0,
-            batching_sample_factor = 1.0,
-        ),
-    ),
+    training_groups = [(tspan = (0.0,1.0), multiple_shoot_group_size = 101,  multiple_shoot_continuity_term = 100.0, batching_sample_factor = 1.0)],
     groupsize_faults = 1,
     loss_function_weights = (0.5, 0.5),
     loss_function_scale = "range",

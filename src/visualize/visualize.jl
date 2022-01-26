@@ -2,15 +2,15 @@ function Base.show(io::IO, ::MIME"text/plain", params::NODETrainParams)
     for field_name in fieldnames(NODETrainParams)
         if field_name == :training_groups
             println(io, "$field_name =")
-            for (k, v) in getfield(params, field_name)
-                println(io, "\ttspan: ", k)
-                println(io, "\t\tmultiple shoot group size: ", v.multiple_shoot_group_size)
+            for v in getfield(params, field_name)
+                println(io, "\ttspan: ", v.tspan)
+                println(io, "\tmultiple shoot group size: ", v.multiple_shoot_group_size)
                 println(
                     io,
-                    "\t\tmultiple_shoot_continuity_term: ",
+                    "\tmultiple_shoot_continuity_term: ",
                     v.multiple_shoot_continuity_term,
                 )
-                println(io, "\t\tbatching factor", v.batching_sample_factor)
+                println(io, "\tbatching factor: ", v.batching_sample_factor)
             end
         else
             println(io, "$field_name = ", getfield(params, field_name))

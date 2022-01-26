@@ -334,7 +334,8 @@ function _train(
     res = nothing
     min_θ = θ
     range_count = 1
-    for (tspan, named_tuple) in params.training_groups
+    for named_tuple in params.training_groups
+        tspan = named_tuple[:tspan]
         first_index = findfirst(x -> x >= tspan[1], tsteps)
         last_index = findlast(x -> x <= tspan[2], tsteps)
         range = first_index:last_index
