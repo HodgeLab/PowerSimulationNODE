@@ -61,7 +61,7 @@ function _initialize_surrogate(
             x₀
     end
     p = vectorize(P)
-    @warn P 
+    @warn P
     P_pf, Q_pf, V_pf, θ_pf = P.pf
     Vr_pf = V_pf * cos(θ_pf)
     Vi_pf = V_pf * sin(θ_pf)
@@ -89,10 +89,7 @@ function _initialize_surrogate(
 end
 
 function _verify_psid_node_off(surr_prob, params, solver, tsteps, fault_dict)
-    i_ver = vcat(
-        Float64.(fault_dict[:ir_node_off])',
-        Float64.(fault_dict[:ii_node_off])',
-    )
+    i_ver = vcat(Float64.(fault_dict[:ir_node_off])', Float64.(fault_dict[:ii_node_off])')
     sol = OrdinaryDiffEq.solve(
         surr_prob,
         solver,
@@ -108,7 +105,7 @@ function _verify_psid_node_off(surr_prob, params, solver, tsteps, fault_dict)
     Plots.plot!(p1, sol[9,:], label = "Ir_filter")
     Plots.png(p1 ,"test_verify")
     =#
-    @assert mae(sol[1, :], i_ver[1, :]) < 1e-5 
+    @assert mae(sol[1, :], i_ver[1, :]) < 1e-5
     @assert mae(sol[2, :], i_ver[2, :]) < 1e-5
 end
 
@@ -123,16 +120,19 @@ function _calculate_final_loss(
     Ii_scale,
     output,
 )
-
     inner_loss_function =
-            instantiate_inner_loss_function(params.loss_function_weights, Ir_scale, Ii_scale)
+        instantiate_inner_loss_function(params.loss_function_weights, Ir_scale, Ii_scale)
 
     outer_loss_function = instantiate_outer_loss_function(
         solver,
         fault_data,
         inner_loss_function,
-        (multiple_shoot_group_size = length(tsteps), multiple_shoot_continuity_term=100, batching_sample_factor = 1.0 ),                 
-    ) 
+        (
+            multiple_shoot_group_size = length(tsteps),
+            multiple_shoot_continuity_term = 100,
+            batching_sample_factor = 1.0,
+        ),
+    )
     cb = instantiate_cb!(
         output,
         params.lb_loss,
@@ -145,7 +145,12 @@ function _calculate_final_loss(
     pvs_names = concatonate_pvs_names(pvs_names, length(tsteps))
     final_loss_for_comparison = outer_loss_function(θ, i_true, t_current, pvs_names)
 
-    cb(θ, final_loss_for_comparison[1], final_loss_for_comparison[2], final_loss_for_comparison[3])     #Call the callback to record the prediction in output
+    cb(
+        θ,
+        final_loss_for_comparison[1],
+        final_loss_for_comparison[2],
+        final_loss_for_comparison[3],
+    )     #Call the callback to record the prediction in output
     return final_loss_for_comparison[1]
 end
 
@@ -163,9 +168,9 @@ function _calculate_per_solve_maxiters(params, n_faults)
     total_maxiters = params.maxiters
     groupsize_faults = params.groupsize_faults
     n_groups = length(params.training_groups)
-    if rem(n_faults,groupsize_faults) != 0 
-        @error "number of faults not divisible by groupsize_faults parameter!" 
-    end 
+    if rem(n_faults, groupsize_faults) != 0
+        @error "number of faults not divisible by groupsize_faults parameter!"
+    end
     per_solve_maxiters =
         Int(floor((total_maxiters * groupsize_faults) / (n_faults * n_groups)))
     @info "per solve maxiters" per_solve_maxiters
@@ -238,8 +243,13 @@ function train(params::NODETrainParams)
         )
 
         if (params.ode_model != "none")
-            (params.verify_psid_node_off) &&
-                _verify_psid_node_off(surr_prob_node_off, params, solver, tsteps, fault_dict)
+            (params.verify_psid_node_off) && _verify_psid_node_off(
+                surr_prob_node_off,
+                params,
+                solver,
+                tsteps,
+                fault_dict,
+            )
             surr_prob = _turn_node_on(surr_prob_node_off, params, P)
         else
             surr_prob = surr_prob_node_off
@@ -280,7 +290,7 @@ function train(params::NODETrainParams)
     @info "min_θ[end] (end of training)" min_θ[end]
     output["total_time"] = total_time
     pvs_names = PSY.get_name.(pvss)
-   
+
     final_loss_for_comparison = _calculate_final_loss(
         params,
         res.u,
@@ -292,7 +302,7 @@ function train(params::NODETrainParams)
         Ii_scale,
         output,
     )
-    output["final_loss"] = final_loss_for_comparison 
+    output["final_loss"] = final_loss_for_comparison
 
     _capture_output(output, params.output_data_path, params.train_id)
     (params.graphical_report_mode != 0) &&
@@ -307,50 +317,48 @@ end
 function _train(
     θ::Union{Vector{Float32}, Vector{Float64}},
     params::NODETrainParams,
-    sensealg::SciMLBase.AbstractADType,  
+    sensealg::SciMLBase.AbstractADType,
     solver::OrdinaryDiffEq.OrdinaryDiffEqAlgorithm,
-    optimizer::Union{Flux.Optimise.AbstractOptimiser, Optim.AbstractOptimizer}, 
+    optimizer::Union{Flux.Optimise.AbstractOptimiser, Optim.AbstractOptimizer},
     Ir_scale::Float64,
     Ii_scale::Float64,
     output::Dict{String, Any},
     tsteps::Vector{Float64},
     pvs_names_subset::Tuple{String},
-    fault_data:: Dict{String, Dict{Symbol, Any}},
+    fault_data::Dict{String, Dict{Symbol, Any}},
     per_solve_maxiters::Int64,
 )
-    
     inner_loss_function =
         instantiate_inner_loss_function(params.loss_function_weights, Ir_scale, Ii_scale)
 
     res = nothing
     min_θ = θ
     range_count = 1
-    for (tspan,named_tuple) in params.training_groups
+    for (tspan, named_tuple) in params.training_groups
         first_index = findfirst(x -> x >= tspan[1], tsteps)
         last_index = findlast(x -> x <= tspan[2], tsteps)
         range = first_index:last_index
-        @info "range" range 
+        @info "range" range
         @info "start of range" min_θ[end]
         i_current_range = concatonate_i_true(fault_data, pvs_names_subset, range)   #TODO- need to provide all states for Multiple shoot with VSM model? 
         t_current_range = concatonate_t(tsteps, pvs_names_subset, range)
         pvs_names_current_range = concatonate_pvs_names(pvs_names_subset, length(range))
-        batchsize = length(i_current_range[1, :]) 
+        batchsize = length(i_current_range[1, :])
         train_loader = Flux.Data.DataLoader(
             (i_current_range, t_current_range, pvs_names_current_range),
-            batchsize = batchsize,                                         
-        )   
+            batchsize = batchsize,
+        )
 
         outer_loss_function = instantiate_outer_loss_function(
             solver,
             fault_data,
             inner_loss_function,
-            named_tuple
-        )  
-
+            named_tuple,
+        )
 
         optfun = GalacticOptim.OptimizationFunction(
             (θ, p, batch, time_batch, pvs_name_batch) ->
-                outer_loss_function(θ, batch, time_batch, pvs_name_batch),       
+                outer_loss_function(θ, batch, time_batch, pvs_name_batch),
             sensealg, #GalacticOptim.AutoForwardDiff()
         )
         optprob = GalacticOptim.OptimizationProblem(optfun, min_θ)

@@ -46,8 +46,10 @@ end
 Configures logging and calls PSY.System(inputs...). 
 """
 function node_load_system(inputs...)
-    logger =
-        PSY.configure_logging(console_level = PSY_CONSOLE_LEVEL, file_level = PSY_FILE_LEVEL)
+    logger = PSY.configure_logging(
+        console_level = PSY_CONSOLE_LEVEL,
+        file_level = PSY_FILE_LEVEL,
+    )
     try
         Logging.with_logger(logger) do
             sys = PSY.System(inputs...)
@@ -55,6 +57,9 @@ function node_load_system(inputs...)
         end
     finally
         close(logger)
-        PSY.configure_logging(console_level = NODE_CONSOLE_LEVEL, file_level = NODE_FILE_LEVEL)
+        PSY.configure_logging(
+            console_level = NODE_CONSOLE_LEVEL,
+            file_level = NODE_FILE_LEVEL,
+        )
     end
 end

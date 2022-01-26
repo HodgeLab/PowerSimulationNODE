@@ -1,16 +1,20 @@
 function Base.show(io::IO, ::MIME"text/plain", params::NODETrainParams)
     for field_name in fieldnames(NODETrainParams)
         if field_name == :training_groups
-            println(io, "$field_name =" )
-            for (k,v) in  getfield(params,field_name)
+            println(io, "$field_name =")
+            for (k, v) in getfield(params, field_name)
                 println(io, "\ttspan: ", k)
-                println(io, "\t\tmultiple shoot group size: ", v.multiple_shoot_group_size) 
-                println(io, "\t\tmultiple_shoot_continuity_term: ", v.multiple_shoot_continuity_term) 
-                println(io, "\t\tbatching factor", v.batching_sample_factor) 
-            end 
-        else 
-            println(io, "$field_name = ", getfield(params,field_name))
-        end 
+                println(io, "\t\tmultiple shoot group size: ", v.multiple_shoot_group_size)
+                println(
+                    io,
+                    "\t\tmultiple_shoot_continuity_term: ",
+                    v.multiple_shoot_continuity_term,
+                )
+                println(io, "\t\tbatching factor", v.batching_sample_factor)
+            end
+        else
+            println(io, "$field_name = ", getfield(params, field_name))
+        end
     end
 end
 
@@ -87,14 +91,14 @@ function visualize_3(params, path_to_output, path_to_input, visualize_level)
         ir_true = i_true[1, :]
         ii_true = i_true[2, :]
         t_all = concatonate_t(tsteps, df_loss[i, :PVS_name], :)
-        
+
         p3 = Plots.scatter(t_all, ir_true, ms = 2, msw = 0, label = "truth")
         p4 = Plots.scatter(t_all, ii_true, ms = 2, msw = 0, label = "truth")
-        
+
         for (i, t_pred) in enumerate(t_preds)
-            Plots.scatter!(p3, t_preds[i], ir_preds[i], ms = 2, msw = 0, legend=false)
-            Plots.scatter!(p4, t_preds[i], ii_preds[i], ms = 2, msw = 0, legend=false)
-        end 
+            Plots.scatter!(p3, t_preds[i], ir_preds[i], ms = 2, msw = 0, legend = false)
+            Plots.scatter!(p4, t_preds[i], ii_preds[i], ms = 2, msw = 0, legend = false)
+        end
         p = Plots.plot(
             p3,
             p4,

@@ -101,7 +101,10 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, Dyna
         ode_data = get_total_current_series(sim_full)
 
         transformer = collect(PSY.get_components(PSY.Transformer2W, sys_train))[1]
-        p_network = [PSY.get_x(transformer) + PSY.get_X_th(pvs), PSY.get_r(transformer) + PSY.get_R_th(pvs)]
+        p_network = [
+            PSY.get_x(transformer) + PSY.get_X_th(pvs),
+            PSY.get_r(transformer) + PSY.get_R_th(pvs),
+        ]
         bus_results = PSY.solve_powerflow(sys_train)["bus_results"]
         @info "full system", bus_results
         surrogate_bus_result = bus_results[in([SURROGATE_BUS]).(bus_results.bus_number), :]
@@ -134,8 +137,10 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, Dyna
                 console_level = PSID_CONSOLE_LEVEL,
                 file_level = PSID_FILE_LEVEL,
             )
-            @info "initialize system power flow", PSY.solve_powerflow(sys_init)["flow_results"]
-            @info "initialize system power flow", PSY.solve_powerflow(sys_init)["bus_results"]
+            @info "initialize system power flow",
+            PSY.solve_powerflow(sys_init)["flow_results"]
+            @info "initialize system power flow",
+            PSY.solve_powerflow(sys_init)["bus_results"]
             @debug PSY.show_states_initial_value(sim_simp)
             @time PSID.execute!(
                 sim_simp,
@@ -204,7 +209,6 @@ function activate_next_source!(sys::PSY.System)
     end
 end
 
-
 """
 Test function description
 """
@@ -226,7 +230,13 @@ function build_sys_init(sys_train::PSY.System, DynamicInverter::PSY.DynamicInver
         name = string("gen", string(1)),
         available = true,
         status = true,
-        bus = collect(PSY.get_components(PSY.Bus, sys_init, x -> PSY.get_bustype(x) == PSY.BusTypes.PV))[1],
+        bus = collect(
+            PSY.get_components(
+                PSY.Bus,
+                sys_init,
+                x -> PSY.get_bustype(x) == PSY.BusTypes.PV,
+            ),
+        )[1],
         active_power = power_total / base_power_total, #Only divide base power by n_devices
         reactive_power = 0.0,
         rating = base_power_total,
@@ -237,19 +247,17 @@ function build_sys_init(sys_train::PSY.System, DynamicInverter::PSY.DynamicInver
         base_power = base_power_total,
     )
     PSY.add_component!(sys_init, g)
-    inv_typ = DynamicInverter 
+    inv_typ = DynamicInverter
     PSY.set_name!(inv_typ, PSY.get_name(g))
-    PSY.add_component!(sys_init, inv_typ, g)   
+    PSY.add_component!(sys_init, inv_typ, g)
     p_inv = get_parameters(inv_typ)
     return sys_init, p_inv
 end
 
-
-
 function initialize_sys!(sys::PSY.System, name::String)
     device = PSY.get_component(PSY.DynamicInverter, sys, name)
     bus = PSY.get_number(PSY.get_bus(PSY.get_component(PSY.StaticInjection, sys, name)))
-    
+
     sim = PSID.Simulation!(
         PSID.MassMatrixModel,
         sys,
@@ -264,7 +272,7 @@ function initialize_sys!(sys::PSY.System, name::String)
     x₀ = [value for (key, value) in x₀_dict]
 
     setpoints = PSID.get_setpoints(sim)["gen1"]
-    refs = [setpoints["V_ref"], setpoints["ω_ref"], setpoints["P_ref"],setpoints["Q_ref"] ]
+    refs = [setpoints["V_ref"], setpoints["ω_ref"], setpoints["P_ref"], setpoints["Q_ref"]]
     Vr0 = PSID.read_initial_conditions(sim)["V_R"][bus]
     Vi0 = PSID.read_initial_conditions(sim)["V_I"][bus]
     return x₀, refs, Vr0, Vi0
@@ -310,7 +318,11 @@ function build_train_system(
     sys_surr = deepcopy(sys_surr_original)
     sys_pvs = deepcopy(sys_pvs_original)
     non_surrogate_buses = collect(
-        PSY.get_components(PSY.Bus, sys_surr, x -> PSY.get_name(PSY.get_area(x)) != surrogate_area_name),
+        PSY.get_components(
+            PSY.Bus,
+            sys_surr,
+            x -> PSY.get_name(PSY.get_area(x)) != surrogate_area_name,
+        ),
     )
     if length(non_surrogate_buses) != 1
         @error "Must have one-non surrogate bus designated in surrogate system to add the PVS to"
@@ -321,7 +333,7 @@ function build_train_system(
 
     sources = PSY.get_components(PSY.Source, sys_pvs)
     for s in sources
-        pvs =PSY.get_dynamic_injector(s)
+        pvs = PSY.get_dynamic_injector(s)
         PSY.remove_component!(sys_pvs, pvs)
         PSY.remove_component!(sys_pvs, s)
 
@@ -350,7 +362,6 @@ function label_area!(sys::PSY.System, bus_numbers, area_name::String)
         end
     end
 end
-
 
 function check_single_connecting_line_condition(sys::PSY.System)
     areas = PSY.get_components(PSY.Area, sys)
@@ -408,12 +419,16 @@ end
 
 function remove_area(sys_original::PSY.System, area_name::String)
     sys = deepcopy(sys_original)
-    (length(collect(PSY.get_components(PSY.Area, sys, x -> PSY.get_name(x) == area_name))) == 1) ||
-        @warn "area with name not found or multiple areas with same name"
+    (
+        length(
+            collect(PSY.get_components(PSY.Area, sys, x -> PSY.get_name(x) == area_name)),
+        ) == 1
+    ) || @warn "area with name not found or multiple areas with same name"
     connecting_bus_name = nothing
 
-    static_injectors =
-        collect(PSY.get_components(PSY.Component, sys, x -> typeof(x) <: PSY.StaticInjection))
+    static_injectors = collect(
+        PSY.get_components(PSY.Component, sys, x -> typeof(x) <: PSY.StaticInjection),
+    )
     for static_injector in static_injectors
         if PSY.get_name(PSY.get_area(PSY.get_bus(static_injector))) == area_name
             dynamic_injector = PSY.get_dynamic_injector(static_injector)
@@ -442,10 +457,10 @@ function remove_area(sys_original::PSY.System, area_name::String)
 
     buses = collect(PSY.get_components(PSY.Component, sys, x -> typeof(x) <: PSY.Bus))
     for bus in buses
-        if (PSY.get_name(PSY.get_area(bus)) == area_name) && (PSY.get_name(bus) != connecting_bus_name)
+        if (PSY.get_name(PSY.get_area(bus)) == area_name) &&
+           (PSY.get_name(bus) != connecting_bus_name)
             PSY.remove_component!(sys, bus)
         end
     end
     return sys
 end
-

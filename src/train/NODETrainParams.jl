@@ -17,7 +17,7 @@
     Tuple{Float64, Float64},
     NamedTuple{
         (:multiple_shoot_group_size, :multiple_shoot_continuity_term, :batching_sample_factor),
-        Tuple{Int64, Real, Float64},
+        Tuple{Int64, Float64, Float64},
     }`: Specify the tspan for each group of training, and the multiple shooting and random batching parameter for each group.  
 - `groupsize_faults::Int64`: Number of faults trained on simultaneous `1`:sequential training. if equal to number of pvs in sys_train, parallel training.
 - `loss_function_weights::Tuple{Float64, Float64}`: weights used for loss function `(mae_weight, mse_weight)`.
@@ -55,10 +55,14 @@ mutable struct NODETrainParams
     training_groups::DataStructures.SortedDict{
         Tuple{Float64, Float64},
         NamedTuple{
-            (:multiple_shoot_group_size, :multiple_shoot_continuity_term, :batching_sample_factor),
-            Tuple{Int64, Real, Float64},
+            (
+                :multiple_shoot_group_size,
+                :multiple_shoot_continuity_term,
+                :batching_sample_factor,
+            ),
+            Tuple{Int64, Float64, Float64},
         },
-    }
+    }  #TODO - change from Real to concrete type (Float64) and test serialization
     groupsize_faults::Int64
     loss_function_weights::Tuple{Float64, Float64}
     loss_function_scale::String
@@ -80,7 +84,7 @@ mutable struct NODETrainParams
     graphical_report_mode::Int64
 end
 
-StructTypes.StructType(::Type{NODETrainParams}) = StructTypes.OrderedStruct()   #Struct vs OrderedStruct
+StructTypes.StructType(::Type{NODETrainParams}) = StructTypes.Mutable()   #TODO Struct vs OrderedStruct vs Mutablestruct
 
 function NODETrainParams(;
     train_id = "train_instance_1",
@@ -94,7 +98,11 @@ function NODETrainParams(;
     maxiters = 15,
     lb_loss = 0.0,
     training_groups = DataStructures.SortedDict(
-        (0.0, 1.0) => (multiple_shoot_group_size = 101, multiple_shoot_continuity_term =100, batching_sample_factor = 1.0),
+        (0.0, 1.0) => (
+            multiple_shoot_group_size = 101,
+            multiple_shoot_continuity_term = 100.0,
+            batching_sample_factor = 1.0,
+        ),
     ),
     groupsize_faults = 1,
     loss_function_weights = (0.5, 0.5),
@@ -116,7 +124,6 @@ function NODETrainParams(;
     verify_psid_node_off = true,
     graphical_report_mode = 0,
 )
-
     NODETrainParams(
         train_id,
         solver,
@@ -154,7 +161,6 @@ end
 function NODETrainParams(file::AbstractString)
     return JSON3.read(read(file), NODETrainParams)
 end
-
 
 """
     serialize(inputs::NODETrainParams, file_path::String)

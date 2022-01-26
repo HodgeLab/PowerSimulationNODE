@@ -35,7 +35,8 @@ function build_pvs(dict_fault_data; pad_signal = true)
             base_voltage = 345.0,
         ),
     )
-    pvs_bus = collect(PSY.get_components(PSY.Bus, sys_pvs, x -> x.bustype == PSY.BusTypes.REF))[1]
+    pvs_bus =
+        collect(PSY.get_components(PSY.Bus, sys_pvs, x -> x.bustype == PSY.BusTypes.REF))[1]
 
     for (key, value) in dict_fault_data
         t = value["data"][:, 1]
@@ -97,7 +98,7 @@ function build_pvs(dict_fault_data; pad_signal = true)
 end
 
 function build_fault_data_dataframe(faults, system, OutputParameters, SimulationParameters)
-    solver = solver_map[SimulationParameters["Solver"]]()  
+    solver = solver_map[SimulationParameters["Solver"]]()
     abstol = SimulationParameters["AbsTol"]
     reltol = SimulationParameters["RelTol"]
     tspan = (SimulationParameters["TspanStart"], SimulationParameters["TspanEnd"])
@@ -119,7 +120,7 @@ function build_fault_data_dataframe(faults, system, OutputParameters, Simulation
         @warn fault
         PSID.execute!(
             sim,
-            solver, 
+            solver,
             abstol = abstol,
             reltol = reltol,
             reset_simulation = false,
@@ -266,12 +267,8 @@ function get_fault(fault_device_name, fault_type, system, t_fault)
     elseif fault_type[1] == "LoadChange"
         l = PSY.get_component(ElectricLoad, system, fault_device_name)
         starting_Pref = get_P_ref(l)
-        fault = PSID.LoadChange(
-            t_fault,
-            l,
-            :P_ref,
-            starting_Pref * fault_type[2]["RefValue"],
-        )
+        fault =
+            PSID.LoadChange(t_fault, l, :P_ref, starting_Pref * fault_type[2]["RefValue"])
 
     elseif fault_type[1] == "LoadTrip"
         l = PSY.get_component(ElectricLoad, system, fault_device_name)
@@ -282,7 +279,6 @@ function get_fault(fault_device_name, fault_type, system, t_fault)
     end
     return fault
 end
-
 
 function pad_tanh(t, y)
     first = y[1]

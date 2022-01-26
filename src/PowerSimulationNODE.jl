@@ -36,7 +36,7 @@ import NLsolve
 import Optim
 import OrdinaryDiffEq
 import PowerSimulationsDynamics
-import PowerSystems            
+import PowerSystems
 import Random
 import StatsBase
 import SciMLBase
@@ -48,20 +48,24 @@ const PSID = PowerSimulationsDynamics
 
 using Requires
 function __init__()
-    @require Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80" include(joinpath("visualize","visualize.jl"))
+    @require Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80" include(
+        joinpath("visualize", "visualize.jl"),
+    )
     @require GalacticOptim = "a75be94c-b780-496d-a8a9-0878b188d577" begin
-        @require ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"  include(joinpath("train","instantiate.jl"))
+        @require ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210" include(
+            joinpath("train", "instantiate.jl"),
+        )
     end
 end
 
 #TODO Split up code and use Requires strategically to improve load times. 
-include(joinpath("train","surrogate_models.jl"))
-include(joinpath("train","NODETrainParams.jl"))
+include(joinpath("train", "surrogate_models.jl"))
+include(joinpath("train", "NODETrainParams.jl"))
 include("constants.jl")
-include(joinpath("generate_data","fault_pvs.jl"))
-include(joinpath("train","HPCTrain.jl"))
-include(joinpath("generate_data","NODETrainInputs.jl"))
-include(joinpath("train","train.jl"))
-include(joinpath("train","multiple_shoot.jl"))
+include(joinpath("generate_data", "fault_pvs.jl"))
+include(joinpath("train", "HPCTrain.jl"))
+include(joinpath("generate_data", "NODETrainInputs.jl"))
+include(joinpath("train", "train.jl"))
+include(joinpath("train", "multiple_shoot.jl"))
 include("utils.jl")
 end

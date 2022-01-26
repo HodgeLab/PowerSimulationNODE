@@ -53,26 +53,28 @@ try
         joinpath(path, PowerSimulationNODE.INPUT_FOLDER_NAME, "data.json"),
     )
 
-    #Test with pure NODE 
-    p = NODETrainParams(base_path = path, ode_model ="none", node_feedback_states = 0, verify_psid_node_off = false, maxiters=20, optimizer_η=0.001, node_input_scale=1.0,
-    training_groups = DataStructures.SortedDict(
-        (0.0, 1.0) => (multiple_shoot_group_size = 20, multiple_shoot_continuity_term = 100,  batching_sample_factor = 0.5),
-    ),
+    #Test with pure NODE and 0 feedback states passes 
+    #TODO - need additional tests for ode_model = "vsm" and node_feedback_states != 0 once these are enabled. 
+    p = NODETrainParams(
+        base_path = path,
+        ode_model = "none",
+        node_feedback_states = 0,
+        verify_psid_node_off = false,
+        maxiters = 20,
+        optimizer_η = 0.001,
+        node_input_scale = 1.0,
+        training_groups = DataStructures.SortedDict(
+            (0.0, 1.0) => (
+                multiple_shoot_group_size = 20,
+                multiple_shoot_continuity_term = 100,
+                batching_sample_factor = 0.5,
+            ),
+        ),
     )
     status = train(p)
     @test status
 
-    #Test with VSM 
-    p = NODETrainParams(base_path = path, ode_model ="vsm", verify_psid_node_off = true, maxiters=20, optimizer_η=0.001, node_input_scale=1.0,
-    training_groups = DataStructures.SortedDict(
-        (0.0, 1.0) => (multiple_shoot_group_size = 20, multiple_shoot_continuity_term = 100,  batching_sample_factor = 0.5),
-    ),
-    )
-    #status = train(p)  #TODO- uncomment to test training with vsm 
-    #@test status
-
-
 finally
     @info("removing test files")
-    #rm(path, force = true, recursive = true)
+    rm(path, force = true, recursive = true)
 end

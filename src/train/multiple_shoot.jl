@@ -43,7 +43,7 @@ function batch_multiple_shoot(
     solver::DiffEqBase.AbstractODEAlgorithm,
     group_size::Integer,
     batching_factor::Float64;
-    kwargs...
+    kwargs...,
 )
     datasize = size(ode_data, 2)
 
@@ -60,13 +60,13 @@ function batch_multiple_shoot(
         OrdinaryDiffEq.solve(
             OrdinaryDiffEq.remake(
                 prob;
-                p=p,
-                tspan=(tsteps[first(rg)], tsteps[last(rg)]),
-                u0=ode_data[:, first(rg)],
+                p = p,
+                tspan = (tsteps[first(rg)], tsteps[last(rg)]),
+                u0 = ode_data[:, first(rg)],
             ),
             solver;
-            saveat=tsteps[rg],
-            kwargs...
+            saveat = tsteps[rg],
+            kwargs...,
         ) for rg in ranges_batch
     ]
     group_predictions = Array.(sols)
@@ -88,27 +88,30 @@ function batch_multiple_shoot(
             # Ensure continuity between last state in previous prediction
             # and current initial condition in ode_data
             loss +=
-                continuity_term * _default_continuity_loss(group_predictions[i - 1][:, end], u[:, 1])
+                continuity_term *
+                _default_continuity_loss(group_predictions[i - 1][:, end], u[:, 1])
         end
     end
-    t_predictions = [tsteps[r] for r in ranges_batch] 
+    t_predictions = [tsteps[r] for r in ranges_batch]
     return loss, group_predictions, t_predictions
 end
 
-
-
-function batch_ranges(batching_factor::Float64, ranges) 
+function batch_ranges(batching_factor::Float64, ranges)
     batch_ranges = []
-    for rg in ranges 
-        n_points = length(rg) - 2 
-        n_choose = Int(floor(n_points*batching_factor))
-        batch_range = sort!(vcat(rg[1], StatsBase.sample(rg[2:end-1], n_choose, replace=false) , rg[end])) 
+    for rg in ranges
+        n_points = length(rg) - 2
+        n_choose = Int(floor(n_points * batching_factor))
+        batch_range = sort!(
+            vcat(
+                rg[1],
+                StatsBase.sample(rg[2:(end - 1)], n_choose, replace = false),
+                rg[end],
+            ),
+        )
         push!(batch_ranges, batch_range)
-    end 
-    return batch_ranges 
-end 
-
-
+    end
+    return batch_ranges
+end
 
 """
 Get ranges that partition data of length `datasize` in groups of `groupsize` observations.
@@ -136,12 +139,11 @@ function group_ranges(datasize::Integer, groupsize::Integer)
             "datasize must be positive and groupsize must to be within [2, datasize]",
         ),
     )
-    return [i:min(datasize, i + groupsize - 1) for i in 1:groupsize-1:datasize-1]
+    return [i:min(datasize, i + groupsize - 1) for i in 1:(groupsize - 1):(datasize - 1)]
 end
 
 # Default ontinuity loss between last state in previous prediction
 # and current initial condition in ode_data
-function _default_continuity_loss(û_end::AbstractArray,
-                                  u_0::AbstractArray)
+function _default_continuity_loss(û_end::AbstractArray, u_0::AbstractArray)
     return sum(abs, û_end - u_0)
 end

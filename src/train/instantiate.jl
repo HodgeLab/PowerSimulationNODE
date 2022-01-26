@@ -4,10 +4,8 @@ const optimizer_map = Dict("Adam" => Flux.Optimise.ADAM, "Bfgs" => Optim.BFGS)  
 
 const solver_map = Dict("Rodas4" => OrdinaryDiffEq.Rodas4) #use requires 
 
-const sensealg_map =
-    Dict("ForwardDiffSensitivity" => GalacticOptim.AutoForwardDiff)   #GalacticOptim.AutoForwardDiff() 
+const sensealg_map = Dict("ForwardDiffSensitivity" => GalacticOptim.AutoForwardDiff)   #GalacticOptim.AutoForwardDiff() 
 
- 
 const surr_map = Dict(
     "vsm_v_t_0" => vsm_v_t_0,
     "none_v_t_0" => none_v_t_0,
@@ -18,7 +16,8 @@ const surr_map = Dict(
     "none_v_t_5" => none_v_t_5,
 )
 
-const activation_map = Dict("relu" => Flux.relu, "hardtanh" => Flux.hardtanh, "sigmoid" => Flux.sigmoid)
+const activation_map =
+    Dict("relu" => Flux.relu, "hardtanh" => Flux.hardtanh, "sigmoid" => Flux.sigmoid)
 
 function instantiate_solver(inputs)
     return solver_map[inputs.solver]()
@@ -26,7 +25,7 @@ end
 
 function instantiate_sensealg(inputs)
     return sensealg_map[inputs.sensealg]()
-end 
+end
 
 function instantiate_optimizer(inputs)
     if inputs.optimizer == "Adam"
@@ -113,8 +112,6 @@ function build_nn(input_dim, output_dim, nn_width, nn_hidden, nn_activation)
     end
 end
 
-
-
 function instantiate_M(inputs)
     if inputs.ode_model == "vsm"
         ODE_ORDER = 19
@@ -139,12 +136,11 @@ The algebraic states come first.
 function MassMatrix(n_differential::Integer, n_algebraic::Integer)
     n_states = n_differential + n_algebraic
     M = Float64.(zeros(n_states, n_states))
-    for i in (n_algebraic+1):(n_differential+n_algebraic)
+    for i in (n_algebraic + 1):(n_differential + n_algebraic)
         M[i, i] = 1.0
     end
     return M
 end
-
 
 function _instantiate_surr(surr, nn, Vm, Vθ)
     return (dx, x, p, t) -> surr(dx, x, p, t, nn, Vm, Vθ)
@@ -201,7 +197,7 @@ function instantiate_outer_loss_function(
     solver,
     fault_data,
     inner_loss_function,
-    named_tuple
+    named_tuple,
 )
     return (θ, y_actual, tsteps, pvs_names) -> _outer_loss_function(
         θ,
@@ -215,26 +211,24 @@ function instantiate_outer_loss_function(
     )
 end
 
-
 function _outer_loss_function(
-    θ,     
-    y_actual,   
-    tsteps,    
-    pvs_names,  
-    solver, 
-    fault_data, 
-    inner_loss_function,    
-    named_tuple, 
+    θ,
+    y_actual,
+    tsteps,
+    pvs_names,
+    solver,
+    fault_data,
+    inner_loss_function,
+    named_tuple,
 )
-    loss = 0.0 
-    group_predictions = [] 
-    t_predictions = [] 
-    for (i,pvs) in enumerate(unique(pvs_names))
-
+    loss = 0.0
+    group_predictions = []
+    t_predictions = []
+    for (i, pvs) in enumerate(unique(pvs_names))
         tsteps_subset = tsteps[pvs .== pvs_names]
-        y_actual_subset = y_actual[:,pvs .== pvs_names]
+        y_actual_subset = y_actual[:, pvs .== pvs_names]
         y_actual_subset = eltype(θ).(y_actual_subset)
-        tsteps_subset =  eltype(θ).(tsteps_subset)
+        tsteps_subset = eltype(θ).(tsteps_subset)
 
         P = fault_data[pvs][:P]
         P.nn = θ
@@ -245,22 +239,21 @@ function _outer_loss_function(
             tsteps_subset,
             fault_data[pvs][:surr_problem],
             inner_loss_function,
-            named_tuple[:multiple_shoot_continuity_term],   
-            solver, 
-            named_tuple[:multiple_shoot_group_size], 
+            named_tuple[:multiple_shoot_continuity_term],
+            solver,
+            named_tuple[:multiple_shoot_group_size],
             named_tuple[:batching_sample_factor],
         )
         loss += single_loss
-         
 
-        if (i == 1) 
+        if (i == 1)
             group_predictions = single_pred
             t_predictions = single_t_predictions
-        else 
+        else
             group_predictions = vcat(group_predictions, single_pred)
             t_predictions = vcat(t_predictions, single_t_predictions)
-        end 
-    end 
+        end
+    end
     return loss, group_predictions, t_predictions
 end
 
@@ -295,19 +288,17 @@ function instantiate_cb!(output, lb_loss, exportmode, range_count, pvs_names) #d
         return (p, l, pred, t) ->
             _cb3!(p, l, pred, t, output, lb_loss, range_count, pvs_names)
     elseif exportmode == 2
-        return (p, l, pred, t) ->
-            _cb2!(p, l,  output, lb_loss, range_count, pvs_names)
+        return (p, l, pred, t) -> _cb2!(p, l, output, lb_loss, range_count, pvs_names)
     elseif exportmode == 1
-        return (p, l, pred, t) ->
-            _cb1!(p, l, output, lb_loss)
+        return (p, l, pred, t) -> _cb1!(p, l, output, lb_loss)
     end
 end
 
 function _cb3!(p, l, pred, t_prediction, output, lb_loss, range_count, pvs_names)
     push!(output["loss"], (collect(pvs_names), range_count, l))
     push!(output["parameters"], [p])
-    ir = [p[1,:] for p in pred]
-    ii = [p[2,:] for p in pred]
+    ir = [p[1, :] for p in pred]
+    ii = [p[2, :] for p in pred]
     push!(output["predictions"], (t_prediction, ir, ii))
     output["total_iterations"] += 1
     @info "loss", l

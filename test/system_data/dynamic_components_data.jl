@@ -136,7 +136,8 @@ function add_source_to_ref(sys::PSY.System)
         g.bus.bustype == PSY.BusTypes.REF &&
             error("A device is already attached to the REF bus")
     end
-    slack_bus = [b for b in PSY.get_components(Bus, sys) if b.bustype == PSY.BusTypes.REF][1]
+    slack_bus =
+        [b for b in PSY.get_components(Bus, sys) if b.bustype == PSY.BusTypes.REF][1]
     inf_source = PSY.Source(
         name = "InfBus", #name
         active_power = 0.0,
