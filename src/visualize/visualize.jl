@@ -88,25 +88,15 @@ function visualize_3(params, path_to_output, path_to_input, visualize_level)
         ii_preds = df_predictions[i, "ii_prediction"]
         t_preds = df_predictions[i, "t_prediction"]
         i_true = concatonate_i_true(fault_data, df_loss[i, :PVS_name], :)
-   
-        @warn i_true 
-        @warn length(i_true)
         ir_true = i_true[1, :]
         ii_true = i_true[2, :]
-        @warn length(ir_true)
-        @warn length(ii_true)
         t_all = concatonate_t(tsteps, df_loss[i, :PVS_name], :)
-        @warn t_all
-        @warn length(t_all)
-        @warn size(t_all)
-        @warn size(ir_true)
-        p3 = Plots.plot(t_all', ir_true, ms = 2, msw = 0, label = "truth")
-        p4 = Plots.plot(t_all', ii_true, ms = 2, msw = 0, label = "truth")
+        p3 = Plots.scatter(t_all', ir_true, ms = 2, msw = 0, label = "truth")
+        p4 = Plots.scatter(t_all', ii_true, ms = 2, msw = 0, label = "truth")
 
         for (i, t_pred) in enumerate(t_preds)
-            Plots.scatter!(p3, t_preds[i], ir_preds[i], ms = 2, msw = 0)#, legend = false)
-            Plots.scatter!(p4, t_preds[i], ii_preds[i], ms = 2, msw = 0)#, legend = false)
-            @warn i 
+            Plots.scatter!(p3, t_preds[i], ir_preds[i], ms = 2, msw = 0, legend = false)
+            Plots.scatter!(p4, t_preds[i], ii_preds[i], ms = 2, msw = 0, legend = false)
         end
         p = Plots.plot(
             p3,

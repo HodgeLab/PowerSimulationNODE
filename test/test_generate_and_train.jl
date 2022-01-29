@@ -63,7 +63,12 @@ try
         maxiters = 20,
         optimizer_η = 0.001,
         node_input_scale = 1.0,
-        training_groups = [(tspan = (0.0, 1.0), multiple_shoot_group_size = 20, multiple_shoot_continuity_term = 100, batching_sample_factor = 0.5)]
+        training_groups = [(
+            tspan = (0.0, 1.0),
+            multiple_shoot_group_size = 20,
+            multiple_shoot_continuity_term = 100,
+            batching_sample_factor = 0.5,
+        )],
     )
     status = train(p)
     @test status

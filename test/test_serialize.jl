@@ -7,7 +7,7 @@ try
     test_params_2 = NODETrainParams("test_params.jl")
     for field_name in fieldnames(NODETrainParams)
         @test getfield(test_params, field_name) == getfield(test_params_2, field_name)
-    end 
+    end
 finally
     @info("removing test files")
     rm(path, force = true, recursive = true)

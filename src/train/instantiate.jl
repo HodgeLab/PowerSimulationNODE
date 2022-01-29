@@ -4,7 +4,10 @@ const optimizer_map = Dict("Adam" => Flux.Optimise.ADAM, "Bfgs" => Optim.BFGS)  
 
 const solver_map = Dict("Rodas4" => OrdinaryDiffEq.Rodas4) #use requires 
 
-const sensealg_map = Dict("ForwardDiffSensitivity" => GalacticOptim.AutoForwardDiff)   #GalacticOptim.AutoForwardDiff() 
+const sensealg_map = Dict(
+    "ForwardDiff" => GalacticOptim.AutoForwardDiff,
+    "Zygote" => GalacticOptim.AutoZygote,
+)   #GalacticOptim.AutoForwardDiff() 
 
 const surr_map = Dict(
     "vsm_v_t_0" => vsm_v_t_0,
@@ -224,7 +227,10 @@ function _outer_loss_function(
     loss = 0.0
     group_predictions = []
     t_predictions = []
-    for (i, pvs) in enumerate(unique(pvs_names))
+    unique_pvs_names = unique(pvs_names)
+    #@warn unique_pvs_names
+    i = 1
+    for pvs in unique_pvs_names
         tsteps_subset = tsteps[pvs .== pvs_names]
         y_actual_subset = y_actual[:, pvs .== pvs_names]
         y_actual_subset = eltype(θ).(y_actual_subset)
@@ -253,6 +259,7 @@ function _outer_loss_function(
             group_predictions = vcat(group_predictions, single_pred)
             t_predictions = vcat(t_predictions, single_t_predictions)
         end
+        i += 1
     end
     return loss, group_predictions, t_predictions
 end
