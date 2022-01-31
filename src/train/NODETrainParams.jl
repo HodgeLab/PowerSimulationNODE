@@ -5,7 +5,7 @@
 - `train_id::Int64`: id for the training instance, used for naming output data folder.
 - `solver::String`: solver used for the NODE problem. Valid Values ["Rodas4"]
 - `solver_tols:: Tuple{Float64, Float64}`: solver tolerances (abstol, reltol).
-- `sensealg::String`: sensitivity algorithm used in training. Valid Values ["ForwardDiffSensitivity"]
+- `sensealg::String`: sensitivity algorithm used in training. Valid Values ["ForwardDiff", "Zygote" ]
 - `optimizer::["Adam", "Bfgs"]`: main optimizer used in training.
 - `optimizer_η::Float64`: Learning rate for Adam (amount by which gradients are discounted before updating weights). Ignored if Adam is not the optimizer.
 - `optimizer_adjust::String: optimizer used for final adjustments (2nd stage). Valid values ["Adam", "Bfgs", "nothing"].
@@ -90,14 +90,19 @@ function NODETrainParams(;
     train_id = "train_instance_1",
     solver = "Rodas4",
     solver_tols = (1e-6, 1e-9),
-    sensealg = "ForwardDiffSensitivity",
+    sensealg = "ForwardDiff",
     optimizer = "Adam",
     optimizer_η = 0.001,
     optimizer_adjust = "nothing",
     optimizer_adjust_η = 0.001,
     maxiters = 15,
     lb_loss = 0.0,
-    training_groups = [(tspan = (0.0,1.0), multiple_shoot_group_size = 101,  multiple_shoot_continuity_term = 100.0, batching_sample_factor = 1.0)],
+    training_groups = [(
+        tspan = (0.0, 1.0),
+        multiple_shoot_group_size = 101,
+        multiple_shoot_continuity_term = 100.0,
+        batching_sample_factor = 1.0,
+    )],
     groupsize_faults = 1,
     loss_function_weights = (0.5, 0.5),
     loss_function_scale = "range",
