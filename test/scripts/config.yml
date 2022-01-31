@@ -6,7 +6,7 @@ SimulationParameters:
   RelTol: 1e-6
   TFault: 0.05
   DtMax: 0.02
-  Solver: "Rodas4"  #TODO use this solver, currently hardcoded 
+  Solver: "Rodas4" 
   FaultTime: 0.1 
 
 FaultParameters:
