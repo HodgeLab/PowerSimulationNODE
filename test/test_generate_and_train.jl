@@ -69,6 +69,13 @@ try
             multiple_shoot_continuity_term = 100,
             batching_sample_factor = 0.5,
         )],
+        node_state_inputs = [
+            ("gen1", :ir_filter),
+            ("gen1", :ii_filter),
+            ("gen1", :θ_pll),
+            ("gen1", :ϕq_ic),
+            ("gen1", :ϕd_ic),
+        ],
     )
     status = train(p)
     @test status

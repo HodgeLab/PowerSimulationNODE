@@ -78,12 +78,11 @@ function visualize_3(params, path_to_output, path_to_input, visualize_level)
     end
     df_predictions =
         DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "predictions")))
-    TrainInputs =
-        JSON3.read(read(joinpath(params.input_data_path, "data.json")), NODETrainInputs)
+    TrainInputs = Serialization.deserialize(joinpath(params.input_data_path, "data"))
     tsteps = TrainInputs.tsteps
     fault_data = TrainInputs.fault_data
 
-    for i in transition_indices #This changes to incorporate the new way data is saved. 
+    for i in transition_indices
         ir_preds = df_predictions[i, "ir_prediction"]
         ii_preds = df_predictions[i, "ii_prediction"]
         t_preds = df_predictions[i, "t_prediction"]

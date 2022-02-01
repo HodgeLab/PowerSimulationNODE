@@ -27,6 +27,7 @@
 - `node_input_scale::Float64`: Scale factor on the voltage input to the NODE. Does not apply to other inputs (ie the feedback states).
 - `node_output_scale::Float64`: Scale factor on the current output of the NODE. Does not apply to other outputs (ie the feedback states).
 - `node_inputs::["voltage"]`: Determines the physical states which are inputs to the NODE. Ideally, only voltage to remain as general as possible.
+- `node_state_inputs::Vector{Tuple{String, Symbol`: Additional states that are input to NODE: ("DeviceName", :StateSymbol). The device name and symbol must match the solution objected passed as input data. 
 - `node_feedback_states::Int64`: Number of feedback states in the NODE. Does not include the output current states which can be feedback if `node_feedback_current = true`.
 - `node_feedback_current::Bool`: Determines if current is also a feedback state.
 - `node_layers::Int64`: Number of hidden layers in the NODE. Does not include the input or output layer.
@@ -70,6 +71,7 @@ mutable struct NODETrainParams
     node_input_scale::Float64
     node_output_scale::Float64
     node_inputs::String
+    node_state_inputs::Vector{Tuple{String, Symbol}}
     node_feedback_states::Int64
     node_feedback_current::Bool
     node_layers::Int64
@@ -110,6 +112,7 @@ function NODETrainParams(;
     node_input_scale = 10e1,
     node_output_scale = 1.0,
     node_inputs = "voltage",
+    node_state_inputs = [],
     node_feedback_states = 0,
     node_feedback_current = true,
     node_layers = 2,
@@ -142,6 +145,7 @@ function NODETrainParams(;
         node_input_scale,
         node_output_scale,
         node_inputs,
+        node_state_inputs,
         node_feedback_states,
         node_feedback_current,
         node_layers,
