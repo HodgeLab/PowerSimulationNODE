@@ -48,9 +48,9 @@ try
         inv_case78("aa"),
     )
 
-    PowerSimulationNODE.serialize(
+    Serialization.serialize(
+        joinpath(path, PowerSimulationNODE.INPUT_FOLDER_NAME, "data"),
         d,
-        joinpath(path, PowerSimulationNODE.INPUT_FOLDER_NAME, "data.json"),
     )
 
     #Test with pure NODE and 0 feedback states passes 

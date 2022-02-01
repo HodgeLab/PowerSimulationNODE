@@ -96,6 +96,7 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, Dyna
             reset_simulation = false,
             saveat = tsteps,
         )
+        psid_results_object = PSID.read_results(sim_full)
         active_source =
             collect(PSY.get_components(PSY.Source, sys_train, x -> PSY.get_available(x)))[1]
         ode_data = get_total_current_series(sim_full)
@@ -122,7 +123,9 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, Dyna
             :p_pf => [P_pf, Q_pf, V_pf, θ_pf],
             :ir_ground_truth => ode_data[1, :],
             :ii_ground_truth => ode_data[2, :],
+            :psid_results_object => psid_results_object,
         )
+
         if NODETrainDataParams.ode_model == "vsm"
             #################### BUILD INITIALIZATION SYSTEM ###############################
             sys_init, p_inv = build_sys_init(sys_train, DynamicInverter) #returns p_inv, the set of average parameters 
@@ -161,18 +164,6 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, Dyna
         end
     end
     return NODETrainInputs(tsteps, fault_data)
-end
-
-"""
-    serialize(inputs::NODETrainInputs, file_path::String)
-
-Serializes  the input to JSON file.
-"""
-function serialize(inputs::NODETrainInputs, file_path::String)
-    open(file_path, "w") do io
-        JSON3.write(io, inputs)
-    end
-    return
 end
 
 """

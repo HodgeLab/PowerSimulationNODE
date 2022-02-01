@@ -38,6 +38,7 @@ import OrdinaryDiffEq
 import PowerSimulationsDynamics
 import PowerSystems
 import Random
+import Serialization
 import StatsBase
 import SciMLBase
 import StructTypes

@@ -199,8 +199,7 @@ function train(params::NODETrainParams)
     #READ INPUT DATA AND SYSTEM
     sys = node_load_system(joinpath(params.input_data_path, "system.json"))
 
-    TrainInputs =
-        JSON3.read(read(joinpath(params.input_data_path, "data.json")), NODETrainInputs)
+    TrainInputs = Serialization.deserialize(joinpath(params.input_data_path, "data"))
 
     tsteps = TrainInputs.tsteps
     fault_data = TrainInputs.fault_data
