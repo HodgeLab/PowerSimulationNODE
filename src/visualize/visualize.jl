@@ -174,8 +174,7 @@ end
 function print_train_parameter_overview(train_params_folder)
     Matrix = Any[]
     header = Symbol[]
-    files = filter(x -> contains(x, ".json"), readdir(train_params_folder, join = true))   #TODO, make clean
-    @warn files
+    files = filter(x -> contains(x, ".json"), readdir(train_params_folder, join = true)) 
     for (i, f) in enumerate(files)
         Matrix_row = Any[]
         params = NODETrainParams(f)
