@@ -203,7 +203,7 @@ function print_train_parameter_overview(train_params_folder)
                     )
                 elseif fieldname == :node_state_inputs  #Special case for compact printing 
                     push!(Matrix_row, length(getfield(params, fieldname)))
-                else 
+                else
                     push!(Matrix_row, getfield(params, fieldname))
                 end
 

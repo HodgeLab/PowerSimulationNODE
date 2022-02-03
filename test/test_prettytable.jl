@@ -15,5 +15,5 @@ try
 
 finally
     @info("removing test files")
-    #rm(path, force = true, recursive = true)
+    rm(path, force = true, recursive = true)
 end
