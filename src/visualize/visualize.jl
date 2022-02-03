@@ -174,8 +174,8 @@ end
 function print_train_parameter_overview(train_params_folder)
     Matrix = Any[]
     header = Symbol[]
-    files = filter(x -> contains(x, ".json"), readdir(train_params_folder, join = true)) 
-    files = filter(x -> contains(x, "train_"), files) 
+    files = filter(x -> contains(x, ".json"), readdir(train_params_folder, join = true))
+    files = filter(x -> contains(x, "train_"), files)
     for (i, f) in enumerate(files)
         Matrix_row = Any[]
         params = NODETrainParams(f)
@@ -191,7 +191,22 @@ function print_train_parameter_overview(train_params_folder)
                 :graphical_report_mode,
             ]
             if !(fieldname in exclude_fields)
-                push!(Matrix_row, getfield(params, fieldname))
+                if fieldname == :training_groups    #Special case for compact printing 
+                    push!(
+                        Matrix_row,
+                        [[
+                            getfield(params, fieldname)[1][:tspan],
+                            getfield(params, fieldname)[1][:multiple_shoot_group_size],
+                            getfield(params, fieldname)[1][:multiple_shoot_continuity_term],
+                            getfield(params, fieldname)[1][:batching_sample_factor],
+                        ]],
+                    )
+                elseif fieldname == :node_state_inputs  #Special case for compact printing 
+                    push!(Matrix_row, length(getfield(params, fieldname)))
+                else 
+                    push!(Matrix_row, getfield(params, fieldname))
+                end
+
                 if i == 1
                     push!(header, fieldname)
                 end
