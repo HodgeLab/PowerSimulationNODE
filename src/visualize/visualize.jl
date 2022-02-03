@@ -218,9 +218,9 @@ function print_train_parameter_overview(train_params_folder)
     PrettyTables.pretty_table(
         changing_params,
         header = changing_header,
-        highlighters = (Highlighter(
+        highlighters = (PrettyTables.Highlighter(
             (data, i, j) -> true,
-            Crayon(bold = true, background = :red),
+            PrettyTables.Crayon(bold = true, background = :red),
         )),
     )
 end
