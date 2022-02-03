@@ -170,3 +170,61 @@ function plot_pvs(tsteps, pvs::PSY.PeriodicVariableSource, xaxis)
     end
     return tsteps, V, θ
 end
+
+function print_train_parameter_overview(input_folder)
+    Matrix = Any[]
+    header = Symbol[]
+    files = filter(x -> contains(x, ".json"), readdir(path, join = true))   #TODO, make clean
+    files = filter(x -> !contains(x, "data"), files)
+    files = filter(x -> !contains(x, "system"), files)
+    files = filter(x -> !contains(x, "sample"), files)
+    @warn files
+    for (i, f) in enumerate(files)
+        Matrix_row = Any[]
+        params = NODETrainParams(f)
+        for fieldname in fieldnames(NODETrainParams)
+            exclude_fields = [
+                :optimizer_adjust,
+                :optimizer_adjust_η,
+                :base_path,
+                :output_mode,
+                :input_data_path,
+                :output_data_path,
+                :verify_psid_node_off,
+                :graphical_report_mode,
+            ]
+            if !(fieldname in exclude_fields)
+                push!(Matrix_row, getfield(params, fieldname))
+                if i == 1
+                    push!(header, fieldname)
+                end
+            end
+        end
+        Matrix_row = reshape(Matrix_row, 1, :)
+        if i == 1
+            Matrix = Matrix_row
+        else
+            Matrix = vcat(Matrix, Matrix_row)
+        end
+    end
+
+    common_params_indices = [all(x -> x == col[1], col) for col in eachcol(Matrix)]
+    changing_params_indices = [!(all(x -> x == col[1], col)) for col in eachcol(Matrix)]
+
+    common_params = Matrix[1:1, common_params_indices]
+    common_header = header[common_params_indices]
+    changing_params = Matrix[:, changing_params_indices]
+    changing_header = header[changing_params_indices]
+
+    print("COMMON PARAMETERS:\n")
+    PrettyTables.pretty_table(common_params, header = common_header)
+    print("CHANGING PARAMETERS:\n")
+    PrettyTables.pretty_table(
+        changing_params,
+        header = changing_header,
+        highlighters = (Highlighter(
+            (data, i, j) -> true,
+            Crayon(bold = true, background = :red),
+        )),
+    )
+end
