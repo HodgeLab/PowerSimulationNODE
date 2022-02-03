@@ -174,7 +174,7 @@ end
 function print_train_parameter_overview(input_folder)
     Matrix = Any[]
     header = Symbol[]
-    files = filter(x -> contains(x, ".json"), readdir(path, join = true))   #TODO, make clean
+    files = filter(x -> contains(x, ".json"), readdir(input_folder, join = true))   #TODO, make clean
     files = filter(x -> !contains(x, "data"), files)
     files = filter(x -> !contains(x, "system"), files)
     files = filter(x -> !contains(x, "sample"), files)
