@@ -211,7 +211,7 @@ function print_train_parameter_overview(input_folder)
     common_params_indices = [all(x -> x == col[1], col) for col in eachcol(Matrix)]
     changing_params_indices = [!(all(x -> x == col[1], col)) for col in eachcol(Matrix)]
 
-    common_params = Matrix[1:1, common_params_indices]
+    common_params = Matrix[:, common_params_indices]
     common_header = header[common_params_indices]
     changing_params = Matrix[:, changing_params_indices]
     changing_header = header[changing_params_indices]
