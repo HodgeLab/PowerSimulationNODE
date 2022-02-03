@@ -78,12 +78,11 @@ function visualize_3(params, path_to_output, path_to_input, visualize_level)
     end
     df_predictions =
         DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "predictions")))
-    TrainInputs =
-        JSON3.read(read(joinpath(params.input_data_path, "data.json")), NODETrainInputs)
+    TrainInputs = Serialization.deserialize(joinpath(params.input_data_path, "data"))
     tsteps = TrainInputs.tsteps
     fault_data = TrainInputs.fault_data
 
-    for i in transition_indices #This changes to incorporate the new way data is saved. 
+    for i in transition_indices
         ir_preds = df_predictions[i, "ir_prediction"]
         ii_preds = df_predictions[i, "ii_prediction"]
         t_preds = df_predictions[i, "t_prediction"]
@@ -170,4 +169,74 @@ function plot_pvs(tsteps, pvs::PSY.PeriodicVariableSource, xaxis)
         θ += coeffs[i][2] * cos.(ω .* tsteps)
     end
     return tsteps, V, θ
+end
+
+function print_train_parameter_overview(train_params_folder)
+    Matrix = Any[]
+    header = Symbol[]
+    files = filter(x -> contains(x, ".json"), readdir(train_params_folder, join = true))
+    files = filter(x -> contains(x, "train_"), files)
+    for (i, f) in enumerate(files)
+        Matrix_row = Any[]
+        params = NODETrainParams(f)
+        for fieldname in fieldnames(NODETrainParams)
+            exclude_fields = [
+                :optimizer_adjust,
+                :optimizer_adjust_η,
+                :base_path,
+                :output_mode,
+                :input_data_path,
+                :output_data_path,
+                :verify_psid_node_off,
+                :graphical_report_mode,
+            ]
+            if !(fieldname in exclude_fields)
+                if fieldname == :training_groups    #Special case for compact printing 
+                    push!(
+                        Matrix_row,
+                        [[
+                            getfield(params, fieldname)[1][:tspan],
+                            getfield(params, fieldname)[1][:multiple_shoot_group_size],
+                            getfield(params, fieldname)[1][:multiple_shoot_continuity_term],
+                            getfield(params, fieldname)[1][:batching_sample_factor],
+                        ]],
+                    )
+                elseif fieldname == :node_state_inputs  #Special case for compact printing 
+                    push!(Matrix_row, length(getfield(params, fieldname)))
+                else
+                    push!(Matrix_row, getfield(params, fieldname))
+                end
+
+                if i == 1
+                    push!(header, fieldname)
+                end
+            end
+        end
+        Matrix_row = reshape(Matrix_row, 1, :)
+        if i == 1
+            Matrix = Matrix_row
+        else
+            Matrix = vcat(Matrix, Matrix_row)
+        end
+    end
+
+    common_params_indices = [all(x -> x == col[1], col) for col in eachcol(Matrix)]
+    changing_params_indices = [!(all(x -> x == col[1], col)) for col in eachcol(Matrix)]
+
+    common_params = Matrix[:, common_params_indices]
+    common_header = header[common_params_indices]
+    changing_params = Matrix[:, changing_params_indices]
+    changing_header = header[changing_params_indices]
+
+    print("COMMON PARAMETERS:\n")
+    PrettyTables.pretty_table(common_params, header = common_header)
+    print("CHANGING PARAMETERS:\n")
+    PrettyTables.pretty_table(
+        changing_params,
+        header = changing_header,
+        highlighters = (PrettyTables.Highlighter(
+            (data, i, j) -> true,
+            PrettyTables.Crayon(bold = true, background = :red),
+        )),
+    )
 end

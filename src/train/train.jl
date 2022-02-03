@@ -199,8 +199,7 @@ function train(params::NODETrainParams)
     #READ INPUT DATA AND SYSTEM
     sys = node_load_system(joinpath(params.input_data_path, "system.json"))
 
-    TrainInputs =
-        JSON3.read(read(joinpath(params.input_data_path, "data.json")), NODETrainInputs)
+    TrainInputs = Serialization.deserialize(joinpath(params.input_data_path, "data"))
 
     tsteps = TrainInputs.tsteps
     fault_data = TrainInputs.fault_data
@@ -229,8 +228,10 @@ function train(params::NODETrainParams)
 
     for pvs in pvss
         Vm, Vθ = Source_to_function_of_time(pvs)
-        surr, N_ALGEBRAIC_STATES, ODE_ORDER = instantiate_surr(params, nn, Vm, Vθ)
         fault_dict = fault_data[PSY.get_name(pvs)]
+        psid_results_object = fault_dict[:psid_results_object]
+        surr, N_ALGEBRAIC_STATES, ODE_ORDER =
+            instantiate_surr(params, nn, Vm, Vθ, psid_results_object)
         surr_prob_node_off, P = _initialize_surrogate(   #change naming
             params,
             nn,

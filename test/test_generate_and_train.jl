@@ -48,9 +48,9 @@ try
         inv_case78("aa"),
     )
 
-    PowerSimulationNODE.serialize(
+    Serialization.serialize(
+        joinpath(path, PowerSimulationNODE.INPUT_FOLDER_NAME, "data"),
         d,
-        joinpath(path, PowerSimulationNODE.INPUT_FOLDER_NAME, "data.json"),
     )
 
     #Test with pure NODE and 0 feedback states passes 
@@ -69,6 +69,13 @@ try
             multiple_shoot_continuity_term = 100,
             batching_sample_factor = 0.5,
         )],
+        node_state_inputs = [
+            ("gen1", :ir_filter),
+            ("gen1", :ii_filter),
+            ("gen1", :θ_pll),
+            ("gen1", :ϕq_ic),
+            ("gen1", :ϕd_ic),
+        ],
     )
     status = train(p)
     @test status

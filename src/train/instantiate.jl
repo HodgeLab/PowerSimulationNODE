@@ -10,13 +10,14 @@ const sensealg_map = Dict(
 )   #GalacticOptim.AutoForwardDiff() 
 
 const surr_map = Dict(
-    "vsm_v_t_0" => vsm_v_t_0,
-    "none_v_t_0" => none_v_t_0,
-    "none_v_t_1" => none_v_t_1,
-    "none_v_t_2" => none_v_t_2,
-    "none_v_t_3" => none_v_t_3,
-    "none_v_t_4" => none_v_t_4,
-    "none_v_t_5" => none_v_t_5,
+    "vsm_v_f_t_0" => vsm_v_f_t_0,
+    "none_v_f_t_0" => none_v_f_t_0,
+    "none_v_t_t_0" => none_v_t_t_0,
+    "none_v_f_t_1" => none_v_f_t_1,
+    "none_v_f_t_2" => none_v_f_t_2,
+    "none_v_f_t_3" => none_v_f_t_3,
+    "none_v_f_t_4" => none_v_f_t_4,
+    "none_v_f_t_5" => none_v_f_t_5,
 )
 
 const activation_map =
@@ -53,7 +54,7 @@ function instantiate_nn(inputs)
 
     nn_input = 4   #P_pf, Q_pf, V_pf, θ_pf
     nn_output = 2
-
+    nn_input += length(inputs.node_state_inputs)
     (inputs.node_inputs == "voltage") && (nn_input += 2)
     (inputs.node_feedback_current) && (nn_input += 2)
     nn_output += inputs.node_feedback_states
@@ -145,35 +146,62 @@ function MassMatrix(n_differential::Integer, n_algebraic::Integer)
     return M
 end
 
-function _instantiate_surr(surr, nn, Vm, Vθ)
-    return (dx, x, p, t) -> surr(dx, x, p, t, nn, Vm, Vθ)
+function _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs)
+    return (dx, x, p, t) -> surr(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
 end
 
-function instantiate_surr(inputs, nn, Vm, Vθ)
-    if inputs.ode_model == "vsm"
+function instantiate_node_state_inputs(params, psid_results_object)
+    global_indices = Vector{Int64}()
+    for p in params.node_state_inputs
+        global_index = psid_results_object.global_index[p[1]][p[2]] #Find global index, replace once PSID has a proper interface: https://github.com/NREL-SIIP/PowerSimulationsDynamics.jl/issues/180
+        push!(global_indices, global_index)
+    end
+    return (t) -> (psid_results_object.solution(t, idxs = global_indices))
+end
+
+function instantiate_surr(params, nn, Vm, Vθ, psid_results_object)
+    node_state_inputs = instantiate_node_state_inputs(params, psid_results_object)
+    @warn node_state_inputs(0.01)
+    if params.ode_model == "vsm"
         N_ALGEBRAIC_STATES = 2
         ODE_ORDER = 19
-        if inputs.node_inputs == "voltage"
-            if inputs.node_feedback_current
-                surr = surr_map[string("vsm_v_t_", inputs.node_feedback_states)]
-                return _instantiate_surr(surr, nn, Vm, Vθ), N_ALGEBRAIC_STATES, ODE_ORDER
+        if params.node_inputs == "voltage"
+            if params.node_feedback_current
+                surr = surr_map[string("vsm_v_f_t_", params.node_feedback_states)]
+                return _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs),
+                N_ALGEBRAIC_STATES,
+                ODE_ORDER
             else
-                surr = surr_map[string("vsm_v_f_", inputs.node_feedback_states)]
-                return _instantiate_surr(surr, nn, Vm, Vθ), N_ALGEBRAIC_STATES, ODE_ORDER
+                surr = surr_map[string("vsm_v_f_f_", params.node_feedback_states)]
+                return _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs),
+                N_ALGEBRAIC_STATES,
+                ODE_ORDER
             end
         else
             @warn "node input type not found during surrogate instantiatiion"
         end
-    elseif inputs.ode_model == "none"
+    elseif params.ode_model == "none"
         N_ALGEBRAIC_STATES = 0
         ODE_ORDER = 0
-        if inputs.node_inputs == "voltage"
-            if inputs.node_feedback_current
-                surr = surr_map[string("none_v_t_", inputs.node_feedback_states)]
-                return _instantiate_surr(surr, nn, Vm, Vθ), N_ALGEBRAIC_STATES, ODE_ORDER
+        if params.node_inputs == "voltage"
+            if params.node_feedback_current
+                n_additional_states = length(params.node_state_inputs)
+                if n_additional_states == 0
+                    surr = surr_map[string("none_v_f_t_", params.node_feedback_states)]
+                    return _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs),
+                    N_ALGEBRAIC_STATES,
+                    ODE_ORDER
+                else
+                    surr = surr_map[string("none_v_t_t_", params.node_feedback_states)]
+                    return _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs),
+                    N_ALGEBRAIC_STATES,
+                    ODE_ORDER
+                end
             else
-                surr = surr_map[string("none_v_f_", inputs.node_feedback_states)]
-                return _instantiate_surr(surr, nn, Vm, Vθ), N_ALGEBRAIC_STATES, ODE_ORDER
+                surr = surr_map[string("none_v_f_f_", params.node_feedback_states)]
+                return _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs),
+                N_ALGEBRAIC_STATES,
+                ODE_ORDER
             end
         else
             @warn "node input type not found during surrogate instantiatiion"

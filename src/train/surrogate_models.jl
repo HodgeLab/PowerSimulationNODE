@@ -1,14 +1,14 @@
-#Naming of surrogate models is as follows: <analytical_model>_<nn_external_inputs>_<feed_back_current>_<#_feedback_states>
-#<analytical_model>: the odes
+#Naming of surrogate models is as follows: <analytical_model>_<pass voltage?>_<additional states as inputs?>_<feed_back_current?>_<#_feedback_states>
+#<analytical_model>
 # vsm (virtual synchrnous machine)
-#<nn_external_inputs>: the inputs to the model that are not states of the nn
+# none (pure neural ode)
+#<pass voltage?>:
 # v: terminal voltage (real and imag)
-# i: output current of the analytical model (real and imag)
-# NOTE: could explore using states of the analytical model in the future
+#<additional states as inputs?>
+# t: true
+# f: false
 #<#_feedback_states>: number of outputs of the nn. The states associated with each output are automatically inputs to the nn
 # 1-10
-# NOTE: Input dimension of nn =  <nn_external_inputs> + <#_feedback_states>
-# NOTE: THe output current (real and imaginary) should be the first two states. These should also be the algebraic states. 
 
 mutable struct SurrParams
     nn::Vector{}                    #needs to accept dual numbers during training 
@@ -27,7 +27,7 @@ function SurrParams(;)
     SurrParams([], [], [], [], [], [])
 end
 
-function none_v_t_0(dx, x, p, t, nn, Vm, Vθ)
+function none_v_f_t_0(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     #PARAMETERS
     n_weights_nn = p[end]
     p_nn = p[Int(1):Int(n_weights_nn)]
@@ -65,7 +65,47 @@ function none_v_t_0(dx, x, p, t, nn, Vm, Vθ)
     dx[i__ii_nn] = nn(nn_input, p_nn)[2] * nn_scale
 end
 
-function none_v_t_1(dx, x, p, t, nn, Vm, Vθ)
+function none_v_t_t_0(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
+    #PARAMETERS
+    n_weights_nn = p[end]
+    p_nn = p[Int(1):Int(n_weights_nn)]
+    p_fixed = p[(Int(n_weights_nn) + 1):(end - 1)]
+
+    P_pf = p_fixed[1]
+    Q_pf = p_fixed[2]
+    V_pf = p_fixed[3]
+    θ_pf = p_fixed[4]
+    Xtrans = p_fixed[5]
+    Rtrans = p_fixed[6]
+    V_scale = p_fixed[7]
+    nn_scale = p_fixed[8]
+
+    #STATE INDEX AND STATES
+    i__ir_nn, ir_nn = 1, x[1]
+    i__ii_nn, ii_nn = 2, x[2]
+
+    Vr_pcc = Vm(t) * cos(Vθ(t)) + (ir_nn * Rtrans - ii_nn * Xtrans)
+    Vi_pcc = Vm(t) * sin(Vθ(t)) + (ir_nn * Xtrans + ii_nn * Rtrans)
+
+    nn_input = vcat(
+        [
+            P_pf,
+            Q_pf,
+            V_pf,
+            θ_pf,
+            (Vr_pcc - V_pf * cos(θ_pf)) * V_scale,
+            (Vi_pcc - V_pf * sin(θ_pf)) * V_scale,
+        ],
+        node_state_inputs(t),
+        [ir_nn, ii_nn],
+    )
+
+    #NODE   
+    dx[i__ir_nn] = nn(nn_input, p_nn)[1] * nn_scale
+    dx[i__ii_nn] = nn(nn_input, p_nn)[2] * nn_scale
+end
+
+function none_v_f_t_1(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     #PARAMETERS
     n_weights_nn = p[end]
     p_nn = p[Int(1):Int(n_weights_nn)]
@@ -107,7 +147,7 @@ function none_v_t_1(dx, x, p, t, nn, Vm, Vθ)
     dx[i__fb1] = nn(nn_input, p_nn)[3]
 end
 
-function none_v_t_2(dx, x, p, t, nn, Vm, Vθ)
+function none_v_f_t_2(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     #PARAMETERS
     n_weights_nn = p[end]
     p_nn = p[Int(1):Int(n_weights_nn)]
@@ -152,7 +192,7 @@ function none_v_t_2(dx, x, p, t, nn, Vm, Vθ)
     dx[i__fb2] = nn(nn_input, p_nn)[4]
 end
 
-function none_v_t_3(dx, x, p, t, nn, Vm, Vθ)
+function none_v_f_t_3(dx, x, p, t, nn, Vm, Vθ)
     #PARAMETERS
     n_weights_nn = p[end]
     p_nn = p[Int(1):Int(n_weights_nn)]
@@ -200,7 +240,7 @@ function none_v_t_3(dx, x, p, t, nn, Vm, Vθ)
     dx[i__fb3] = nn(nn_input, p_nn)[5]
 end
 
-function none_v_t_4(dx, x, p, t, nn, Vm, Vθ)
+function none_v_f_t_4(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     #PARAMETERS
     n_weights_nn = p[end]
     p_nn = p[Int(1):Int(n_weights_nn)]
@@ -251,7 +291,7 @@ function none_v_t_4(dx, x, p, t, nn, Vm, Vθ)
     dx[i__fb4] = nn(nn_input, p_nn)[6]
 end
 
-function none_v_t_5(dx, x, p, t, nn, Vm, Vθ)
+function none_v_f_t_5(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     #PARAMETERS
     n_weights_nn = p[end]
     p_nn = p[Int(1):Int(n_weights_nn)]
@@ -305,7 +345,7 @@ function none_v_t_5(dx, x, p, t, nn, Vm, Vθ)
     dx[i__fb5] = nn(nn_input, p_nn)[7]
 end
 
-function vsm_v_t_0(dx, x, p, t, nn, Vm, Vθ)
+function vsm_v_f_t_0(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     #PARAMETERS
     n_weights_nn = p[end]
     p_nn = p[Int(1):Int(n_weights_nn)]
