@@ -54,18 +54,18 @@ try
     )
 
     #Test with pure NODE and 0 feedback states passes 
-    #TODO - need additional tests for ode_model = "vsm" and node_feedback_states != 0 once these are enabled. 
+    #TODO - need additional tests for ode_model = "vsm" and node_unobserved_states != 0 once these are enabled. 
     p = NODETrainParams(
         base_path = path,
         ode_model = "none",
-        node_feedback_states = 0,
+        node_unobserved_states = 0,
         verify_psid_node_off = false,
         maxiters = 20,
         optimizer_η = 0.001,
         node_input_scale = 1.0,
         training_groups = [(
             tspan = (0.0, 1.0),
-            multiple_shoot_group_size = 20,
+            shoot_times = [0.2, 0.4, 0.6, 0.8],
             multiple_shoot_continuity_term = 100,
             batching_sample_factor = 0.5,
         )],

@@ -1,64 +1,72 @@
-const optimizer_map = Dict("Adam" => Flux.Optimise.ADAM, "Bfgs" => Optim.BFGS)  #use requires - wrap the methods so they are found in the current session 
-#These shouldn't be constants, make a function that only tries to find what ADAM is when it iscalled. 
-#function that receives the string and returns the method. 
+#TODO use requires to wrap these methods to improve compilation time 
+function optimizer_map(key)
+    d = Dict("Adam" => Flux.Optimise.ADAM, "Bfgs" => Optim.BFGS)
+    return d[key]
+end
 
-const solver_map = Dict("Rodas4" => OrdinaryDiffEq.Rodas4) #use requires 
+function solver_map(key)
+    d = Dict("Rodas4" => OrdinaryDiffEq.Rodas4)
+    return d[key]
+end
 
-const sensealg_map = Dict(
-    "ForwardDiff" => GalacticOptim.AutoForwardDiff,
-    "Zygote" => GalacticOptim.AutoZygote,
-)   #GalacticOptim.AutoForwardDiff() 
+function sensealg_map(key)
+    d = Dict(
+        "ForwardDiff" => GalacticOptim.AutoForwardDiff,
+        "Zygote" => GalacticOptim.AutoZygote,
+    )   #GalacticOptim.AutoForwardDiff() 
+    return d[key]
+end
 
-const surr_map = Dict(
-    "vsm_v_f_t_0" => vsm_v_f_t_0,
-    "none_v_f_t_0" => none_v_f_t_0,
-    "none_v_t_t_0" => none_v_t_t_0,
-    "none_v_f_t_1" => none_v_f_t_1,
-    "none_v_f_t_2" => none_v_f_t_2,
-    "none_v_f_t_3" => none_v_f_t_3,
-    "none_v_f_t_4" => none_v_f_t_4,
-    "none_v_f_t_5" => none_v_f_t_5,
-)
-
-const activation_map =
-    Dict("relu" => Flux.relu, "hardtanh" => Flux.hardtanh, "sigmoid" => Flux.sigmoid)
+function surr_map(key)
+    d = Dict(
+        "vsm_2_0_f" => vsm_2_0_f,
+        "none_2_0_f" => none_2_0_f,
+        "none_2_0_t" => none_2_0_t,
+        "none_2_1_f" => none_2_1_f,
+        "none_2_2_f" => none_2_2_f,
+        "none_2_3_f" => none_2_3_f,
+        "none_2_4_f" => none_2_4_f,
+        "none_2_5_f" => none_2_5_f,
+    )
+    return d[key]
+end
+function activation_map(key)
+    d = Dict("relu" => Flux.relu, "hardtanh" => Flux.hardtanh, "sigmoid" => Flux.sigmoid)
+    return d[key]
+end
 
 function instantiate_solver(inputs)
-    return solver_map[inputs.solver]()
+    return solver_map(inputs.solver)()
 end
 
 function instantiate_sensealg(inputs)
-    return sensealg_map[inputs.sensealg]()
+    return sensealg_map(inputs.sensealg)()
 end
 
 function instantiate_optimizer(inputs)
     if inputs.optimizer == "Adam"
-        return optimizer_map[inputs.optimizer](inputs.optimizer_η)
+        return optimizer_map(inputs.optimizer)(inputs.optimizer_η)
     elseif inputs.optimizer == "Bfgs"
-        return optimizer_map[inputs.optimizer]()
+        return optimizer_map(inputs.optimizer)()
     end
 end
 
 function instantiate_optimizer_adjust(inputs)
     if inputs.optimizer_adjust == "Adam"
-        return optimizer_map[inputs.optimizer_adjust](inputs.optimizer_adjust_η)
+        return optimizer_map(inputs.optimizer_adjust)(inputs.optimizer_adjust_η)
     elseif inputs.optimizer_adjust == "Bfgs"
-        return optimizer_map[inputs.optimizer_adjust]()
+        return optimizer_map(inputs.optimizer_adjust)()
     end
 end
 
-function instantiate_nn(inputs)
-    nn_activation = activation_map[inputs.node_activation]
+function instantiate_nn(inputs, n_observable_states)
+    nn_activation = activation_map(inputs.node_activation)
     nn_hidden = inputs.node_layers
     nn_width = inputs.node_width
-
-    nn_input = 4   #P_pf, Q_pf, V_pf, θ_pf
-    nn_output = 2
+    nn_input = n_observable_states + inputs.node_unobserved_states + 6  #P_pf, Q_pf, V_pf, θ_pf, vr(t), vi(t)
     nn_input += length(inputs.node_state_inputs)
-    (inputs.node_inputs == "voltage") && (nn_input += 2)
-    (inputs.node_feedback_current) && (nn_input += 2)
-    nn_output += inputs.node_feedback_states
-    nn_input += inputs.node_feedback_states
+
+    nn_output = n_observable_states + inputs.node_unobserved_states
     Random.seed!(inputs.rng_seed)
     @warn "NN size parameters" nn_input, nn_output, nn_width, nn_hidden
     return build_nn(nn_input, nn_output, nn_width, nn_hidden, nn_activation)
@@ -126,7 +134,7 @@ function instantiate_M(inputs)
     else
         @error "ODE order unknown for ODE model provided"
     end
-    n_differential = ODE_ORDER + 2 + inputs.node_feedback_states
+    n_differential = ODE_ORDER + 2 + inputs.node_unobserved_states
 
     return MassMatrix(n_differential, N_ALGEBRAIC)
 end
@@ -159,68 +167,100 @@ function instantiate_node_state_inputs(params, psid_results_object)
     return (t) -> (psid_results_object.solution(t, idxs = global_indices))
 end
 
-function instantiate_surr(params, nn, Vm, Vθ, psid_results_object)
+#TODO ALL LOGIC AND NAMING CHANGES 
+function instantiate_surr(params, nn, n_observable_states, Vm, Vθ, psid_results_object)
     node_state_inputs = instantiate_node_state_inputs(params, psid_results_object)
     @warn node_state_inputs(0.01)
+    number_of_additional_inputs = length(node_state_inputs(0.0))
+    @warn number_of_additional_inputs
     if params.ode_model == "vsm"
         N_ALGEBRAIC_STATES = 2
         ODE_ORDER = 19
-        if params.node_inputs == "voltage"
-            if params.node_feedback_current
-                surr = surr_map[string("vsm_v_f_t_", params.node_feedback_states)]
-                return _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs),
-                N_ALGEBRAIC_STATES,
-                ODE_ORDER
-            else
-                surr = surr_map[string("vsm_v_f_f_", params.node_feedback_states)]
-                return _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs),
-                N_ALGEBRAIC_STATES,
-                ODE_ORDER
-            end
+        if number_of_additional_inputs > 0
+            surr = surr_map(
+                string(
+                    "vsm_",
+                    n_observable_states,
+                    "_",
+                    params.node_unobserved_states,
+                    "_",
+                    "t",
+                ),
+            )
+            return _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs),
+            N_ALGEBRAIC_STATES,
+            ODE_ORDER
         else
-            @warn "node input type not found during surrogate instantiatiion"
+            surr = surr_map(
+                string(
+                    "vsm_",
+                    n_observable_states,
+                    "_",
+                    params.node_unobserved_states,
+                    "_",
+                    "f",
+                ),
+            )
+            return _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs),
+            N_ALGEBRAIC_STATES,
+            ODE_ORDER
         end
     elseif params.ode_model == "none"
         N_ALGEBRAIC_STATES = 0
         ODE_ORDER = 0
-        if params.node_inputs == "voltage"
-            if params.node_feedback_current
-                n_additional_states = length(params.node_state_inputs)
-                if n_additional_states == 0
-                    surr = surr_map[string("none_v_f_t_", params.node_feedback_states)]
-                    return _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs),
-                    N_ALGEBRAIC_STATES,
-                    ODE_ORDER
-                else
-                    surr = surr_map[string("none_v_t_t_", params.node_feedback_states)]
-                    return _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs),
-                    N_ALGEBRAIC_STATES,
-                    ODE_ORDER
-                end
-            else
-                surr = surr_map[string("none_v_f_f_", params.node_feedback_states)]
-                return _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs),
-                N_ALGEBRAIC_STATES,
-                ODE_ORDER
-            end
+        if number_of_additional_inputs > 0
+            surr = surr_map(
+                string(
+                    "none_",
+                    n_observable_states,
+                    "_",
+                    params.node_unobserved_states,
+                    "_",
+                    "t",
+                ),
+            )
+            return _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs),
+            N_ALGEBRAIC_STATES,
+            ODE_ORDER
         else
-            @warn "node input type not found during surrogate instantiatiion"
+            surr = surr_map(
+                string(
+                    "none_",
+                    n_observable_states,
+                    "_",
+                    params.node_unobserved_states,
+                    "_",
+                    "f",
+                ),
+            )
+            return _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs),
+            N_ALGEBRAIC_STATES,
+            ODE_ORDER
         end
+
     else
         @warn "ode model not found during surrogate instantiatiion"
     end
 end
 
-function instantiate_inner_loss_function(loss_function_weights, Ir_scale, Ii_scale)
-    return (u, û) -> _inner_loss_function(u, û, loss_function_weights, Ir_scale, Ii_scale)
+function instantiate_inner_loss_function(loss_function_weights, ground_truth_scale)
+    return (u, û) -> _inner_loss_function(u, û, loss_function_weights, ground_truth_scale)
 end
 
-function _inner_loss_function(u, û, loss_function_weights, Ir_scale, Ii_scale)
-    loss =
-        (mae(û[1, :], u[1, :]) / Ir_scale) +
-        (mae(û[2, :], u[2, :]) / Ii_scale) * loss_function_weights[1] +
-        (mse(û[1, :], u[1, :]) / Ir_scale) +
-        (mse(û[2, :], u[2, :]) / Ii_scale) * loss_function_weights[2]
+function _inner_loss_function(u, û, loss_function_weights, ground_truth_scale)
+    n = size(ground_truth_scale, 1)
+    loss = 0.0
+    for i in 1:n
+        loss +=
+            mae(û[i, :], u[i, :]) / ground_truth_scale[i] * loss_function_weights[1] +
+            mse(û[i, :], u[i, :]) / ground_truth_scale[i] * loss_function_weights[2]
+    end
+    #=     
+        loss =
+            (mae(û[1, :], u[1, :]) / Ir_scale) +
+            (mae(û[2, :], u[2, :]) / Ii_scale) * loss_function_weights[1] +
+            (mse(û[1, :], u[1, :]) / Ir_scale) +
+            (mse(û[2, :], u[2, :]) / Ii_scale) * loss_function_weights[2] =#
     return loss
 end
 
@@ -261,8 +301,9 @@ function _outer_loss_function(
     for pvs in unique_pvs_names
         tsteps_subset = tsteps[pvs .== pvs_names]
         y_actual_subset = y_actual[:, pvs .== pvs_names]
+        ms_ranges = shooting_ranges(tsteps, named_tuple[:shoot_times])
         y_actual_subset = eltype(θ).(y_actual_subset)
-        tsteps_subset = eltype(θ).(tsteps_subset)
+        tsteps_subset = eltype(θ).(tsteps_subset)      #TODO - can't have this if I want to compare to tsteps with numbers
 
         P = fault_data[pvs][:P]
         P.nn = θ
@@ -275,7 +316,7 @@ function _outer_loss_function(
             inner_loss_function,
             named_tuple[:multiple_shoot_continuity_term],
             solver,
-            named_tuple[:multiple_shoot_group_size],
+            ms_ranges,
             named_tuple[:batching_sample_factor],
         )
         loss += single_loss
@@ -290,32 +331,6 @@ function _outer_loss_function(
         i += 1
     end
     return loss, group_predictions, t_predictions
-end
-
-function _loss_function(
-    θ,
-    y_actual,
-    tsteps,
-    weights,
-    Ir_scale,
-    Ii_scale,
-    pred_function,
-    pvs_names,
-)
-    y_predicted = pred_function(θ, tsteps, pvs_names)     #Careful of dict ordering?                  
-
-    if size(y_predicted) == size(y_actual)
-        loss =
-            (mae(y_predicted[1, :], y_actual[1, :]) / Ir_scale) +
-            (mae(y_predicted[2, :], y_actual[2, :]) / Ii_scale) * weights[1] +
-            (mse(y_predicted[1, :], y_actual[1, :]) / Ir_scale) +
-            (mse(y_predicted[2, :], y_actual[2, :]) / Ii_scale) * weights[2]
-    else
-        loss = Inf
-        @warn "Unstable run detected, assigning infinite loss"
-    end
-
-    return loss, y_predicted
 end
 
 function instantiate_cb!(output, lb_loss, exportmode, range_count, pvs_names) #don't pass t_prediction, let it come from the optimizer? 

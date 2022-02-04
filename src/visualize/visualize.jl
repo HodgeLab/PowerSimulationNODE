@@ -4,7 +4,7 @@ function Base.show(io::IO, ::MIME"text/plain", params::NODETrainParams)
             println(io, "$field_name =")
             for v in getfield(params, field_name)
                 println(io, "\ttspan: ", v.tspan)
-                println(io, "\tmultiple shoot group size: ", v.multiple_shoot_group_size)
+                println(io, "\tshoot times: ", v.shoot_times)
                 println(
                     io,
                     "\tmultiple_shoot_continuity_term: ",
@@ -86,9 +86,9 @@ function visualize_3(params, path_to_output, path_to_input, visualize_level)
         ir_preds = df_predictions[i, "ir_prediction"]
         ii_preds = df_predictions[i, "ii_prediction"]
         t_preds = df_predictions[i, "t_prediction"]
-        i_true = concatonate_i_true(fault_data, df_loss[i, :PVS_name], :)
-        ir_true = i_true[1, :]
-        ii_true = i_true[2, :]
+        ground_truth = concatonate_ground_truth(fault_data, df_loss[i, :PVS_name], :)
+        ir_true = ground_truth[1, :]    #TODO, generalize to more ground truth states (not necessarily currents)
+        ii_true = ground_truth[2, :]
         t_all = concatonate_t(tsteps, df_loss[i, :PVS_name], :)
         p3 = Plots.scatter(t_all', ir_true, ms = 2, msw = 0, label = "truth")
         p4 = Plots.scatter(t_all', ii_true, ms = 2, msw = 0, label = "truth")
@@ -196,7 +196,7 @@ function print_train_parameter_overview(train_params_folder)
                         Matrix_row,
                         [[
                             getfield(params, fieldname)[1][:tspan],
-                            getfield(params, fieldname)[1][:multiple_shoot_group_size],
+                            getfield(params, fieldname)[1][:shoot_times],
                             getfield(params, fieldname)[1][:multiple_shoot_continuity_term],
                             getfield(params, fieldname)[1][:batching_sample_factor],
                         ]],

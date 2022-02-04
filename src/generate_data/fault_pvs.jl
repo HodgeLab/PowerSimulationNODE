@@ -98,7 +98,7 @@ function build_pvs(dict_fault_data; pad_signal = true)
 end
 
 function build_fault_data_dataframe(faults, system, OutputParameters, SimulationParameters)
-    solver = solver_map[SimulationParameters["Solver"]]()
+    solver = solver_map(SimulationParameters["Solver"])()
     abstol = SimulationParameters["AbsTol"]
     reltol = SimulationParameters["RelTol"]
     tspan = (SimulationParameters["TspanStart"], SimulationParameters["TspanEnd"])

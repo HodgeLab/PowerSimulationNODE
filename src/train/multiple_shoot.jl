@@ -41,19 +41,12 @@ function batch_multiple_shoot(
     loss_function,
     continuity_term::Real,
     solver::DiffEqBase.AbstractODEAlgorithm,
-    group_size::Integer,
+    shooting_ranges::AbstractArray, #group_size::Integer,    #This needs to be changed to shoot_times.... change the function to take in times and calculate respective groups. 
     batching_factor::Float64;
     kwargs...,
 )
-    datasize = size(ode_data, 2)
-
-    if group_size < 2 || group_size > datasize
-        throw(DomainError(group_size, "group_size can't be < 2 or > number of data points"))
-    end
-
-    # Get ranges that partition data to groups of size group_size
-    ranges = group_ranges(datasize, group_size)
-    ranges_batch = batch_ranges(batching_factor, ranges)    #returns sorted batch
+    #datasize = size(ode_data, 2)
+    ranges_batch = batch_ranges(batching_factor, shooting_ranges)    #returns sorted batch (maybe can stay the same... )
 
     # Multiple shooting predictions
     sols = [
@@ -101,6 +94,9 @@ function batch_ranges(batching_factor::Float64, ranges)
     for rg in ranges
         n_points = length(rg) - 2
         n_choose = Int(floor(n_points * batching_factor))
+        if n_choose < 1
+            @error "Shooting nodes are too close togeter for data provided and batching factor"
+        end
         batch_range = sort!(
             vcat(
                 rg[1],
@@ -132,7 +128,7 @@ julia> group_ranges(10, 5)
  9:10
 ```
 """
-function group_ranges(datasize::Integer, groupsize::Integer)
+#= function group_ranges(datasize::Integer, groupsize::Integer)
     2 <= groupsize <= datasize || throw(
         DomainError(
             groupsize,
@@ -140,6 +136,16 @@ function group_ranges(datasize::Integer, groupsize::Integer)
         ),
     )
     return [i:min(datasize, i + groupsize - 1) for i in 1:(groupsize - 1):(datasize - 1)]
+end =#
+
+function shooting_ranges(tsteps::AbstractArray, shoot_times::AbstractArray)
+    shoot_times = vcat(tsteps[1], shoot_times, tsteps[end])
+    @assert all(in(tsteps).(shoot_times))
+    shooting_indices = [indexin(x, tsteps)[1][2] for x in shoot_times]
+    return [
+        (shooting_indices[i]):(shooting_indices[i + 1]) for
+        i in 1:(length(shooting_indices) - 1)
+    ]
 end
 
 # Default ontinuity loss between last state in previous prediction

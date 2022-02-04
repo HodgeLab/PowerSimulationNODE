@@ -1,20 +1,22 @@
 function _calculate_loss_function_scaling(params, fault_data)
     if params.loss_function_scale == "range"
-        full_ir = Float64[]
-        full_ii = Float64[]
+        dim_ground_truth = 0
         for (key, value) in fault_data
-            full_ir = vcat(full_ir, value[:ir_ground_truth])
-            full_ii = vcat(full_ii, value[:ii_ground_truth])
+            dim_ground_truth = size(value[:ground_truth])[1]
+            break
         end
-        Ir_scale = maximum(full_ir) - minimum(full_ir)
-        Ii_scale = maximum(full_ii) - minimum(full_ii)
+        full_ground_truth = zeros(Float64, (dim_ground_truth, 0))
+        for (key, value) in fault_data
+            full_ground_truth = hcat(full_ground_truth, value[:ground_truth])
+        end
+        ground_truth_scale =
+            maximum(full_ground_truth, dims = 2) - minimum(full_ground_truth, dims = 2)
     elseif params.loss_function_scale == "none"
-        Ir_scale = 1.0
-        Ii_scale = 1.0
+        ground_truth_scale = ones(Float64, (dim_ground_truth, 1))
     else
         @warn "Cannot determine loss function scaling"
     end
-    return Ir_scale, Ii_scale
+    return ground_truth_scale
 end
 function _turn_node_on(surr_prob_node_off, params, P)
     P.scale[2] = params.node_output_scale
@@ -34,7 +36,7 @@ function _initialize_surrogate(
     ODE_ORDER,
 )
     #Determine Order of the Surrogate 
-    order_surr = ODE_ORDER + 2 + params.node_feedback_states + N_ALGEBRAIC_STATES    #2 states for the node current
+    order_surr = ODE_ORDER + 2 + params.node_unobserved_states + N_ALGEBRAIC_STATES    #2 states for the node current
     x₀_surr = zeros(order_surr)
 
     #Build Surrogate Vector 
@@ -57,7 +59,7 @@ function _initialize_surrogate(
     else
         P.scale = [params.node_input_scale, 0.0]
         x₀ = fault_dict[:x₀]
-        x₀_surr[(3 + params.node_feedback_states + N_ALGEBRAIC_STATES):(ODE_ORDER + 2 + params.node_feedback_states + N_ALGEBRAIC_STATES)] =
+        x₀_surr[(3 + params.node_unobserved_states + N_ALGEBRAIC_STATES):(ODE_ORDER + 2 + params.node_unobserved_states + N_ALGEBRAIC_STATES)] =
             x₀
     end
     p = vectorize(P)
@@ -116,19 +118,18 @@ function _calculate_final_loss(
     pvs_names,
     fault_data,
     tsteps,
-    Ir_scale,
-    Ii_scale,
+    ground_truth_scale,
     output,
 )
     inner_loss_function =
-        instantiate_inner_loss_function(params.loss_function_weights, Ir_scale, Ii_scale)
+        instantiate_inner_loss_function(params.loss_function_weights, ground_truth_scale)
 
     outer_loss_function = instantiate_outer_loss_function(
         solver,
         fault_data,
         inner_loss_function,
         (
-            multiple_shoot_group_size = length(tsteps),
+            shoot_times = [],
             multiple_shoot_continuity_term = 100,
             batching_sample_factor = 1.0,
         ),
@@ -140,10 +141,10 @@ function _calculate_final_loss(
         0,  #range_count
         pvs_names,
     )
-    i_true = concatonate_i_true(fault_data, pvs_names, :)
+    ground_truth = concatonate_ground_truth(fault_data, pvs_names, :)
     t_current = concatonate_t(tsteps, pvs_names, :)
     pvs_names = concatonate_pvs_names(pvs_names, length(tsteps))
-    final_loss_for_comparison = outer_loss_function(θ, i_true, t_current, pvs_names)
+    final_loss_for_comparison = outer_loss_function(θ, ground_truth, t_current, pvs_names)
 
     cb(
         θ,
@@ -187,25 +188,25 @@ Executes training according to params. Assumes the existence of the necessary in
 
 """
 function train(params::NODETrainParams)
+    #READ INPUT DATA AND SYSTEM
+    sys = node_load_system(joinpath(params.input_data_path, "system.json"))
+    TrainInputs = Serialization.deserialize(joinpath(params.input_data_path, "data"))
+    n_observable_states = TrainInputs.n_observable_states
+    tsteps = TrainInputs.tsteps
+    fault_data = TrainInputs.fault_data
+
     #INSTANTIATE
     sensealg = instantiate_sensealg(params)
     solver = instantiate_solver(params)
     optimizer = instantiate_optimizer(params)
-    nn = instantiate_nn(params)
+    nn = instantiate_nn(params, n_observable_states) #depends on size of observable states 
     M = instantiate_M(params)
     !(params.optimizer_adjust == "nothing") &&
         (optimizer_adjust = instantiate_optimizer_adjust(params))
 
-    #READ INPUT DATA AND SYSTEM
-    sys = node_load_system(joinpath(params.input_data_path, "system.json"))
-
-    TrainInputs = Serialization.deserialize(joinpath(params.input_data_path, "data"))
-
-    tsteps = TrainInputs.tsteps
-    fault_data = TrainInputs.fault_data
     pvss = collect(PSY.get_components(PSY.PeriodicVariableSource, sys))
-    Ir_scale, Ii_scale = _calculate_loss_function_scaling(params, fault_data)
-
+    #Ir_scale, Ii_scale = _calculate_loss_function_scaling(params, fault_data)
+    ground_truth_scale = _calculate_loss_function_scaling(params, fault_data)
     res = nothing
     output = Dict{String, Any}(
         "loss" => DataFrames.DataFrame(
@@ -231,7 +232,7 @@ function train(params::NODETrainParams)
         fault_dict = fault_data[PSY.get_name(pvs)]
         psid_results_object = fault_dict[:psid_results_object]
         surr, N_ALGEBRAIC_STATES, ODE_ORDER =
-            instantiate_surr(params, nn, Vm, Vθ, psid_results_object)
+            instantiate_surr(params, nn, n_observable_states, Vm, Vθ, psid_results_object)
         surr_prob_node_off, P = _initialize_surrogate(   #change naming
             params,
             nn,
@@ -261,6 +262,15 @@ function train(params::NODETrainParams)
     end
 
     min_θ = DiffEqFlux.initial_params(nn)
+    #Concatonate the initial conditions for each shooting node to min_θ
+    #Where and how do we keep track of how many parameters are in each portion 
+    #First Todo: debug and make sure working the multiple shooting formulation with shoot_times
+
+    #=     shoot_times = params.training_groups[1].shoot_times 
+        n_ic_params =  ones(length(shoot_times) * params.node_unobserved_states) 
+        params.learn_initial_condition_unobserved_states &&  (n_ic_params += params.node_unobserved_states)
+        Θ = vcat(min_θ, zeros(n_ic_params)
+        @warn Θ =#
     #try
     total_time = @elapsed begin
         for group_pvs in IterTools.partition(pvss, params.groupsize_faults)
@@ -273,8 +283,7 @@ function train(params::NODETrainParams)
                 sensealg,
                 solver,
                 optimizer,
-                Ir_scale,
-                Ii_scale,
+                ground_truth_scale,
                 output,
                 tsteps,
                 pvs_names_subset,
@@ -299,8 +308,7 @@ function train(params::NODETrainParams)
         pvs_names,
         fault_data,
         tsteps,
-        Ir_scale,
-        Ii_scale,
+        ground_truth_scale,
         output,
     )
     output["final_loss"] = final_loss_for_comparison
@@ -321,8 +329,7 @@ function _train(
     sensealg::SciMLBase.AbstractADType,
     solver::OrdinaryDiffEq.OrdinaryDiffEqAlgorithm,
     optimizer::Union{Flux.Optimise.AbstractOptimiser, Optim.AbstractOptimizer},
-    Ir_scale::Float64,
-    Ii_scale::Float64,
+    ground_truth_scale::Array{Float64},
     output::Dict{String, Any},
     tsteps::Vector{Float64},
     pvs_names_subset::Tuple{String},
@@ -330,7 +337,7 @@ function _train(
     per_solve_maxiters::Int64,
 )
     inner_loss_function =
-        instantiate_inner_loss_function(params.loss_function_weights, Ir_scale, Ii_scale)
+        instantiate_inner_loss_function(params.loss_function_weights, ground_truth_scale)
 
     res = nothing
     min_θ = θ
@@ -342,7 +349,7 @@ function _train(
         range = first_index:last_index
         @info "range" range
         @info "start of range" min_θ[end]
-        i_current_range = concatonate_i_true(fault_data, pvs_names_subset, range)   #TODO- need to provide all states for Multiple shoot with VSM model? 
+        i_current_range = concatonate_ground_truth(fault_data, pvs_names_subset, range)   #TODO- need to provide all states for Multiple shoot with VSM model? 
         t_current_range = concatonate_t(tsteps, pvs_names_subset, range)
         pvs_names_current_range = concatonate_pvs_names(pvs_names_subset, length(range))
         batchsize = length(i_current_range[1, :])
@@ -385,21 +392,18 @@ function _train(
     return res, output
 end
 
-function concatonate_i_true(fault_data, pvs_names_subset, range)
-    i_true = []
+function concatonate_ground_truth(fault_data, pvs_names_subset, range)
+    ground_truth = []
     for (i, pvs_name) in enumerate(pvs_names_subset)
-        i_true_fault = vcat(
-            (fault_data[pvs_name][:ir_ground_truth])',
-            (fault_data[pvs_name][:ii_ground_truth])',
-        )
-        i_true_fault = i_true_fault[:, range]
+        ground_truth_fault = fault_data[pvs_name][:ground_truth]
+        ground_truth_fault = ground_truth_fault[:, range]
         if i == 1
-            i_true = i_true_fault
+            ground_truth = ground_truth_fault
         else
-            i_true = hcat(i_true, i_true_fault)
+            ground_truth = hcat(ground_truth, ground_truth_fault)
         end
     end
-    return i_true
+    return ground_truth
 end
 
 function concatonate_pvs_names(pvs_names_subset, length_range)
