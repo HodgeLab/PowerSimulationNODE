@@ -43,7 +43,7 @@ try
     @warn joinpath(TEST_FILES_DIR, PowerSimulationNODE.INPUT_FOLDER_NAME, "system.json")    #SHOULD FAIL AT INV_CASE78
     d = generate_train_data(
         sys_train,
-        NODETrainDataParams(ode_model = "vsm"),
+        NODETrainDataParams(ode_model = "none"),
         SURROGATE_BUS,
         inv_case78("aa"),
     )

@@ -9,6 +9,11 @@ function solver_map(key)
     return d[key]
 end
 
+function observation_map(key)
+    d = Dict("first_two" => ((x, θ) -> x[1:2], Float64[]))
+    return d[key]
+end
+
 function sensealg_map(key)
     d = Dict(
         "ForwardDiff" => GalacticOptim.AutoForwardDiff,
@@ -30,6 +35,7 @@ function surr_map(key)
     )
     return d[key]
 end
+
 function activation_map(key)
     d = Dict("relu" => Flux.relu, "hardtanh" => Flux.hardtanh, "sigmoid" => Flux.sigmoid)
     return d[key]
@@ -37,6 +43,10 @@ end
 
 function instantiate_solver(inputs)
     return solver_map(inputs.solver)()
+end
+
+function instantiate_observation(inputs)
+    return observation_map(inputs.observation_function)
 end
 
 function instantiate_sensealg(inputs)
@@ -170,9 +180,9 @@ end
 #TODO ALL LOGIC AND NAMING CHANGES 
 function instantiate_surr(params, nn, n_observable_states, Vm, Vθ, psid_results_object)
     node_state_inputs = instantiate_node_state_inputs(params, psid_results_object)
-    @warn node_state_inputs(0.01)
+    @info "Number of additional state inputs:", length(node_state_inputs(0.01))
     number_of_additional_inputs = length(node_state_inputs(0.0))
-    @warn number_of_additional_inputs
+
     if params.ode_model == "vsm"
         N_ALGEBRAIC_STATES = 2
         ODE_ORDER = 19
@@ -268,7 +278,8 @@ function instantiate_outer_loss_function(
     solver,
     fault_data,
     inner_loss_function,
-    named_tuple,
+    training_group,
+    θ_lengths,
 )
     return (θ, y_actual, tsteps, pvs_names) -> _outer_loss_function(
         θ,
@@ -278,46 +289,50 @@ function instantiate_outer_loss_function(
         solver,
         fault_data,
         inner_loss_function,
-        named_tuple,
+        training_group,
+        θ_lengths,
     )
 end
 
 function _outer_loss_function(
-    θ,
+    θ_vec,
     y_actual,
     tsteps,
     pvs_names,
     solver,
     fault_data,
     inner_loss_function,
-    named_tuple,
-)
+    training_group,
+    θ_lengths,
+)                                   #possible we can't differentiate through the split function within the optimization? 
+    #θ = split_θ(θ_vec, θ_lengths)   #This is the struct with three fields, each needs to be used in the loss function 
     loss = 0.0
     group_predictions = []
     t_predictions = []
     unique_pvs_names = unique(pvs_names)
-    #@warn unique_pvs_names
+
     i = 1
     for pvs in unique_pvs_names
         tsteps_subset = tsteps[pvs .== pvs_names]
         y_actual_subset = y_actual[:, pvs .== pvs_names]
-        ms_ranges = shooting_ranges(tsteps, named_tuple[:shoot_times])
-        y_actual_subset = eltype(θ).(y_actual_subset)
-        tsteps_subset = eltype(θ).(tsteps_subset)      #TODO - can't have this if I want to compare to tsteps with numbers
+        ms_ranges = shooting_ranges(tsteps, training_group[:shoot_times])
+        y_actual_subset = eltype(θ_vec).(y_actual_subset)
+        tsteps_subset = eltype(θ_vec).(tsteps_subset)      #TODO - need to convert types? 
 
-        P = fault_data[pvs][:P]
-        P.nn = θ
-        p = vectorize(P)
+        #P = fault_data[pvs][:P]
+        #P.nn = θ.θ_node
+        #p = vectorize(P)
         single_loss, single_pred, single_t_predictions = batch_multiple_shoot(
-            p,
+            θ_vec,
+            θ_lengths,
             y_actual_subset,
             tsteps_subset,
-            fault_data[pvs][:surr_problem],
+            fault_data[pvs],
             inner_loss_function,
-            named_tuple[:multiple_shoot_continuity_term],
+            training_group[:multiple_shoot_continuity_term],
             solver,
             ms_ranges,
-            named_tuple[:batching_sample_factor],
+            training_group[:batching_sample_factor],
         )
         loss += single_loss
 
@@ -333,6 +348,7 @@ function _outer_loss_function(
     return loss, group_predictions, t_predictions
 end
 
+#TODO - deal with saving parameters that could have different lengths at different steps... only save nn/obs params? 
 function instantiate_cb!(output, lb_loss, exportmode, range_count, pvs_names) #don't pass t_prediction, let it come from the optimizer? 
     if exportmode == 3
         return (p, l, pred, t) ->

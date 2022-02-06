@@ -70,6 +70,7 @@ mutable struct NODETrainParams
     node_input_scale::Float64
     node_output_scale::Float64
     node_state_inputs::Vector{Tuple{String, Symbol}}
+    observation_function::String
     node_unobserved_states::Int64   #changed from node_unobserved_states
     initialize_unobserved_states::String
     learn_initial_condition_unobserved_states::Bool
@@ -111,6 +112,7 @@ function NODETrainParams(;
     node_input_scale = 10e1,
     node_output_scale = 1.0,
     node_state_inputs = [],
+    observation_function = "first_two",
     node_unobserved_states = 0,
     initialize_unobserved_states = "random",
     learn_initial_condition_unobserved_states = false,
@@ -144,6 +146,7 @@ function NODETrainParams(;
         node_input_scale,
         node_output_scale,
         node_state_inputs,
+        observation_function,
         node_unobserved_states,
         initialize_unobserved_states,
         learn_initial_condition_unobserved_states,

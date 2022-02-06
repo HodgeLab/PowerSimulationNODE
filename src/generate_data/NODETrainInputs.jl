@@ -46,7 +46,7 @@ function NODETrainDataParams(;
     steps = 300,
     tsteps_spacing = "linear",
     observable_states = [("gen1", :ir_filter), ("gen1", :ii_filter)],
-    ode_model = "vsm",
+    ode_model = "none",     #TODO - test generating data with VSM model
     base_path = pwd(),
     output_data_path = joinpath(base_path, "input_data"),
 )
@@ -108,19 +108,15 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, Dyna
         for (i, tuple) in enumerate(NODETrainDataParams.observable_states)
             if i == 1
                 observables_data = PSID.get_state_series(psid_results_object, tuple)[2]' #first index contains time 
-                @warn observables_data
-                @warn size(observables_data)
             else
                 observables_data = vcat(
                     observables_data,
                     PSID.get_state_series(psid_results_object, tuple)[2]',
                 )
-                @warn observables_data
-                @warn size(observables_data)
             end
         end
         n_observable_states = size(observables_data, 1)
-        @warn n_observable_states
+        @warn "generating data for obserble states:", n_observable_states
         transformer = collect(PSY.get_components(PSY.Transformer2W, sys_train))[1]
         p_network = [
             PSY.get_x(transformer) + PSY.get_X_th(pvs),
@@ -146,6 +142,7 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, Dyna
             #:ii_ground_truth => ode_data[2, :],
             :observable_states => observables_data,
             :psid_results_object => psid_results_object,
+            :p_ode => [],
         )
         @warn size(ode_data)
         @warn size(observables_data)

@@ -63,7 +63,6 @@ function _initialize_surrogate(
             x₀
     end
     p = vectorize(P)
-    @warn P
     P_pf, Q_pf, V_pf, θ_pf = P.pf
     Vr_pf = V_pf * cos(θ_pf)
     Vi_pf = V_pf * sin(θ_pf)
@@ -82,7 +81,7 @@ function _initialize_surrogate(
         @assert all(isapprox.(dx, 0.0; atol = 1e-8))
         x₀_surr = res_surr.zero
     end
-    @warn "x0 surr", x₀_surr
+    @info "x0 surr", x₀_surr
     tspan = (tsteps[1], tsteps[end])
     surr_func = OrdinaryDiffEq.ODEFunction(surr, mass_matrix = M)
     surr_prob = OrdinaryDiffEq.ODEProblem(surr_func, x₀_surr, tspan, p)
@@ -121,6 +120,7 @@ function _calculate_final_loss(
     ground_truth_scale,
     output,
 )
+    θ_vec, θ_lengths = combine_θ(θ)
     inner_loss_function =
         instantiate_inner_loss_function(params.loss_function_weights, ground_truth_scale)
 
@@ -133,6 +133,7 @@ function _calculate_final_loss(
             multiple_shoot_continuity_term = 100,
             batching_sample_factor = 1.0,
         ),
+        θ_lengths,
     )
     cb = instantiate_cb!(
         output,
@@ -144,10 +145,11 @@ function _calculate_final_loss(
     ground_truth = concatonate_ground_truth(fault_data, pvs_names, :)
     t_current = concatonate_t(tsteps, pvs_names, :)
     pvs_names = concatonate_pvs_names(pvs_names, length(tsteps))
-    final_loss_for_comparison = outer_loss_function(θ, ground_truth, t_current, pvs_names)
+    final_loss_for_comparison =
+        outer_loss_function(θ_vec, ground_truth, t_current, pvs_names)
 
     cb(
-        θ,
+        θ_vec,
         final_loss_for_comparison[1],
         final_loss_for_comparison[2],
         final_loss_for_comparison[3],
@@ -174,7 +176,7 @@ function _calculate_per_solve_maxiters(params, n_faults)
     end
     per_solve_maxiters =
         Int(floor((total_maxiters * groupsize_faults) / (n_faults * n_groups)))
-    @info "per solve maxiters" per_solve_maxiters
+    @info "per solve maxiters:", per_solve_maxiters
     if per_solve_maxiters == 0
         @error "maxiters is too low. The calculated maxiters per solve is 0! cannot train"
     end
@@ -201,6 +203,8 @@ function train(params::NODETrainParams)
     optimizer = instantiate_optimizer(params)
     nn = instantiate_nn(params, n_observable_states) #depends on size of observable states 
     M = instantiate_M(params)
+
+    observation_function, observation_params = instantiate_observation(params)  #observation_function(vector,params)
     !(params.optimizer_adjust == "nothing") &&
         (optimizer_adjust = instantiate_optimizer_adjust(params))
 
@@ -228,6 +232,7 @@ function train(params::NODETrainParams)
     per_solve_maxiters = _calculate_per_solve_maxiters(params, length(pvss))
 
     for pvs in pvss
+        @warn "PVS:", PSY.get_name(pvs) 
         Vm, Vθ = Source_to_function_of_time(pvs)
         fault_dict = fault_data[PSY.get_name(pvs)]
         psid_results_object = fault_dict[:psid_results_object]
@@ -261,24 +266,17 @@ function train(params::NODETrainParams)
         fault_data[PSY.get_name(pvs)][:P] = P   #parameters are stored in surr_prob, but as a single vector. The P struct allows for easier handling. 
     end
 
-    min_θ = DiffEqFlux.initial_params(nn)
-    #Concatonate the initial conditions for each shooting node to min_θ
-    #Where and how do we keep track of how many parameters are in each portion 
-    #First Todo: debug and make sure working the multiple shooting formulation with shoot_times
+    θ = partitioned_θ()
+    θ.θ_node = DiffEqFlux.initial_params(nn)
+    θ.θ_observation = observation_params
 
-    #=     shoot_times = params.training_groups[1].shoot_times 
-        n_ic_params =  ones(length(shoot_times) * params.node_unobserved_states) 
-        params.learn_initial_condition_unobserved_states &&  (n_ic_params += params.node_unobserved_states)
-        Θ = vcat(min_θ, zeros(n_ic_params)
-        @warn Θ =#
     #try
     total_time = @elapsed begin
         for group_pvs in IterTools.partition(pvss, params.groupsize_faults)
-            @info "start of fault" min_θ[end]
-            @show pvs_names_subset = PSY.get_name.(group_pvs)
-
+            pvs_names_subset = PSY.get_name.(group_pvs)
+            @info "start of fault group" θ.θ_node[end], pvs_names_subset
             res, output = _train(
-                min_θ,
+                θ,  #partitioned form 
                 params,
                 sensealg,
                 solver,
@@ -290,29 +288,30 @@ function train(params::NODETrainParams)
                 fault_data,
                 per_solve_maxiters,
             )
-
-            min_θ = copy(res.u)
-            @info "end of fault" min_θ[end]
+            #@warn res
+            θ = res 
+            @info "end of fault" θ.θ_node[end]
         end
 
         #TODO - Add second training stage here for final adjustments (optimizer_adjust) 
     end
-    @info "min_θ[end] (end of training)" min_θ[end]
+    
     output["total_time"] = total_time
     pvs_names = PSY.get_name.(pvss)
-
+    @info "End of training, calculating final loss for comparison:"
     final_loss_for_comparison = _calculate_final_loss(
         params,
-        res.u,
+        θ,
         solver,
         pvs_names,
-        fault_data,
+        fault_data, #includes all faults 
         tsteps,
         ground_truth_scale,
         output,
     )
     output["final_loss"] = final_loss_for_comparison
 
+    
     _capture_output(output, params.output_data_path, params.train_id)
     (params.graphical_report_mode != 0) &&
         visualize_training(params, visualize_level = params.graphical_report_mode)
@@ -324,7 +323,7 @@ function train(params::NODETrainParams)
 end
 
 function _train(
-    θ::Union{Vector{Float32}, Vector{Float64}},
+    θ::partitioned_θ,
     params::NODETrainParams,
     sensealg::SciMLBase.AbstractADType,
     solver::OrdinaryDiffEq.OrdinaryDiffEqAlgorithm,
@@ -341,18 +340,26 @@ function _train(
 
     res = nothing
     min_θ = θ
+    #modify based on : params.learn_initial_condition_unobserved_states  
+    min_θ.θ_u0 = rand(
+        Int(
+            length(params.training_groups[1][:shoot_times]) * params.node_unobserved_states,
+        ),
+    ) #randomly initalize initial conditions for the first training group...
     range_count = 1
-    for named_tuple in params.training_groups
-        tspan = named_tuple[:tspan]
+    for training_group in params.training_groups
+        
+        θ_vec, θ_lengths = combine_θ(min_θ)
+        tspan = training_group[:tspan]
         first_index = findfirst(x -> x >= tspan[1], tsteps)
         last_index = findlast(x -> x <= tspan[2], tsteps)
         range = first_index:last_index
-        @info "range" range
-        @info "start of range" min_θ[end]
+        @info "start of training group" range, min_θ.θ_node[end]
         i_current_range = concatonate_ground_truth(fault_data, pvs_names_subset, range)   #TODO- need to provide all states for Multiple shoot with VSM model? 
         t_current_range = concatonate_t(tsteps, pvs_names_subset, range)
         pvs_names_current_range = concatonate_pvs_names(pvs_names_subset, length(range))
         batchsize = length(i_current_range[1, :])
+
         train_loader = Flux.Data.DataLoader(
             (i_current_range, t_current_range, pvs_names_current_range),
             batchsize = batchsize,
@@ -362,7 +369,8 @@ function _train(
             solver,
             fault_data,
             inner_loss_function,
-            named_tuple,
+            training_group,
+            θ_lengths,
         )
 
         optfun = GalacticOptim.OptimizationFunction(
@@ -370,7 +378,9 @@ function _train(
                 outer_loss_function(θ, batch, time_batch, pvs_name_batch),
             sensealg, #GalacticOptim.AutoForwardDiff()
         )
-        optprob = GalacticOptim.OptimizationProblem(optfun, min_θ)
+
+        optprob = GalacticOptim.OptimizationProblem(optfun, θ_vec)
+
         cb = instantiate_cb!(
             output,
             params.lb_loss,
@@ -386,10 +396,12 @@ function _train(
             IterTools.ncycle(train_loader, per_solve_maxiters),
             cb = cb,
         )
-        min_θ = copy(res.u)
-        @info "end of range" min_θ[end]
+        min_θ = split_θ(copy(res.u), θ_lengths)
+        @info "end of training_group" min_θ.θ_node[end]
+
+        #If not the last iteration, need to solve the problem and update θ_u0 for the next set of shooting nodes in the training group. 
     end
-    return res, output
+    return min_θ, output
 end
 
 function concatonate_ground_truth(fault_data, pvs_names_subset, range)
@@ -406,6 +418,19 @@ function concatonate_ground_truth(fault_data, pvs_names_subset, range)
     return ground_truth
 end
 
+function concatonate_t(tsteps, pvs_names_subset, range)
+    t = []
+    for (i, pvs_name) in enumerate(pvs_names_subset)
+        t_fault = reshape(tsteps[range], 1, length(tsteps[range]))
+        if i == 1
+            t = t_fault
+        else
+            t = hcat(t, t_fault)
+        end
+    end
+    return t
+end
+
 function concatonate_pvs_names(pvs_names_subset, length_range)
     concatonated_pvs_names_list = []
     for (i, pvs_name) in enumerate(pvs_names_subset)
@@ -417,19 +442,6 @@ function concatonate_pvs_names(pvs_names_subset, length_range)
         end
     end
     return concatonated_pvs_names_list
-end
-
-function concatonate_t(tsteps, pvs_names_subset, range)
-    t = []
-    for (i, pvs_name) in enumerate(pvs_names_subset)
-        t_fault = (tsteps[range])'
-        if i == 1
-            t = t_fault
-        else
-            t = hcat(t, t_fault)
-        end
-    end
-    return t
 end
 
 function _capture_output(output_dict, output_directory, id)

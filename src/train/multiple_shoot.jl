@@ -34,10 +34,12 @@ The parameter 'continuity_term' should be a relatively big number to enforce a l
 whenever the last point of any group doesn't coincide with the first point of next group.
 """
 function batch_multiple_shoot(
-    p::AbstractArray,
+    θ_vec,
+    θ_lengths,
     ode_data::AbstractArray,
     tsteps::AbstractArray,
-    prob::DiffEqBase.ODEProblem,
+    fault_data,
+    #prob::DiffEqBase.ODEProblem,
     loss_function,
     continuity_term::Real,
     solver::DiffEqBase.AbstractODEAlgorithm,
@@ -45,7 +47,11 @@ function batch_multiple_shoot(
     batching_factor::Float64;
     kwargs...,
 )
-    #datasize = size(ode_data, 2)
+    θ = split_θ(θ_vec, θ_lengths)
+    prob = fault_data[:surr_problem]
+    P = fault_data[:P]
+    P.nn = θ_vec#θ.θ_node
+    p = vectorize(P)
     ranges_batch = batch_ranges(batching_factor, shooting_ranges)    #returns sorted batch (maybe can stay the same... )
 
     # Multiple shooting predictions
