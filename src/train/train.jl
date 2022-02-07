@@ -475,7 +475,6 @@ function update_θ_u0(
     pvs_names_subset;
     kwargs...,
 )
-
     new_θ_u0 = Float64[]
     saveat = training_group[:shoot_times]
 
@@ -486,10 +485,10 @@ function update_θ_u0(
         p = vectorize(P)
         if isempty(saveat)  #FOR FINAL LOSS 
             if params.learn_initial_condition_unobserved_states == false
-                xxx = Float64[]     
+                xxx = Float64[]
             elseif params.learn_initial_condition_unobserved_states == true
-                xxx = θ.θ_u0[1:params.node_unobserved_states]
-            end 
+                xxx = θ.θ_u0[1:(params.node_unobserved_states)]
+            end
             new_θ_u0 = vcat(new_θ_u0, xxx)
         else #NOT FOR FINAL LOSS 
             if params.learn_initial_condition_unobserved_states == false
@@ -509,8 +508,11 @@ function update_θ_u0(
                         prob;
                         p = p,
                         tspan = (0.0, saveat[end]),
-                        u0 = vcat(prob.u0[1:length(prob.u0)-params.node_unobserved_states], θ.θ_u0[1:params.node_unobserved_states]),  #Difference: use the initial condition of unobserved state from end of last training.              
-                    ),                                        
+                        u0 = vcat(
+                            prob.u0[1:(length(prob.u0) - params.node_unobserved_states)],
+                            θ.θ_u0[1:(params.node_unobserved_states)],
+                        ),  #Difference: use the initial condition of unobserved state from end of last training.              
+                    ),
                     solver;
                     saveat = vcat(0.0, saveat),              #Difference: also save at t = 0
                     save_idxs = [
@@ -521,7 +523,7 @@ function update_θ_u0(
                 )
             end
             new_θ_u0 = vcat(new_θ_u0, vec(Array(sol)))
-        end 
+        end
     end
     θ.θ_u0 = new_θ_u0
     return θ
