@@ -1,4 +1,4 @@
-mutable struct partitioned_θ    #maybe this can't have any type info? 
+mutable struct partitioned_θ
     θ_node::Vector{}
     θ_u0::Vector{}
     θ_observation::Vector{}
@@ -26,4 +26,9 @@ end
 function combine_θ(θ::partitioned_θ)
     return vcat(θ.θ_node, θ.θ_u0, θ.θ_observation),
     θ_lengths(length(θ.θ_node), length(θ.θ_u0), length(θ.θ_observation))
+end
+
+function split_θ_u0(θ_u0::Vector{}, pvs_index::Int64, n_pvs::Int64)
+    length_subset = Int(length(θ_u0) / n_pvs)
+    return θ_u0[((pvs_index - 1) * length_subset + 1):((pvs_index) * length_subset)]
 end

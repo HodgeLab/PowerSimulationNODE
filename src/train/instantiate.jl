@@ -10,7 +10,7 @@ function solver_map(key)
 end
 
 function observation_map(key)
-    d = Dict("first_two" => ((x, θ) -> x[1:2], Float64[]))
+    d = Dict("first_two" => ((x, θ) -> x[1:2, :], Float64[]))
     return d[key]
 end
 
@@ -280,6 +280,8 @@ function instantiate_outer_loss_function(
     inner_loss_function,
     training_group,
     θ_lengths,
+    params,
+    observation_function,
 )
     return (θ, y_actual, tsteps, pvs_names) -> _outer_loss_function(
         θ,
@@ -291,6 +293,8 @@ function instantiate_outer_loss_function(
         inner_loss_function,
         training_group,
         θ_lengths,
+        params,
+        observation_function,
     )
 end
 
@@ -304,27 +308,28 @@ function _outer_loss_function(
     inner_loss_function,
     training_group,
     θ_lengths,
-)                                   #possible we can't differentiate through the split function within the optimization? 
-    #θ = split_θ(θ_vec, θ_lengths)   #This is the struct with three fields, each needs to be used in the loss function 
+    params,
+    observation_function,
+)
     loss = 0.0
     group_predictions = []
     t_predictions = []
     unique_pvs_names = unique(pvs_names)
 
-    i = 1
-    for pvs in unique_pvs_names
+    for (i, pvs) in enumerate(unique_pvs_names)
         tsteps_subset = tsteps[pvs .== pvs_names]
         y_actual_subset = y_actual[:, pvs .== pvs_names]
-        ms_ranges = shooting_ranges(tsteps, training_group[:shoot_times])
+        ms_ranges = shooting_ranges(tsteps, training_group[:shoot_times])   #includes the starting range
         y_actual_subset = eltype(θ_vec).(y_actual_subset)
         tsteps_subset = eltype(θ_vec).(tsteps_subset)      #TODO - need to convert types? 
 
-        #P = fault_data[pvs][:P]
-        #P.nn = θ.θ_node
-        #p = vectorize(P)
+        θ = split_θ(θ_vec, θ_lengths)
+        θ_u0_subset = split_θ_u0(θ.θ_u0, i, length(unique_pvs_names))
+
         single_loss, single_pred, single_t_predictions = batch_multiple_shoot(
-            θ_vec,
-            θ_lengths,
+            θ.θ_node,
+            θ_u0_subset,
+            θ.θ_observation,
             y_actual_subset,
             tsteps_subset,
             fault_data[pvs],
@@ -333,6 +338,8 @@ function _outer_loss_function(
             solver,
             ms_ranges,
             training_group[:batching_sample_factor],
+            params,
+            observation_function,
         )
         loss += single_loss
 
@@ -343,8 +350,8 @@ function _outer_loss_function(
             group_predictions = vcat(group_predictions, single_pred)
             t_predictions = vcat(t_predictions, single_t_predictions)
         end
-        i += 1
     end
+
     return loss, group_predictions, t_predictions
 end
 
@@ -368,7 +375,7 @@ function _cb3!(p, l, pred, t_prediction, output, lb_loss, range_count, pvs_names
     push!(output["predictions"], (t_prediction, ir, ii))
     output["total_iterations"] += 1
     @info "loss", l
-    @info "p[end]", p[end]
+    @info "p[1]", p[1]
     (l > lb_loss) && return false
     return true
 end
@@ -377,7 +384,7 @@ function _cb2!(p, l, output, lb_loss, range_count, pvs_names)
     push!(output["loss"], (collect(pvs_names), range_count, l))
     output["total_iterations"] += 1
     @info "loss", l
-    @info "p[end]", p[end]
+    @info "p[1]", p[1]
     (l > lb_loss) && return false
     return true
 end
@@ -385,7 +392,7 @@ end
 function _cb1!(p, l, output, lb_loss)
     output["total_iterations"] += 1
     @info "loss", l
-    @info "p[end]", p[end]
+    @info "p[1]", p[1]
     (l > lb_loss) && return false
     return true
 end

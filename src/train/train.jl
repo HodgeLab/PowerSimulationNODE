@@ -119,11 +119,12 @@ function _calculate_final_loss(
     tsteps,
     ground_truth_scale,
     output,
+    observation_function,
 )
     θ_vec, θ_lengths = combine_θ(θ)
     inner_loss_function =
         instantiate_inner_loss_function(params.loss_function_weights, ground_truth_scale)
-
+    #@warn fault_data
     outer_loss_function = instantiate_outer_loss_function(
         solver,
         fault_data,
@@ -134,6 +135,8 @@ function _calculate_final_loss(
             batching_sample_factor = 1.0,
         ),
         θ_lengths,
+        params,
+        observation_function,
     )
     cb = instantiate_cb!(
         output,
@@ -201,10 +204,11 @@ function train(params::NODETrainParams)
     sensealg = instantiate_sensealg(params)
     solver = instantiate_solver(params)
     optimizer = instantiate_optimizer(params)
-    nn = instantiate_nn(params, n_observable_states) #depends on size of observable states 
+    nn = instantiate_nn(params, n_observable_states)
     M = instantiate_M(params)
 
     observation_function, observation_params = instantiate_observation(params)  #observation_function(vector,params)
+
     !(params.optimizer_adjust == "nothing") &&
         (optimizer_adjust = instantiate_optimizer_adjust(params))
 
@@ -231,13 +235,17 @@ function train(params::NODETrainParams)
     )
     per_solve_maxiters = _calculate_per_solve_maxiters(params, length(pvss))
 
+    !(params.learn_initial_condition_unobserved_states) &&
+        (unobserved_u0 = rand(params.node_unobserved_states))
+
     for pvs in pvss
-        @warn "PVS:", PSY.get_name(pvs) 
+        @warn "PVS:", PSY.get_name(pvs)
         Vm, Vθ = Source_to_function_of_time(pvs)
         fault_dict = fault_data[PSY.get_name(pvs)]
         psid_results_object = fault_dict[:psid_results_object]
         surr, N_ALGEBRAIC_STATES, ODE_ORDER =
             instantiate_surr(params, nn, n_observable_states, Vm, Vθ, psid_results_object)
+
         surr_prob_node_off, P = _initialize_surrogate(   #change naming
             params,
             nn,
@@ -261,7 +269,11 @@ function train(params::NODETrainParams)
         else
             surr_prob = surr_prob_node_off
         end
-
+        if !(params.learn_initial_condition_unobserved_states)
+            x₀_surr = surr_prob.u0
+            x₀_surr[(end - params.node_unobserved_states + 1):end] = unobserved_u0
+            surr_prob = OrdinaryDiffEq.remake(surr_prob, u0 = x₀_surr)
+        end
         fault_data[PSY.get_name(pvs)][:surr_problem] = surr_prob
         fault_data[PSY.get_name(pvs)][:P] = P   #parameters are stored in surr_prob, but as a single vector. The P struct allows for easier handling. 
     end
@@ -270,9 +282,31 @@ function train(params::NODETrainParams)
     θ.θ_node = DiffEqFlux.initial_params(nn)
     θ.θ_observation = observation_params
 
+    if params.learn_initial_condition_unobserved_states
+        θ.θ_u0 = rand(
+            Int(
+                (length(params.training_groups[1][:shoot_times]) + 1) *
+                params.node_unobserved_states *
+                params.groupsize_faults,
+            ),
+        )
+
+    else
+        θ.θ_u0 = rand(
+            Int(
+                (length(params.training_groups[1][:shoot_times])) *
+                params.node_unobserved_states *
+                params.groupsize_faults,
+            ),
+        )
+    end
+
+    @warn "LENGTHS OF θ to start:", combine_θ(θ)[2]
+
     #try
     total_time = @elapsed begin
-        for group_pvs in IterTools.partition(pvss, params.groupsize_faults)
+        for (fault_group_count, group_pvs) in
+            enumerate(IterTools.partition(pvss, params.groupsize_faults))
             pvs_names_subset = PSY.get_name.(group_pvs)
             @info "start of fault group" θ.θ_node[end], pvs_names_subset
             res, output = _train(
@@ -287,31 +321,50 @@ function train(params::NODETrainParams)
                 pvs_names_subset,
                 fault_data,
                 per_solve_maxiters,
+                observation_function,
+                fault_group_count,
             )
             #@warn res
-            θ = res 
+            θ = res
             @info "end of fault" θ.θ_node[end]
         end
 
         #TODO - Add second training stage here for final adjustments (optimizer_adjust) 
     end
-    
+
     output["total_time"] = total_time
     pvs_names = PSY.get_name.(pvss)
+
+    @warn "length of u0 after before", length(θ.θ_u0)
+    θ = update_θ_u0(
+        θ,
+        (
+            tspan = (0.0, 0.0),
+            shoot_times = [],
+            multiple_shoot_continuity_term = 1,
+            batching_sample_factor = 1.0,
+        ),
+        solver,
+        fault_data,
+        params,
+        PSY.get_name.(pvss),
+    )
+    @warn "length of u0 after update", length(θ.θ_u0)
+
     @info "End of training, calculating final loss for comparison:"
     final_loss_for_comparison = _calculate_final_loss(
         params,
         θ,
         solver,
         pvs_names,
-        fault_data, #includes all faults 
+        fault_data,
         tsteps,
         ground_truth_scale,
         output,
+        observation_function,
     )
     output["final_loss"] = final_loss_for_comparison
 
-    
     _capture_output(output, params.output_data_path, params.train_id)
     (params.graphical_report_mode != 0) &&
         visualize_training(params, visualize_level = params.graphical_report_mode)
@@ -331,24 +384,32 @@ function _train(
     ground_truth_scale::Array{Float64},
     output::Dict{String, Any},
     tsteps::Vector{Float64},
-    pvs_names_subset::Tuple{String},
+    pvs_names_subset::Tuple,
     fault_data::Dict{String, Dict{Symbol, Any}},
     per_solve_maxiters::Int64,
+    observation_function,
+    fault_group_count::Int64,
 )
     inner_loss_function =
         instantiate_inner_loss_function(params.loss_function_weights, ground_truth_scale)
 
     res = nothing
     min_θ = θ
-    #modify based on : params.learn_initial_condition_unobserved_states  
-    min_θ.θ_u0 = rand(
-        Int(
-            length(params.training_groups[1][:shoot_times]) * params.node_unobserved_states,
-        ),
-    ) #randomly initalize initial conditions for the first training group...
-    range_count = 1
-    for training_group in params.training_groups
-        
+
+    for (training_group_count, training_group) in enumerate(params.training_groups)
+        @warn "length of u0 before update", length(min_θ.θ_u0)
+        if training_group_count > 1 || fault_group_count > 1
+            min_θ = update_θ_u0(
+                min_θ,
+                training_group,
+                solver,
+                fault_data,
+                params,
+                pvs_names_subset,
+            )
+        end
+        @warn "length of u0 after update", length(min_θ.θ_u0)
+
         θ_vec, θ_lengths = combine_θ(min_θ)
         tspan = training_group[:tspan]
         first_index = findfirst(x -> x >= tspan[1], tsteps)
@@ -371,6 +432,8 @@ function _train(
             inner_loss_function,
             training_group,
             θ_lengths,
+            params,
+            observation_function,
         )
 
         optfun = GalacticOptim.OptimizationFunction(
@@ -385,10 +448,9 @@ function _train(
             output,
             params.lb_loss,
             params.output_mode,
-            range_count,
+            training_group_count,
             pvs_names_subset,
         )
-        range_count += 1
 
         res = GalacticOptim.solve(
             optprob,
@@ -398,10 +460,71 @@ function _train(
         )
         min_θ = split_θ(copy(res.u), θ_lengths)
         @info "end of training_group" min_θ.θ_node[end]
-
-        #If not the last iteration, need to solve the problem and update θ_u0 for the next set of shooting nodes in the training group. 
     end
+
+    #TODO - update min_θ
     return min_θ, output
+end
+
+function update_θ_u0(
+    θ,
+    training_group,
+    solver,
+    fault_data,
+    params,
+    pvs_names_subset;
+    kwargs...,
+)
+
+    new_θ_u0 = Float64[]
+    saveat = training_group[:shoot_times]
+
+    for pvs in pvs_names_subset
+        prob = fault_data[pvs][:surr_problem]
+        P = fault_data[pvs][:P]
+        P.nn = θ.θ_node
+        p = vectorize(P)
+        if isempty(saveat)  #FOR FINAL LOSS 
+            if params.learn_initial_condition_unobserved_states == false
+                xxx = Float64[]     
+            elseif params.learn_initial_condition_unobserved_states == true
+                xxx = θ.θ_u0[1:params.node_unobserved_states]
+            end 
+            new_θ_u0 = vcat(new_θ_u0, xxx)
+        else #NOT FOR FINAL LOSS 
+            if params.learn_initial_condition_unobserved_states == false
+                sol = OrdinaryDiffEq.solve(
+                    OrdinaryDiffEq.remake(prob; p = p, tspan = (0.0, saveat[end])),
+                    solver;
+                    saveat = saveat,
+                    save_idxs = [
+                        length(prob.u0) - params.node_unobserved_states + i for
+                        i in 1:(params.node_unobserved_states)
+                    ],
+                    kwargs...,
+                )
+            elseif params.learn_initial_condition_unobserved_states == true
+                sol = OrdinaryDiffEq.solve(
+                    OrdinaryDiffEq.remake(
+                        prob;
+                        p = p,
+                        tspan = (0.0, saveat[end]),
+                        u0 = vcat(prob.u0[1:length(prob.u0)-params.node_unobserved_states], θ.θ_u0[1:params.node_unobserved_states]),  #Difference: use the initial condition of unobserved state from end of last training.              
+                    ),                                        
+                    solver;
+                    saveat = vcat(0.0, saveat),              #Difference: also save at t = 0
+                    save_idxs = [
+                        length(prob.u0) - params.node_unobserved_states + i for
+                        i in 1:(params.node_unobserved_states)
+                    ],
+                    kwargs...,
+                )
+            end
+            new_θ_u0 = vcat(new_θ_u0, vec(Array(sol)))
+        end 
+    end
+    θ.θ_u0 = new_θ_u0
+    return θ
 end
 
 function concatonate_ground_truth(fault_data, pvs_names_subset, range)

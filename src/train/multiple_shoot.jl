@@ -33,40 +33,44 @@ Note:
 The parameter 'continuity_term' should be a relatively big number to enforce a large penalty
 whenever the last point of any group doesn't coincide with the first point of next group.
 """
+#TODO - lots of the logic is going to be in this function, will be worthwile to make it as clean/well-named as possible 
 function batch_multiple_shoot(
-    θ_vec,
-    θ_lengths,
+    θ_node,
+    θ_u0,
+    θ_observation,
     ode_data::AbstractArray,
     tsteps::AbstractArray,
     fault_data,
-    #prob::DiffEqBase.ODEProblem,
     loss_function,
     continuity_term::Real,
     solver::DiffEqBase.AbstractODEAlgorithm,
-    shooting_ranges::AbstractArray, #group_size::Integer,    #This needs to be changed to shoot_times.... change the function to take in times and calculate respective groups. 
-    batching_factor::Float64;
+    shooting_ranges::AbstractArray,
+    batching_factor::Float64,
+    params::NODETrainParams,
+    observation_function;
     kwargs...,
 )
-    θ = split_θ(θ_vec, θ_lengths)
     prob = fault_data[:surr_problem]
-    P = fault_data[:P]
-    P.nn = θ_vec#θ.θ_node
-    p = vectorize(P)
-    ranges_batch = batch_ranges(batching_factor, shooting_ranges)    #returns sorted batch (maybe can stay the same... )
 
-    # Multiple shooting predictions
+    P = fault_data[:P]
+    P.nn = θ_node
+    p = vectorize(P)
+    ranges_batch = batch_ranges(batching_factor, shooting_ranges)
+    u0s = generate_initial_conditions(ode_data, params, θ_u0, ranges_batch, prob)
+    @assert length(ranges_batch) == length(u0s)
+
     sols = [
         OrdinaryDiffEq.solve(
             OrdinaryDiffEq.remake(
                 prob;
                 p = p,
                 tspan = (tsteps[first(rg)], tsteps[last(rg)]),
-                u0 = ode_data[:, first(rg)],
+                u0 = u0s[i],
             ),
             solver;
             saveat = tsteps[rg],
             kwargs...,
-        ) for rg in ranges_batch
+        ) for (i, rg) in enumerate(ranges_batch)
     ]
     group_predictions = Array.(sols)
 
@@ -80,15 +84,14 @@ function batch_multiple_shoot(
     loss = 0
     for (i, rg) in enumerate(ranges_batch)
         u = ode_data[:, rg]
-        û = group_predictions[i]
+        û = observation_function(group_predictions[i], θ_observation)    # Normal loss only on observed states 
         loss += loss_function(u, û)
-
         if i > 1
-            # Ensure continuity between last state in previous prediction
-            # and current initial condition in ode_data
             loss +=
-                continuity_term *
-                _default_continuity_loss(group_predictions[i - 1][:, end], u[:, 1])
+                continuity_term * _default_continuity_loss(
+                    group_predictions[i - 1][:, end],
+                    group_predictions[i][:, 1],
+                )  # Continuity loss for all states 
         end
     end
     t_predictions = [tsteps[r] for r in ranges_batch]
@@ -115,6 +118,36 @@ function batch_ranges(batching_factor::Float64, ranges)
     return batch_ranges
 end
 
+function generate_initial_conditions(ode_data, params, θ_u0, ranges_batch, prob)
+    if params.learn_initial_condition_unobserved_states
+        @assert size(θ_u0)[1] == (length(ranges_batch) * params.node_unobserved_states)
+        u0s = [
+            vcat(
+                ode_data[:, first(rg)],
+                θ_u0[((i - 1) * params.node_unobserved_states + 1):(i * params.node_unobserved_states)],
+            ) for (i, rg) in enumerate(ranges_batch)
+        ]
+    else
+        @assert size(θ_u0)[1] ==
+                ((length(ranges_batch) - 1) * params.node_unobserved_states)
+        u0s = [
+            if i == 1
+                vcat(
+                    ode_data[:, first(rg)],
+                    prob.u0[(end - (params.node_unobserved_states - 1)):end],
+                )
+            else
+                vcat(
+                    ode_data[:, first(rg)],
+                    θ_u0[((i - 2) * params.node_unobserved_states + 1):((i - 1) * params.node_unobserved_states)],
+                )
+            end
+
+            for (i, rg) in enumerate(ranges_batch)
+        ]
+    end
+    return u0s
+end
 """
 Get ranges that partition data of length `datasize` in groups of `groupsize` observations.
 If the data isn't perfectly dividable by `groupsize`, the last group contains
