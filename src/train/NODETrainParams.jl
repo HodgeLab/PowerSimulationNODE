@@ -86,7 +86,7 @@ mutable struct NODETrainParams
     graphical_report_mode::Int64
 end
 
-StructTypes.StructType(::Type{NODETrainParams}) = StructTypes.Mutable()   #TODO Struct vs OrderedStruct vs Mutablestruct
+StructTypes.StructType(::Type{NODETrainParams}) = StructTypes.Mutable()
 
 function NODETrainParams(;
     train_id = "train_instance_1",

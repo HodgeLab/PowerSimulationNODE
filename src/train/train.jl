@@ -305,72 +305,72 @@ function train(params::NODETrainParams)
     @warn "LENGTHS OF θ to start:", combine_θ(θ)[2]
 
     try
-    total_time = @elapsed begin
-        for (fault_group_count, group_pvs) in
-            enumerate(IterTools.partition(pvss, params.groupsize_faults))
-            pvs_names_subset = PSY.get_name.(group_pvs)
-            @info "start of fault group" θ.θ_node[end], pvs_names_subset
-            res, output = _train(
-                θ,  #partitioned form 
-                params,
-                sensealg,
-                solver,
-                optimizer,
-                ground_truth_scale,
-                output,
-                tsteps,
-                pvs_names_subset,
-                fault_data,
-                per_solve_maxiters,
-                observation_function,
-                fault_group_count,
-            )
-            #@warn res
-            θ = res
-            @info "end of fault" θ.θ_node[end]
+        total_time = @elapsed begin
+            for (fault_group_count, group_pvs) in
+                enumerate(IterTools.partition(pvss, params.groupsize_faults))
+                pvs_names_subset = PSY.get_name.(group_pvs)
+                @info "start of fault group" θ.θ_node[end], pvs_names_subset
+                res, output = _train(
+                    θ,  #partitioned form 
+                    params,
+                    sensealg,
+                    solver,
+                    optimizer,
+                    ground_truth_scale,
+                    output,
+                    tsteps,
+                    pvs_names_subset,
+                    fault_data,
+                    per_solve_maxiters,
+                    observation_function,
+                    fault_group_count,
+                )
+                #@warn res
+                θ = res
+                @info "end of fault" θ.θ_node[end]
+            end
+
+            #TODO - Add second training stage here for final adjustments (optimizer_adjust) 
         end
 
-        #TODO - Add second training stage here for final adjustments (optimizer_adjust) 
-    end
+        output["total_time"] = total_time
+        pvs_names = PSY.get_name.(pvss)
 
-    output["total_time"] = total_time
-    pvs_names = PSY.get_name.(pvss)
+        @warn "length of u0 after before", length(θ.θ_u0)
+        θ = update_θ_u0(
+            θ,
+            (
+                tspan = (0.0, 0.0),
+                shoot_times = [],
+                multiple_shoot_continuity_term = 1,
+                batching_sample_factor = 1.0,
+            ),
+            solver,
+            fault_data,
+            params,
+            PSY.get_name.(pvss),
+        )
+        @warn "length of u0 after update", length(θ.θ_u0)
 
-    @warn "length of u0 after before", length(θ.θ_u0)
-    θ = update_θ_u0(
-        θ,
-        (
-            tspan = (0.0, 0.0),
-            shoot_times = [],
-            multiple_shoot_continuity_term = 1,
-            batching_sample_factor = 1.0,
-        ),
-        solver,
-        fault_data,
-        params,
-        PSY.get_name.(pvss),
-    )
-    @warn "length of u0 after update", length(θ.θ_u0)
+        @info "End of training, calculating final loss for comparison:"
+        final_loss_for_comparison = _calculate_final_loss(
+            params,
+            θ,
+            solver,
+            pvs_names,
+            fault_data,
+            tsteps,
+            ground_truth_scale,
+            output,
+            observation_function,
+        )
+        output["final_loss"] = final_loss_for_comparison
 
-    @info "End of training, calculating final loss for comparison:"
-    final_loss_for_comparison = _calculate_final_loss(
-        params,
-        θ,
-        solver,
-        pvs_names,
-        fault_data,
-        tsteps,
-        ground_truth_scale,
-        output,
-        observation_function,
-    )
-    output["final_loss"] = final_loss_for_comparison
-
-    _capture_output(output, params.output_data_path, params.train_id)
-    (params.graphical_report_mode != 0) &&
-        visualize_training(params, visualize_level = params.graphical_report_mode)
-    return true
-    #TODO - uncomment try catch after debugging 
+        _capture_output(output, params.output_data_path, params.train_id)
+        (params.graphical_report_mode != 0) &&
+            visualize_training(params, visualize_level = params.graphical_report_mode)
+        return true
+        #TODO - uncomment try catch after debugging 
     catch
         return false
     end
