@@ -65,6 +65,7 @@ function SavioHPCTrain(;
     scratch_path = "/global/scratch/users",
     time_limit = "24:00:00",
     n_tasks = 1,
+    QoS = "savio_normal",
     force_generate_inputs = false,
     n_nodes = nothing, # Use with caution in Savio, it can lead to over subscription of nodes
 )
@@ -74,7 +75,7 @@ function SavioHPCTrain(;
     return HPCTrain(
         username,
         "fc_emac",
-        "savio_normal",
+        QoS,
         "savio",
         project_folder,
         scratch_path,
@@ -97,6 +98,7 @@ function SummitHPCTrain(;
     scratch_path = "/scratch/summit/",
     time_limit = "24:00:00",
     n_tasks = 1,  #default to parallelize across all tasks 
+    QoS = "normal",
     force_generate_inputs = false,
 )
     # Default until we parallelize training code
@@ -104,7 +106,7 @@ function SummitHPCTrain(;
     return HPCTrain(
         username,
         "ucb-general", # Get allocation
-        "normal",
+        QoS,
         "shas",
         project_folder,
         scratch_path,
