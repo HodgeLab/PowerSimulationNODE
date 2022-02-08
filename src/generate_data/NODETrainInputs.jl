@@ -138,15 +138,12 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, Dyna
             :p_network => p_network,
             :p_pf => [P_pf, Q_pf, V_pf, θ_pf],
             :ground_truth => ode_data,
-            #:ir_ground_truth => ode_data[1, :],
-            #:ii_ground_truth => ode_data[2, :],
             :observable_states => observables_data,
             :psid_results_object => psid_results_object,
             :p_ode => [],
         )
         @warn size(ode_data)
         @warn size(observables_data)
-        #@warn ode_data .- observables_data
 
         if NODETrainDataParams.ode_model == "vsm"
             #################### BUILD INITIALIZATION SYSTEM ###############################

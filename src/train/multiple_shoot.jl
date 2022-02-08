@@ -77,6 +77,7 @@ function batch_multiple_shoot(
         observation_function(group_prediction, θ_observation) for
         group_prediction in group_predictions
     ]
+
     # Abort and return infinite loss if one of the integrations failed
     retcodes = [sol.retcode for sol in sols]
     if any(retcodes .!= :Success)
@@ -87,7 +88,7 @@ function batch_multiple_shoot(
     loss = 0
     for (i, rg) in enumerate(ranges_batch)
         u = ode_data[:, rg]
-        û = group_observations[i] #observation_function(group_predictions[i], θ_observation)    # Normal loss only on observed states 
+        û = group_observations[i]
         loss += loss_function(u, û)
         if i > 1
             loss +=
@@ -151,34 +152,6 @@ function generate_initial_conditions(ode_data, params, θ_u0, ranges_batch, prob
     end
     return u0s
 end
-"""
-Get ranges that partition data of length `datasize` in groups of `groupsize` observations.
-If the data isn't perfectly dividable by `groupsize`, the last group contains
-the reminding observations.
-```julia
-group_ranges(datasize, groupsize)
-```
-Arguments:
-- `datasize`: amount of data points to be partitioned
-- `groupsize`: maximum amount of observations in each group
-Example:
-```julia-repl
-julia> group_ranges(10, 5)
-3-element Vector{UnitRange{Int64}}:
- 1:5
- 5:9
- 9:10
-```
-"""
-#= function group_ranges(datasize::Integer, groupsize::Integer)
-    2 <= groupsize <= datasize || throw(
-        DomainError(
-            groupsize,
-            "datasize must be positive and groupsize must to be within [2, datasize]",
-        ),
-    )
-    return [i:min(datasize, i + groupsize - 1) for i in 1:(groupsize - 1):(datasize - 1)]
-end =#
 
 function shooting_ranges(tsteps::AbstractArray, shoot_times::AbstractArray)
     shoot_times = vcat(tsteps[1], shoot_times, tsteps[end])
@@ -190,8 +163,6 @@ function shooting_ranges(tsteps::AbstractArray, shoot_times::AbstractArray)
     ]
 end
 
-# Default ontinuity loss between last state in previous prediction
-# and current initial condition in ode_data
 function _default_continuity_loss(û_end::AbstractArray, u_0::AbstractArray)
     return sum(abs, û_end - u_0)
 end

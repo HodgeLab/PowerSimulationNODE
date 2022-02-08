@@ -304,7 +304,7 @@ function train(params::NODETrainParams)
 
     @warn "LENGTHS OF θ to start:", combine_θ(θ)[2]
 
-    #try
+    try
     total_time = @elapsed begin
         for (fault_group_count, group_pvs) in
             enumerate(IterTools.partition(pvss, params.groupsize_faults))
@@ -371,9 +371,9 @@ function train(params::NODETrainParams)
         visualize_training(params, visualize_level = params.graphical_report_mode)
     return true
     #TODO - uncomment try catch after debugging 
-    #catch
-    #    return false
-    #end
+    catch
+        return false
+    end
 end
 
 function _train(
@@ -462,8 +462,6 @@ function _train(
         min_θ = split_θ(copy(res.u), θ_lengths)
         @info "end of training_group" min_θ.θ_node[end]
     end
-
-    #TODO - update min_θ
     return min_θ, output
 end
 

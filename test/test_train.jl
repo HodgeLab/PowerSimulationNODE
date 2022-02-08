@@ -1,17 +1,16 @@
 path = (joinpath(pwd(), "test-train-dir"))
 try
-    #Test with pure NODE and 0 feedback states passes 
     #TODO - need additional tests for ode_model = "vsm" and node_unobserved_states != 0 once these are enabled. 
     p = NODETrainParams(
         base_path = path,
         ode_model = "none",
         node_unobserved_states = 2, #1
         learn_initial_condition_unobserved_states = false,
-        node_layers = 3,
-        node_width = 15,
+        node_layers = 2,
+        node_width = 2,
         groupsize_faults = 1,
         verify_psid_node_off = false,
-        maxiters = 950,
+        maxiters = 10,
         optimizer_η = 0.001,
         node_input_scale = 1.0,
         training_groups = [
@@ -37,5 +36,5 @@ try
 
 finally
     @info("removing test files")
-    #rm(path, force = true, recursive = true)
+    rm(path, force = true, recursive = true)
 end

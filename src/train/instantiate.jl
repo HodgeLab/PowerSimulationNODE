@@ -1,4 +1,3 @@
-#TODO use requires to wrap these methods to improve compilation time 
 function optimizer_map(key)
     d = Dict("Adam" => Flux.Optimise.ADAM, "Bfgs" => Optim.BFGS)
     return d[key]
@@ -17,7 +16,7 @@ end
 function sensealg_map(key)
     d = Dict(
         "ForwardDiff" => GalacticOptim.AutoForwardDiff,
-        "Zygote" => GalacticOptim.AutoZygote,
+        "Zygote" => GalacticOptim.AutoZygote,   #TODO - get another AD other than forward mode working 
     )   #GalacticOptim.AutoForwardDiff() 
     return d[key]
 end
@@ -171,13 +170,12 @@ end
 function instantiate_node_state_inputs(params, psid_results_object)
     global_indices = Vector{Int64}()
     for p in params.node_state_inputs
-        global_index = psid_results_object.global_index[p[1]][p[2]] #Find global index, replace once PSID has a proper interface: https://github.com/NREL-SIIP/PowerSimulationsDynamics.jl/issues/180
+        global_index = psid_results_object.global_index[p[1]][p[2]] #TODO: Find global index, replace once PSID has a proper interface: https://github.com/NREL-SIIP/PowerSimulationsDynamics.jl/issues/180
         push!(global_indices, global_index)
     end
     return (t) -> (psid_results_object.solution(t, idxs = global_indices))
 end
 
-#TODO ALL LOGIC AND NAMING CHANGES 
 function instantiate_surr(params, nn, n_observable_states, Vm, Vθ, psid_results_object)
     node_state_inputs = instantiate_node_state_inputs(params, psid_results_object)
     @info "Number of additional state inputs:", length(node_state_inputs(0.01))
@@ -265,12 +263,6 @@ function _inner_loss_function(u, û, loss_function_weights, ground_truth_scale)
             mae(û[i, :], u[i, :]) / ground_truth_scale[i] * loss_function_weights[1] +
             mse(û[i, :], u[i, :]) / ground_truth_scale[i] * loss_function_weights[2]
     end
-    #=     
-        loss =
-            (mae(û[1, :], u[1, :]) / Ir_scale) +
-            (mae(û[2, :], u[2, :]) / Ii_scale) * loss_function_weights[1] +
-            (mse(û[1, :], u[1, :]) / Ir_scale) +
-            (mse(û[2, :], u[2, :]) / Ii_scale) * loss_function_weights[2] =#
     return loss
 end
 
@@ -320,7 +312,7 @@ function _outer_loss_function(
     for (i, pvs) in enumerate(unique_pvs_names)
         tsteps_subset = tsteps[pvs .== pvs_names]
         y_actual_subset = y_actual[:, pvs .== pvs_names]
-        ms_ranges = shooting_ranges(tsteps, training_group[:shoot_times])   #includes the starting range
+        ms_ranges = shooting_ranges(tsteps, training_group[:shoot_times])   #includes the starting range (t=0)
         y_actual_subset = eltype(θ_vec).(y_actual_subset)
         tsteps_subset = eltype(θ_vec).(tsteps_subset)      #TODO - need to convert types? 
 
@@ -359,8 +351,7 @@ function _outer_loss_function(
     return loss, group_predictions, group_observations, t_predictions
 end
 
-#TODO - deal with saving parameters that could have different lengths at different steps... only save nn/obs params? 
-function instantiate_cb!(output, lb_loss, exportmode, range_count, pvs_names) #don't pass t_prediction, let it come from the optimizer? 
+function instantiate_cb!(output, lb_loss, exportmode, range_count, pvs_names)
     if exportmode == 3
         return (p, l, pred, obs, t) ->
             _cb3!(p, l, pred, obs, t, output, lb_loss, range_count, pvs_names)
@@ -374,9 +365,6 @@ end
 function _cb3!(p, l, pred, obs, t_prediction, output, lb_loss, range_count, pvs_names)
     push!(output["loss"], (collect(pvs_names), range_count, l))
     push!(output["parameters"], [p])
-    #ir = [p[1, :] for p in pred]
-    #ii = [p[2, :] for p in pred]
-    #push!(output["predictions"], (t_prediction, ir, ii))
     push!(output["predictions"], (t_prediction, pred, obs))
     output["total_iterations"] += 1
     @info "loss", l
