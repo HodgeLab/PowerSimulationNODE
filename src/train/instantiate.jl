@@ -31,6 +31,9 @@ function surr_map(key)
         "none_2_3_f" => none_2_3_f,
         "none_2_4_f" => none_2_4_f,
         "none_2_5_f" => none_2_5_f,
+        "none_2_6_f" => none_2_6_f,
+        "none_2_7_f" => none_2_7_f,
+        "none_2_8_f" => none_2_8_f,
     )
     return d[key]
 end
