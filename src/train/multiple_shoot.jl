@@ -33,43 +33,50 @@ Note:
 The parameter 'continuity_term' should be a relatively big number to enforce a large penalty
 whenever the last point of any group doesn't coincide with the first point of next group.
 """
+#TODO - lots of the logic is going to be in this function, will be worthwile to make it as clean/well-named as possible 
 function batch_multiple_shoot(
-    p::AbstractArray,
+    θ_node,
+    θ_u0,
+    θ_observation,
     ode_data::AbstractArray,
     tsteps::AbstractArray,
-    prob::DiffEqBase.ODEProblem,
+    fault_data,
     loss_function,
     continuity_term::Real,
     solver::DiffEqBase.AbstractODEAlgorithm,
-    group_size::Integer,
-    batching_factor::Float64;
+    shooting_ranges::AbstractArray,
+    batching_factor::Float64,
+    params::NODETrainParams,
+    observation_function;
     kwargs...,
 )
-    datasize = size(ode_data, 2)
+    prob = fault_data[:surr_problem]
 
-    if group_size < 2 || group_size > datasize
-        throw(DomainError(group_size, "group_size can't be < 2 or > number of data points"))
-    end
+    P = fault_data[:P]
+    P.nn = θ_node
+    p = vectorize(P)
+    ranges_batch = batch_ranges(batching_factor, shooting_ranges)
+    u0s = generate_initial_conditions(ode_data, params, θ_u0, ranges_batch, prob)
+    @assert length(ranges_batch) == length(u0s)
 
-    # Get ranges that partition data to groups of size group_size
-    ranges = group_ranges(datasize, group_size)
-    ranges_batch = batch_ranges(batching_factor, ranges)    #returns sorted batch
-
-    # Multiple shooting predictions
     sols = [
         OrdinaryDiffEq.solve(
             OrdinaryDiffEq.remake(
                 prob;
                 p = p,
                 tspan = (tsteps[first(rg)], tsteps[last(rg)]),
-                u0 = ode_data[:, first(rg)],
+                u0 = u0s[i],
             ),
             solver;
             saveat = tsteps[rg],
             kwargs...,
-        ) for rg in ranges_batch
+        ) for (i, rg) in enumerate(ranges_batch)
     ]
     group_predictions = Array.(sols)
+    group_observations = [
+        observation_function(group_prediction, θ_observation) for
+        group_prediction in group_predictions
+    ]
 
     # Abort and return infinite loss if one of the integrations failed
     retcodes = [sol.retcode for sol in sols]
@@ -81,19 +88,18 @@ function batch_multiple_shoot(
     loss = 0
     for (i, rg) in enumerate(ranges_batch)
         u = ode_data[:, rg]
-        û = group_predictions[i]
+        û = group_observations[i]
         loss += loss_function(u, û)
-
         if i > 1
-            # Ensure continuity between last state in previous prediction
-            # and current initial condition in ode_data
             loss +=
-                continuity_term *
-                _default_continuity_loss(group_predictions[i - 1][:, end], u[:, 1])
+                continuity_term * _default_continuity_loss(
+                    group_predictions[i - 1][:, end],
+                    group_predictions[i][:, 1],
+                )  # Continuity loss for all states 
         end
     end
     t_predictions = [tsteps[r] for r in ranges_batch]
-    return loss, group_predictions, t_predictions
+    return loss, group_predictions, group_observations, t_predictions
 end
 
 function batch_ranges(batching_factor::Float64, ranges)
@@ -101,6 +107,9 @@ function batch_ranges(batching_factor::Float64, ranges)
     for rg in ranges
         n_points = length(rg) - 2
         n_choose = Int(floor(n_points * batching_factor))
+        if n_choose < 1
+            @error "Shooting nodes are too close togeter for data provided and batching factor"
+        end
         batch_range = sort!(
             vcat(
                 rg[1],
@@ -113,37 +122,47 @@ function batch_ranges(batching_factor::Float64, ranges)
     return batch_ranges
 end
 
-"""
-Get ranges that partition data of length `datasize` in groups of `groupsize` observations.
-If the data isn't perfectly dividable by `groupsize`, the last group contains
-the reminding observations.
-```julia
-group_ranges(datasize, groupsize)
-```
-Arguments:
-- `datasize`: amount of data points to be partitioned
-- `groupsize`: maximum amount of observations in each group
-Example:
-```julia-repl
-julia> group_ranges(10, 5)
-3-element Vector{UnitRange{Int64}}:
- 1:5
- 5:9
- 9:10
-```
-"""
-function group_ranges(datasize::Integer, groupsize::Integer)
-    2 <= groupsize <= datasize || throw(
-        DomainError(
-            groupsize,
-            "datasize must be positive and groupsize must to be within [2, datasize]",
-        ),
-    )
-    return [i:min(datasize, i + groupsize - 1) for i in 1:(groupsize - 1):(datasize - 1)]
+function generate_initial_conditions(ode_data, params, θ_u0, ranges_batch, prob)
+    if params.learn_initial_condition_unobserved_states
+        @assert size(θ_u0)[1] == (length(ranges_batch) * params.node_unobserved_states)
+        u0s = [
+            vcat(
+                ode_data[:, first(rg)],
+                θ_u0[((i - 1) * params.node_unobserved_states + 1):(i * params.node_unobserved_states)],
+            ) for (i, rg) in enumerate(ranges_batch)
+        ]
+    else
+        @assert size(θ_u0)[1] ==
+                ((length(ranges_batch) - 1) * params.node_unobserved_states)
+        u0s = [
+            if i == 1
+                vcat(
+                    ode_data[:, first(rg)],
+                    prob.u0[(end - (params.node_unobserved_states - 1)):end],
+                )
+            else
+                vcat(
+                    ode_data[:, first(rg)],
+                    θ_u0[((i - 2) * params.node_unobserved_states + 1):((i - 1) * params.node_unobserved_states)],
+                )
+            end
+
+            for (i, rg) in enumerate(ranges_batch)
+        ]
+    end
+    return u0s
 end
 
-# Default ontinuity loss between last state in previous prediction
-# and current initial condition in ode_data
+function shooting_ranges(tsteps::AbstractArray, shoot_times::AbstractArray)
+    shoot_times = vcat(tsteps[1], shoot_times, tsteps[end])
+    @assert all(in(tsteps).(shoot_times))
+    shooting_indices = [indexin(x, tsteps)[1][2] for x in shoot_times]
+    return [
+        (shooting_indices[i]):(shooting_indices[i + 1]) for
+        i in 1:(length(shooting_indices) - 1)
+    ]
+end
+
 function _default_continuity_loss(û_end::AbstractArray, u_0::AbstractArray)
     return sum(abs, û_end - u_0)
 end

@@ -1,14 +1,13 @@
-#Naming of surrogate models is as follows: <analytical_model>_<pass voltage?>_<additional states as inputs?>_<feed_back_current?>_<#_feedback_states>
+# Surrogate Naming : 
 #<analytical_model>
 # vsm (virtual synchrnous machine)
 # none (pure neural ode)
-#<pass voltage?>:
-# v: terminal voltage (real and imag)
-#<additional states as inputs?>
-# t: true
-# f: false
-#<#_feedback_states>: number of outputs of the nn. The states associated with each output are automatically inputs to the nn
-# 1-10
+#<n observed states>:
+# Integer
+#<n unobserved states>
+# Integer 
+#<additional non state inputs>
+# True or false (don't need dimension, function is vectorized)
 
 mutable struct SurrParams
     nn::Vector{}                    #needs to accept dual numbers during training 
@@ -27,7 +26,7 @@ function SurrParams(;)
     SurrParams([], [], [], [], [], [])
 end
 
-function none_v_f_t_0(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
+function none_2_0_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     #PARAMETERS
     n_weights_nn = p[end]
     p_nn = p[Int(1):Int(n_weights_nn)]
@@ -65,7 +64,7 @@ function none_v_f_t_0(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     dx[i__ii_nn] = nn(nn_input, p_nn)[2] * nn_scale
 end
 
-function none_v_t_t_0(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
+function none_2_0_t(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     #PARAMETERS
     n_weights_nn = p[end]
     p_nn = p[Int(1):Int(n_weights_nn)]
@@ -105,7 +104,7 @@ function none_v_t_t_0(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     dx[i__ii_nn] = nn(nn_input, p_nn)[2] * nn_scale
 end
 
-function none_v_f_t_1(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
+function none_2_1_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     #PARAMETERS
     n_weights_nn = p[end]
     p_nn = p[Int(1):Int(n_weights_nn)]
@@ -147,7 +146,7 @@ function none_v_f_t_1(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     dx[i__fb1] = nn(nn_input, p_nn)[3]
 end
 
-function none_v_f_t_2(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
+function none_2_2_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     #PARAMETERS
     n_weights_nn = p[end]
     p_nn = p[Int(1):Int(n_weights_nn)]
@@ -192,7 +191,7 @@ function none_v_f_t_2(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     dx[i__fb2] = nn(nn_input, p_nn)[4]
 end
 
-function none_v_f_t_3(dx, x, p, t, nn, Vm, Vθ)
+function none_2_3_f(dx, x, p, t, nn, Vm, Vθ)
     #PARAMETERS
     n_weights_nn = p[end]
     p_nn = p[Int(1):Int(n_weights_nn)]
@@ -240,7 +239,7 @@ function none_v_f_t_3(dx, x, p, t, nn, Vm, Vθ)
     dx[i__fb3] = nn(nn_input, p_nn)[5]
 end
 
-function none_v_f_t_4(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
+function none_2_4_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     #PARAMETERS
     n_weights_nn = p[end]
     p_nn = p[Int(1):Int(n_weights_nn)]
@@ -291,7 +290,7 @@ function none_v_f_t_4(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     dx[i__fb4] = nn(nn_input, p_nn)[6]
 end
 
-function none_v_f_t_5(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
+function none_2_5_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     #PARAMETERS
     n_weights_nn = p[end]
     p_nn = p[Int(1):Int(n_weights_nn)]
@@ -345,7 +344,7 @@ function none_v_f_t_5(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     dx[i__fb5] = nn(nn_input, p_nn)[7]
 end
 
-function vsm_v_f_t_0(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
+function vsm_2_0_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     #PARAMETERS
     n_weights_nn = p[end]
     p_nn = p[Int(1):Int(n_weights_nn)]

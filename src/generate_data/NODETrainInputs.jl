@@ -8,6 +8,7 @@ This struct contains the input data needed for training.
 """
 struct NODETrainInputs
     tsteps::Vector{Float64}
+    n_observable_states::Int
     fault_data::Dict{String, Dict{Symbol, Any}}
 end
 
@@ -30,6 +31,7 @@ mutable struct NODETrainDataParams
     tspan::Tuple{Float64, Float64}
     steps::Int64
     tsteps_spacing::String
+    observable_states::Vector{Tuple{String, Symbol}}
     ode_model::String #"vsm" or "none"
     base_path::String
     output_data_path::String
@@ -43,7 +45,8 @@ function NODETrainDataParams(;
     tspan = (0.0, 3.0),
     steps = 300,
     tsteps_spacing = "linear",
-    ode_model = "vsm",
+    observable_states = [("gen1", :ir_filter), ("gen1", :ii_filter)],
+    ode_model = "none",     #TODO - test generating data with VSM model
     base_path = pwd(),
     output_data_path = joinpath(base_path, "input_data"),
 )
@@ -53,6 +56,7 @@ function NODETrainDataParams(;
         tspan,
         steps,
         tsteps_spacing,
+        observable_states,
         ode_model,
         base_path,
         output_data_path,
@@ -74,7 +78,7 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, Dyna
     abstol = NODETrainDataParams.solver_tols[1]
     reltol = NODETrainDataParams.solver_tols[2]
     fault_data = Dict{String, Dict{Symbol, Any}}()
-
+    n_observable_states = 0
     for pvs in collect(PSY.get_components(PSY.PeriodicVariableSource, sys_train))
         available_source = activate_next_source!(sys_train)
         set_bus_from_source(available_source)  #Bus voltage is used in power flow. Need to set bus voltage from soure internal voltage of source
@@ -100,7 +104,19 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, Dyna
         active_source =
             collect(PSY.get_components(PSY.Source, sys_train, x -> PSY.get_available(x)))[1]
         ode_data = get_total_current_series(sim_full)
-
+        observables_data = []
+        for (i, tuple) in enumerate(NODETrainDataParams.observable_states)
+            if i == 1
+                observables_data = PSID.get_state_series(psid_results_object, tuple)[2]' #first index contains time 
+            else
+                observables_data = vcat(
+                    observables_data,
+                    PSID.get_state_series(psid_results_object, tuple)[2]',
+                )
+            end
+        end
+        n_observable_states = size(observables_data, 1)
+        @warn "generating data for obserble states:", n_observable_states
         transformer = collect(PSY.get_components(PSY.Transformer2W, sys_train))[1]
         p_network = [
             PSY.get_x(transformer) + PSY.get_X_th(pvs),
@@ -121,10 +137,13 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, Dyna
         fault_data[PSY.get_name(pvs)] = Dict(
             :p_network => p_network,
             :p_pf => [P_pf, Q_pf, V_pf, θ_pf],
-            :ir_ground_truth => ode_data[1, :],
-            :ii_ground_truth => ode_data[2, :],
+            :ground_truth => ode_data,
+            :observable_states => observables_data,
             :psid_results_object => psid_results_object,
+            :p_ode => [],
         )
+        @warn size(ode_data)
+        @warn size(observables_data)
 
         if NODETrainDataParams.ode_model == "vsm"
             #################### BUILD INITIALIZATION SYSTEM ###############################
@@ -163,7 +182,7 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, Dyna
             fault_data[PSY.get_name(pvs)][:ii_node_off] = avgmodel_data[2, :]
         end
     end
-    return NODETrainInputs(tsteps, fault_data)
+    return NODETrainInputs(tsteps, n_observable_states, fault_data)
 end
 
 """
