@@ -313,6 +313,7 @@ function _outer_loss_function(
 )
     loss = 0.0
     group_predictions = []
+    group_observations = []
     t_predictions = []
     unique_pvs_names = unique(pvs_names)
 
@@ -326,53 +327,57 @@ function _outer_loss_function(
         θ = split_θ(θ_vec, θ_lengths)
         θ_u0_subset = split_θ_u0(θ.θ_u0, i, length(unique_pvs_names))
 
-        single_loss, single_pred, single_t_predictions = batch_multiple_shoot(
-            θ.θ_node,
-            θ_u0_subset,
-            θ.θ_observation,
-            y_actual_subset,
-            tsteps_subset,
-            fault_data[pvs],
-            inner_loss_function,
-            training_group[:multiple_shoot_continuity_term],
-            solver,
-            ms_ranges,
-            training_group[:batching_sample_factor],
-            params,
-            observation_function,
-        )
+        single_loss, single_pred, single_observation, single_t_predictions =
+            batch_multiple_shoot(
+                θ.θ_node,
+                θ_u0_subset,
+                θ.θ_observation,
+                y_actual_subset,
+                tsteps_subset,
+                fault_data[pvs],
+                inner_loss_function,
+                training_group[:multiple_shoot_continuity_term],
+                solver,
+                ms_ranges,
+                training_group[:batching_sample_factor],
+                params,
+                observation_function,
+            )
         loss += single_loss
 
         if (i == 1)
             group_predictions = single_pred
+            group_observations = single_observation
             t_predictions = single_t_predictions
         else
             group_predictions = vcat(group_predictions, single_pred)
+            group_observations = vcat(group_observations, single_observation)
             t_predictions = vcat(t_predictions, single_t_predictions)
         end
     end
 
-    return loss, group_predictions, t_predictions
+    return loss, group_predictions, group_observations, t_predictions
 end
 
 #TODO - deal with saving parameters that could have different lengths at different steps... only save nn/obs params? 
 function instantiate_cb!(output, lb_loss, exportmode, range_count, pvs_names) #don't pass t_prediction, let it come from the optimizer? 
     if exportmode == 3
-        return (p, l, pred, t) ->
-            _cb3!(p, l, pred, t, output, lb_loss, range_count, pvs_names)
+        return (p, l, pred, obs, t) ->
+            _cb3!(p, l, pred, obs, t, output, lb_loss, range_count, pvs_names)
     elseif exportmode == 2
-        return (p, l, pred, t) -> _cb2!(p, l, output, lb_loss, range_count, pvs_names)
+        return (p, l, pred, obs, t) -> _cb2!(p, l, output, lb_loss, range_count, pvs_names)
     elseif exportmode == 1
-        return (p, l, pred, t) -> _cb1!(p, l, output, lb_loss)
+        return (p, l, pred, obs, t) -> _cb1!(p, l, output, lb_loss)
     end
 end
 
-function _cb3!(p, l, pred, t_prediction, output, lb_loss, range_count, pvs_names)
+function _cb3!(p, l, pred, obs, t_prediction, output, lb_loss, range_count, pvs_names)
     push!(output["loss"], (collect(pvs_names), range_count, l))
     push!(output["parameters"], [p])
-    ir = [p[1, :] for p in pred]
-    ii = [p[2, :] for p in pred]
-    push!(output["predictions"], (t_prediction, ir, ii))
+    #ir = [p[1, :] for p in pred]
+    #ii = [p[2, :] for p in pred]
+    #push!(output["predictions"], (t_prediction, ir, ii))
+    push!(output["predictions"], (t_prediction, pred, obs))
     output["total_iterations"] += 1
     @info "loss", l
     @info "p[1]", p[1]

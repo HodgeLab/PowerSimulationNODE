@@ -39,9 +39,16 @@ function visualize_training(params::NODETrainParams; visualize_level = 1)
         end
         return
     elseif params.output_mode == 3
-        plots = visualize_3(params, path_to_output, path_to_input, visualize_level)
-        for (i, p) in enumerate(plots)
-            Plots.png(p, joinpath(path_to_output, string("plot_", i)))
+        plots_loss, plots_obs, plots_pred =
+            visualize_3(params, path_to_output, path_to_input, visualize_level)
+        for (i, p) in enumerate(plots_loss)
+            Plots.png(p, joinpath(path_to_output, string("_loss_", i)))
+        end
+        for (i, p) in enumerate(plots_obs)
+            Plots.png(p, joinpath(path_to_output, string("_obs_", i)))
+        end
+        for (i, p) in enumerate(plots_pred)
+            Plots.png(p, joinpath(path_to_output, string("_pred_", i)))
         end
         return
     end
@@ -56,11 +63,13 @@ end
 
 function visualize_3(params, path_to_output, path_to_input, visualize_level)
     df_loss = DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "loss")))
-    list_plots = []
+    plots_loss = []
+    plots_obs = []
+    plots_pred = []
     p1 = Plots.plot(df_loss.Loss, title = "Loss")
     p2 = Plots.plot(df_loss.RangeCount, title = "Range Count")
     p = Plots.plot(p1, p2, layout = (2, 1))
-    push!(list_plots, p)
+    push!(plots_loss, p)
 
     output_dict =
         JSON3.read(read(joinpath(path_to_output, "high_level_outputs")), Dict{String, Any})
@@ -83,9 +92,14 @@ function visualize_3(params, path_to_output, path_to_input, visualize_level)
     fault_data = TrainInputs.fault_data
 
     for i in transition_indices
-        ir_preds = df_predictions[i, "ir_prediction"]
-        ii_preds = df_predictions[i, "ii_prediction"]
+        preds = df_predictions[i, "prediction"]
+        obs = df_predictions[i, "observation"]
         t_preds = df_predictions[i, "t_prediction"]
+        n_total = Int(size(preds[1])[1] / size(t_preds[1])[1])
+        n_observable = n_total - params.node_unobserved_states
+        obs = [reshape(o, (n_observable, Int(length(o) / n_observable))) for o in obs]
+        preds = [reshape(p, (n_total, Int(length(p) / n_total))) for p in preds]
+        n_total = size(preds[1])[1]
         ground_truth = concatonate_ground_truth(fault_data, df_loss[i, :PVS_name], :)
         ir_true = ground_truth[1, :]    #TODO, generalize to more ground truth states (not necessarily currents)
         ii_true = ground_truth[2, :]
@@ -94,8 +108,8 @@ function visualize_3(params, path_to_output, path_to_input, visualize_level)
         p4 = Plots.scatter(t_all', ii_true, ms = 2, msw = 0, label = "truth")
 
         for (i, t_pred) in enumerate(t_preds)
-            Plots.scatter!(p3, t_preds[i], ir_preds[i], ms = 2, msw = 0, legend = false)
-            Plots.scatter!(p4, t_preds[i], ii_preds[i], ms = 2, msw = 0, legend = false)
+            Plots.scatter!(p3, t_preds[i], obs[i][1, :], ms = 2, msw = 0, legend = false)
+            Plots.scatter!(p4, t_preds[i], obs[i][2, :], ms = 2, msw = 0, legend = false)
         end
         p = Plots.plot(
             p3,
@@ -103,9 +117,29 @@ function visualize_3(params, path_to_output, path_to_input, visualize_level)
             title = string(df_loss[i, :PVS_name], " loss: ", output_dict["final_loss"]),
             layout = (2, 1),
         )
-        push!(list_plots, p)
+        push!(plots_obs, p)
+
+        list_subplots = []
+        for i in 1:size(preds[1])[1]
+            p = Plots.plot()
+            for (j, tpred) in enumerate(t_preds)
+                Plots.scatter!(
+                    p,
+                    t_preds[j],
+                    preds[j][i, :],
+                    ms = 2,
+                    msw = 0,
+                    legend = false,
+                    title = string("state # ", i),
+                )
+            end
+            push!(list_subplots, p)
+        end
+        p = Plots.plot(list_subplots...)
+
+        push!(plots_pred, p)
     end
-    return list_plots
+    return plots_loss, plots_obs, plots_pred
 end
 
 function find_transition_indices(list)

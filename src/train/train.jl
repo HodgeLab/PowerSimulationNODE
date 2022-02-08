@@ -156,6 +156,7 @@ function _calculate_final_loss(
         final_loss_for_comparison[1],
         final_loss_for_comparison[2],
         final_loss_for_comparison[3],
+        final_loss_for_comparison[4],
     )     #Call the callback to record the prediction in output
     return final_loss_for_comparison[1]
 end
@@ -225,8 +226,8 @@ function train(params::NODETrainParams)
         "parameters" => DataFrames.DataFrame(Parameters = Vector{Any}[]),
         "predictions" => DataFrames.DataFrame(
             t_prediction = Vector{Any}[],
-            ir_prediction = Vector{Any}[],
-            ii_prediction = Vector{Any}[],
+            prediction = Vector{Any}[],
+            observation = Vector{Any}[],
         ),
         "total_time" => [],
         "total_iterations" => 0,

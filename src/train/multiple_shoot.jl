@@ -73,7 +73,10 @@ function batch_multiple_shoot(
         ) for (i, rg) in enumerate(ranges_batch)
     ]
     group_predictions = Array.(sols)
-
+    group_observations = [
+        observation_function(group_prediction, θ_observation) for
+        group_prediction in group_predictions
+    ]
     # Abort and return infinite loss if one of the integrations failed
     retcodes = [sol.retcode for sol in sols]
     if any(retcodes .!= :Success)
@@ -84,7 +87,7 @@ function batch_multiple_shoot(
     loss = 0
     for (i, rg) in enumerate(ranges_batch)
         u = ode_data[:, rg]
-        û = observation_function(group_predictions[i], θ_observation)    # Normal loss only on observed states 
+        û = group_observations[i] #observation_function(group_predictions[i], θ_observation)    # Normal loss only on observed states 
         loss += loss_function(u, û)
         if i > 1
             loss +=
@@ -95,7 +98,7 @@ function batch_multiple_shoot(
         end
     end
     t_predictions = [tsteps[r] for r in ranges_batch]
-    return loss, group_predictions, t_predictions
+    return loss, group_predictions, group_observations, t_predictions
 end
 
 function batch_ranges(batching_factor::Float64, ranges)

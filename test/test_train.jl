@@ -5,23 +5,19 @@ try
     p = NODETrainParams(
         base_path = path,
         ode_model = "none",
-        node_unobserved_states = 1, #1
+        node_unobserved_states = 2, #1
         learn_initial_condition_unobserved_states = false,
-        groupsize_faults = 2,
+        node_layers = 3,
+        node_width = 15,
+        groupsize_faults = 1,
         verify_psid_node_off = false,
-        maxiters = 12,
+        maxiters = 950,
         optimizer_η = 0.001,
         node_input_scale = 1.0,
         training_groups = [
             (
-                tspan = (0.0, 1.2),
-                shoot_times = [0.2],
-                multiple_shoot_continuity_term = 100,
-                batching_sample_factor = 1.0,
-            ),
-            (
-                tspan = (0.0, 2.6),
-                shoot_times = [0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8],
+                tspan = (0.0, 1.0),
+                shoot_times = [0.2, 0.4, 0.6, 0.8],
                 multiple_shoot_continuity_term = 100,
                 batching_sample_factor = 1.0,
             ),
@@ -37,6 +33,7 @@ try
     )
     status = train(p)
     @test status
+    visualize_training(p, visualize_level = 3)
 
 finally
     @info("removing test files")
