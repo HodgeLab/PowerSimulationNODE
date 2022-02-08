@@ -1,6 +1,6 @@
 path = (joinpath(pwd(), "serialize-test-dir"))
 !isdir(path) && mkdir(path)
-#TODO - clean up this test, check that all fields in the struct are equal. 
+
 try
     test_params = NODETrainParams()
     PowerSimulationNODE.serialize(test_params, joinpath(path, "test_params.jl"))

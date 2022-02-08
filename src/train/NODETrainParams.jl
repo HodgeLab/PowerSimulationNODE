@@ -16,7 +16,7 @@
 - `training_groups::DataStructures.SortedDict{
     Tuple{Float64, Float64},
     NamedTuple{
-        (:multiple_shoot_group_size, :multiple_shoot_continuity_term, :batching_sample_factor),
+        (:shoot_times, :multiple_shoot_continuity_term, :batching_sample_factor),
         Tuple{Int64, Float64, Float64},
     }`: Specify the tspan for each group of training, and the multiple shooting and random batching parameter for each group.  
 - `groupsize_faults::Int64`: Number of faults trained on simultaneous `1`:sequential training. if equal to number of pvs in sys_train, parallel training.
@@ -26,9 +26,8 @@
 - `ode_model::String ["none","vsm"]`: The ode model used in conjunction with the NODE during training. `"none"` uses a purely data driven NODE surrogate. 
 - `node_input_scale::Float64`: Scale factor on the voltage input to the NODE. Does not apply to other inputs (ie the feedback states).
 - `node_output_scale::Float64`: Scale factor on the current output of the NODE. Does not apply to other outputs (ie the feedback states).
-- `node_inputs::["voltage"]`: Determines the physical states which are inputs to the NODE. Ideally, only voltage to remain as general as possible.
 - `node_state_inputs::Vector{Tuple{String, Symbol`: Additional states that are input to NODE: ("DeviceName", :StateSymbol). The device name and symbol must match the solution objected passed as input data. 
-- `node_feedback_states::Int64`: Number of feedback states in the NODE. Does not include the output current states which can be feedback if `node_feedback_current = true`.
+- `node_unobserved_states::Int64`: Number of feedback states in the NODE. Does not include the output current states which can be feedback if `node_feedback_current = true`.
 - `node_feedback_current::Bool`: Determines if current is also a feedback state.
 - `node_layers::Int64`: Number of hidden layers in the NODE. Does not include the input or output layer.
 - `node_width::Int64`: Number of neurons in each hidden layer. Each hidden layer has the same number of neurons. The width of the input and output layers are determined by the combination of other parameters.
@@ -57,23 +56,24 @@ mutable struct NODETrainParams
         NamedTuple{
             (
                 :tspan,
-                :multiple_shoot_group_size,
+                :shoot_times,
                 :multiple_shoot_continuity_term,
                 :batching_sample_factor,
             ),
-            Tuple{Tuple{Float64, Float64}, Int64, Float64, Float64},
+            Tuple{Tuple{Float64, Float64}, Array{Float64}, Float64, Float64},
         },
-    }                                                                #TODO - change from Real to concrete type (Float64) and test serialization
+    }
     groupsize_faults::Int64
     loss_function_weights::Tuple{Float64, Float64}
     loss_function_scale::String
     ode_model::String
     node_input_scale::Float64
     node_output_scale::Float64
-    node_inputs::String
     node_state_inputs::Vector{Tuple{String, Symbol}}
-    node_feedback_states::Int64
-    node_feedback_current::Bool
+    observation_function::String
+    node_unobserved_states::Int64   #changed from node_unobserved_states
+    initialize_unobserved_states::String
+    learn_initial_condition_unobserved_states::Bool
     node_layers::Int64
     node_width::Int64
     node_activation::String
@@ -101,7 +101,7 @@ function NODETrainParams(;
     lb_loss = 0.0,
     training_groups = [(
         tspan = (0.0, 1.0),
-        multiple_shoot_group_size = 101,
+        shoot_times = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
         multiple_shoot_continuity_term = 100.0,
         batching_sample_factor = 1.0,
     )],
@@ -111,10 +111,11 @@ function NODETrainParams(;
     ode_model = "none",
     node_input_scale = 10e1,
     node_output_scale = 1.0,
-    node_inputs = "voltage",
     node_state_inputs = [],
-    node_feedback_states = 0,
-    node_feedback_current = true,
+    observation_function = "first_two",
+    node_unobserved_states = 0,
+    initialize_unobserved_states = "random",
+    learn_initial_condition_unobserved_states = false,
     node_layers = 2,
     node_width = 2,
     node_activation = "relu",
@@ -144,10 +145,11 @@ function NODETrainParams(;
         ode_model,
         node_input_scale,
         node_output_scale,
-        node_inputs,
         node_state_inputs,
-        node_feedback_states,
-        node_feedback_current,
+        observation_function,
+        node_unobserved_states,
+        initialize_unobserved_states,
+        learn_initial_condition_unobserved_states,
         node_layers,
         node_width,
         node_activation,

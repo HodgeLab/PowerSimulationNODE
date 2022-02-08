@@ -60,7 +60,8 @@ function __init__()
     end
 end
 
-#TODO Split up code and use Requires strategically to improve load times. 
+#TODO Split up code and use Requires strategically to improve load times (especially the instantiate functions)
+include(joinpath("train", "Theta.jl"))
 include(joinpath("train", "surrogate_models.jl"))
 include(joinpath("train", "NODETrainParams.jl"))
 include("constants.jl")

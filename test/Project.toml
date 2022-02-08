@@ -1,4 +1,6 @@
 [deps]
+Arrow = "69666777-d1a9-59fb-9406-91d4454c9d45"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 DiffEqFlux = "aae7a2af-3d4f-5e19-a356-7da93b79d9d0"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
