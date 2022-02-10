@@ -22,6 +22,7 @@ const bash_file_template = """
 #SBATCH --output={{{project_path}}}/job_output_%j.o
 #SBATCH --error={{{project_path}}}/job_output_%j.e
 
+export TMPDIR={{{project_path}}}/tmp/
 # Check Dependencies
 julia --project={{{project_path}}} -e 'using Pkg; Pkg.instantiate()'
 {{#force_generate_inputs}} julia --project={{{project_path}}} {{{project_path}}}/scripts/prepare_for_train.jl "true" {{/force_generate_inputs}}
