@@ -19,10 +19,8 @@ function Base.show(io::IO, ::MIME"text/plain", params::NODETrainParams)
 end
 
 function visualize_training(params::NODETrainParams; visualize_level = 1)
-    @debug dump(params)
     path_to_input = params.input_data_path
     path_to_output = joinpath(params.output_data_path, params.train_id)
-
     output_dict =
         JSON3.read(read(joinpath(path_to_output, "high_level_outputs")), Dict{String, Any})
     println("--------------------------------")

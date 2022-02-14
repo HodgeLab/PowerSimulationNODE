@@ -1,3 +1,4 @@
+#Test development: https://github.com/JuliaLang/Pkg.jl/issues/1973
 using Test
 using Revise
 using PowerSimulationNODE   #Order matter for using Revise? Possibly issue with Requires? 
@@ -15,8 +16,7 @@ test_file_dir = isempty(dirname(@__FILE__)) ? "test" : dirname(@__FILE__)
 const TEST_FILES_DIR = test_file_dir
 const PSY = PowerSystems
 
-include("test_generate.jl")
-include("test_train.jl")
+include("test_generate_train.jl")
 include("test_hpc.jl")
 include("test_serialize.jl")
 include("test_prettytable.jl")
