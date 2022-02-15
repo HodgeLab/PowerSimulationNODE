@@ -20,6 +20,8 @@ export visualize_summary
 export visualize_training
 export print_train_parameter_overview
 
+export NeuralODE
+
 import Arrow
 import DataFrames
 import DataStructures
