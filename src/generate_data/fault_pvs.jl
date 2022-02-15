@@ -125,6 +125,7 @@ function build_fault_data_dataframe(faults, system, OutputParameters, Simulation
             reltol = reltol,
             reset_simulation = false,
             saveat = tsteps,
+            enable_progress_bar = false,
         )
         results = PSID.read_results(sim)
         timeseries_data = collect(tsteps)

@@ -99,6 +99,7 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, Dyna
             reltol = reltol,
             reset_simulation = false,
             saveat = tsteps,
+            enable_progress_bar = false,
         )
         psid_results_object = PSID.read_results(sim_full)
         active_source =
@@ -164,7 +165,7 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, Dyna
             @info "initialize system power flow",
             PSY.solve_powerflow(sys_init)["bus_results"]
             @debug PSY.show_states_initial_value(sim_simp)
-            @time PSID.execute!(
+            PSID.execute!(
                 sim_simp,
                 solver,
                 abstol = abstol,
@@ -172,6 +173,7 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, Dyna
                 initializealg = OrdinaryDiffEq.NoInit(),
                 reset_simulation = false,
                 saveat = tsteps,
+                enable_progress_bar = false,
             )
 
             avgmodel_data = get_total_current_series(sim_simp)
