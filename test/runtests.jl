@@ -19,7 +19,6 @@ const PSY = PowerSystems
 logger = PSY.configure_logging(;
     console_level = PowerSimulationNODE.NODE_CONSOLE_LEVEL,
     file_level = PowerSimulationNODE.NODE_FILE_LEVEL,
-    filename = "test/log.log",
 )
 with_logger(logger) do
     include("test_generate_train.jl")
