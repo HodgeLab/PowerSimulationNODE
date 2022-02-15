@@ -16,7 +16,16 @@ test_file_dir = isempty(dirname(@__FILE__)) ? "test" : dirname(@__FILE__)
 const TEST_FILES_DIR = test_file_dir
 const PSY = PowerSystems
 
-include("test_generate_train.jl")
-include("test_hpc.jl")
-include("test_serialize.jl")
-include("test_prettytable.jl")
+logger = PSY.configure_logging(;
+    console_level = PowerSimulationNODE.NODE_CONSOLE_LEVEL,
+    file_level = PowerSimulationNODE.NODE_FILE_LEVEL,
+    filename = "test/log.log",
+)
+with_logger(logger) do
+    include("test_generate_train.jl")
+    include("test_hpc.jl")
+    include("test_serialize.jl")
+    include("test_prettytable.jl")
+end
+flush(logger)
+close(logger)

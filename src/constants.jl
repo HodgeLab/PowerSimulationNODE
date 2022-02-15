@@ -8,7 +8,7 @@ const PSY_CONSOLE_LEVEL = Logging.Error
 const PSY_FILE_LEVEL = Logging.Info
 
 const PSID_CONSOLE_LEVEL = Logging.Error
-const PSID_FILE_LEVEL =   Logging.Error
+const PSID_FILE_LEVEL = Logging.Error
 
 if Sys.iswindows() || Sys.isapple()
     const NODE_CONSOLE_LEVEL = Logging.Info

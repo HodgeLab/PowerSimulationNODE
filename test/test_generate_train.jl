@@ -40,7 +40,7 @@ try
         joinpath(path, PowerSimulationNODE.INPUT_FOLDER_NAME, "system.json"),
         force = true,
     )
-    @warn joinpath(TEST_FILES_DIR, PowerSimulationNODE.INPUT_FOLDER_NAME, "system.json")    #SHOULD FAIL AT INV_CASE78
+    @warn joinpath(TEST_FILES_DIR, PowerSimulationNODE.INPUT_FOLDER_NAME, "system.json")
     d = generate_train_data(
         sys_train,
         NODETrainDataParams(ode_model = "vsm"),

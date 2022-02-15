@@ -6,6 +6,7 @@ on:
       - main
     schedule:
       - cron: 0 * * * *
+  pull_request:
 jobs:
   test:
     name: Julia ${{ matrix.julia-version }} - ${{ matrix.os }}
