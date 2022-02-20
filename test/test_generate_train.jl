@@ -85,7 +85,9 @@ try
     )
     status = train(p)
     @test status
-    #visualize_training(p, visualize_level = 1) #TODO - Cannot delete the loss/parameters/prediction arrow files if they are read during test. 
+    input_param_file =
+        PowerSimulationNODE.serialize(p, joinpath(path, "input_data", "input_test2.json"))
+    #visualize_training(input_param_file, visualize_level = 1) #TODO - Cannot delete the loss/parameters/prediction arrow files if they are read during test. 
 
 finally
     @info("removing test files")

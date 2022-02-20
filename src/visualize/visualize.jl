@@ -18,9 +18,10 @@ function Base.show(io::IO, ::MIME"text/plain", params::NODETrainParams)
     end
 end
 
-function visualize_training(params::NODETrainParams; visualize_level = 1)
-    path_to_input = params.input_data_path
-    path_to_output = joinpath(params.output_data_path, params.train_id)
+function visualize_training(input_params_file::String; visualize_level = 1)
+    params = NODETrainParams(input_params_file)
+    path_to_input = joinpath(input_params_file, "..")
+    path_to_output = joinpath(input_params_file, "..", "..", "output_data", params.train_id)
     output_dict =
         JSON3.read(read(joinpath(path_to_output, "high_level_outputs")), Dict{String, Any})
     println("--------------------------------")
@@ -64,9 +65,13 @@ function visualize_3(params, path_to_output, path_to_input, visualize_level)
     plots_loss = []
     plots_obs = []
     plots_pred = []
-    p1 = Plots.plot(df_loss.Loss, title = "Loss")
+    p1 = Plots.plot(df_loss.Loss, title = "Loss")   #TODO, Plot the last 5%, last 10% of loss values. Use log scale... 
     p2 = Plots.plot(df_loss.RangeCount, title = "Range Count")
-    p = Plots.plot(p1, p2, layout = (2, 1))
+    last_5_percent = Int(ceil(length(df_loss.Loss) * 0.05))
+    last_10_percent = Int(ceil(length(df_loss.Loss) * 0.10))
+    p3 = Plots.plot(df_loss.Loss[(end - last_5_percent):end], title = "Last 5% of loss")
+    p4 = Plots.plot(df_loss.Loss[(end - last_10_percent):end], title = "Last 10% of loss")
+    p = Plots.plot(p1, p2, p3, p4, layout = (2, 2))
     push!(plots_loss, p)
 
     output_dict =
