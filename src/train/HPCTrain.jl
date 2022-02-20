@@ -39,7 +39,7 @@ dataecho \$SLURM_JOB_NODELIST |sed s/\\,/\\\\n/g > hostfile
     --wd {{{project_path}}} \\
     -a {{{train_set_file}}}\\
     --joblog {{{project_path}}}/hpc_train.log \\
-    julia --project={{{project_path}}} {{{project_path}}}/scripts/train_node.jl {}
+    srun --export=all --exclusive -n1 --cpus-per-task=1 --cpu-bind=cores julia --project={{{project_path}}} {{{project_path}}}/scripts/train_node.jl {}
 """
 
 struct HPCTrain
