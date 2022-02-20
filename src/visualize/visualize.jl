@@ -22,6 +22,8 @@ function visualize_training(input_params_file::String; visualize_level = 1)
     params = NODETrainParams(input_params_file)
     path_to_input = joinpath(input_params_file, "..")
     path_to_output = joinpath(input_params_file, "..", "..", "output_data", params.train_id)
+    params.input_data_path = path_to_input
+    params.output_data_path = path_to_output
     output_dict =
         JSON3.read(read(joinpath(path_to_output, "high_level_outputs")), Dict{String, Any})
     println("--------------------------------")
