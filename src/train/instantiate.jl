@@ -88,7 +88,6 @@ function build_nn(input_dim, output_dim, nn_width, nn_hidden, nn_activation)
     if nn_hidden == 1
         nn = DiffEqFlux.FastChain(
             DiffEqFlux.FastDense(input_dim, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
             DiffEqFlux.FastDense(nn_width, output_dim),
         )
         return nn
@@ -96,14 +95,12 @@ function build_nn(input_dim, output_dim, nn_width, nn_hidden, nn_activation)
         nn = DiffEqFlux.FastChain(
             DiffEqFlux.FastDense(input_dim, nn_width, nn_activation),
             DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
             DiffEqFlux.FastDense(nn_width, output_dim),
         )
         return nn
     elseif nn_hidden == 3
         nn = DiffEqFlux.FastChain(
             DiffEqFlux.FastDense(input_dim, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
             DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
             DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
             DiffEqFlux.FastDense(nn_width, output_dim),
@@ -115,14 +112,12 @@ function build_nn(input_dim, output_dim, nn_width, nn_hidden, nn_activation)
             DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
             DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
             DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
             DiffEqFlux.FastDense(nn_width, output_dim),
         )
         return nn
     elseif nn_hidden == 5
         nn = DiffEqFlux.FastChain(
             DiffEqFlux.FastDense(input_dim, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
             DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
             DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
             DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
