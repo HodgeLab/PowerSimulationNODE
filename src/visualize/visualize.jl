@@ -167,24 +167,47 @@ function visualize_summary(output_data_path)
             read(joinpath(output_data_path, dir, "high_level_outputs")),
             Dict{String, Any},
         )
+        df_params =
+            DataFrames.DataFrame(Arrow.Table(joinpath(output_data_path, dir, "parameters")))
+        n_params = length(df_params[!, 1][1])
+        output_dict["n_params"] = n_params
         high_level_outputs_dict[output_dict["train_id"]] = output_dict
     end
-    p = Plots.scatter()
+    p1 = Plots.scatter()
+    p2 = Plots.scatter()
+    p = Plots.plot()
     for (key, value) in high_level_outputs_dict
         Plots.scatter!(
-            p,
+            p1,
             (value["total_time"], value["final_loss"]),
             label = value["train_id"],
             xlabel = "total time (s)",
             ylabel = "final loss",
-            markersize = 3,
+            markersize = 1,
             markerstrokewidth = 0,
         )
         Plots.annotate!(
+            p1,
             value["total_time"],
             value["final_loss"],
-            Plots.text(value["train_id"], :red, 8),
+            Plots.text(value["train_id"], :red, 3),
         )
+        Plots.scatter!(
+            p2,
+            (value["total_time"], value["n_params"]),
+            label = value["train_id"],
+            xlabel = "total time (s)",
+            ylabel = "n params",
+            markersize = 1,
+            markerstrokewidth = 0,
+        )
+        Plots.annotate!(
+            p2,
+            value["total_time"],
+            value["n_params"],
+            Plots.text(value["train_id"], :red, 3),
+        )
+        p = Plots.plot(p1, p2)
     end
     return p
 end
