@@ -18,6 +18,7 @@ export generate_train_data
 export NODETrainDataParams
 export visualize_summary
 export visualize_training
+export animate_training
 export print_train_parameter_overview
 
 import Arrow

@@ -55,6 +55,93 @@ function visualize_training(input_params_file::String; visualize_level = 1)
     end
 end
 
+function animate_training(input_params_file::String; skip_frames = 1)
+    params = NODETrainParams(input_params_file)
+    path_to_input = joinpath(input_params_file, "..")
+    path_to_output = joinpath(input_params_file, "..", "..", "output_data", params.train_id)
+    params.input_data_path = path_to_input
+    params.output_data_path = path_to_output
+    output_dict =
+        JSON3.read(read(joinpath(path_to_output, "high_level_outputs")), Dict{String, Any})
+    println("--------------------------------")
+    println("TRAIN ID: ", params.train_id)
+    println("TOTAL TIME: ", output_dict["total_time"])
+    println("TOTAL ITERATIONS: ", output_dict["total_iterations"])
+    println("FINAL LOSS: ", output_dict["final_loss"])
+    println("--------------------------------")
+
+    df_loss = DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "loss")))
+    plots_obs = []
+    plots_pred = []
+    PVS_name = df_loss.PVS_name[:]
+    transition_indices = collect(1:skip_frames:length(PVS_name)) 
+    df_predictions =
+    DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "predictions")))
+    TrainInputs = Serialization.deserialize(joinpath(params.input_data_path, "data"))
+    tsteps = TrainInputs.tsteps
+    fault_data = TrainInputs.fault_data
+    for i in transition_indices
+        preds = df_predictions[i, "prediction"]
+        obs = df_predictions[i, "observation"]
+        t_preds = df_predictions[i, "t_prediction"]
+        n_total = Int(size(preds[1])[1] / size(t_preds[1])[1])
+        n_observable = n_total - params.node_unobserved_states
+        obs = [reshape(o, (n_observable, Int(length(o) / n_observable))) for o in obs]
+        preds = [reshape(p, (n_total, Int(length(p) / n_total))) for p in preds]
+        n_total = size(preds[1])[1]
+        ground_truth = concatonate_ground_truth(fault_data, df_loss[i, :PVS_name], :)
+        ir_true = ground_truth[1, :]    #TODO, generalize to more ground truth states (not necessarily currents)
+        ii_true = ground_truth[2, :]
+        t_all = concatonate_t(tsteps, df_loss[i, :PVS_name], :)
+        p3 = Plots.scatter(t_all', ir_true, ms = 2, msw = 0, label = "truth")
+        p4 = Plots.scatter(t_all', ii_true, ms = 2, msw = 0, label = "truth")
+
+        for (i, t_pred) in enumerate(t_preds)
+            Plots.scatter!(p3, t_preds[i], obs[i][1, :], ms = 2, msw = 0, legend = false)
+            Plots.scatter!(p4, t_preds[i], obs[i][2, :], ms = 2, msw = 0, legend = false)
+        end
+        p = Plots.plot(
+            p3,
+            p4,
+            title = string(df_loss[i, :PVS_name], " loss: ", output_dict["final_loss"]),
+            layout = (2, 1),
+        )
+        push!(plots_obs, p)
+
+        list_subplots = []
+        for i in 1:size(preds[1])[1]
+            p = Plots.plot()
+            for (j, tpred) in enumerate(t_preds)
+                Plots.scatter!(
+                    p,
+                    t_preds[j],
+                    preds[j][i, :],
+                    ms = 2,
+                    msw = 0,
+                    legend = false,
+                    title = string("state # ", i),
+                )
+            end
+            push!(list_subplots, p)
+        end
+        p = Plots.plot(list_subplots...)
+        push!(plots_pred, p)
+    end
+    anim_obs = Plots.Animation()
+    for p in plots_obs[1:end-1]
+        p = Plots.plot(p)
+        Plots.frame( anim_obs)
+    end 
+    anim_preds = Plots.Animation()
+    for p in plots_pred[1:end-1]
+        p = Plots.plot(p)
+        Plots.frame( anim_preds)
+    end 
+
+    return anim_obs, anim_preds
+
+end 
+
 function visualize_2(params, path_to_output, path_to_input)
     df_loss = DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "loss")))
     p1 = Plots.plot(df_loss.Loss, title = "Loss")
