@@ -74,9 +74,9 @@ function animate_training(input_params_file::String; skip_frames = 1)
     plots_obs = []
     plots_pred = []
     PVS_name = df_loss.PVS_name[:]
-    transition_indices = collect(1:skip_frames:length(PVS_name)) 
+    transition_indices = collect(1:skip_frames:length(PVS_name))
     df_predictions =
-    DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "predictions")))
+        DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "predictions")))
     TrainInputs = Serialization.deserialize(joinpath(params.input_data_path, "data"))
     tsteps = TrainInputs.tsteps
     fault_data = TrainInputs.fault_data
@@ -128,19 +128,18 @@ function animate_training(input_params_file::String; skip_frames = 1)
         push!(plots_pred, p)
     end
     anim_obs = Plots.Animation()
-    for p in plots_obs[1:end-1]
+    for p in plots_obs[1:(end - 1)]
         p = Plots.plot(p)
-        Plots.frame( anim_obs)
-    end 
+        Plots.frame(anim_obs)
+    end
     anim_preds = Plots.Animation()
-    for p in plots_pred[1:end-1]
+    for p in plots_pred[1:(end - 1)]
         p = Plots.plot(p)
-        Plots.frame( anim_preds)
-    end 
+        Plots.frame(anim_preds)
+    end
 
     return anim_obs, anim_preds
-
-end 
+end
 
 function visualize_2(params, path_to_output, path_to_input)
     df_loss = DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "loss")))
