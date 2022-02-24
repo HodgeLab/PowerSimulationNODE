@@ -88,7 +88,7 @@ try
     input_param_file = joinpath(path, "input_data", "input_test2.json")
     PowerSimulationNODE.serialize(p, input_param_file)
     visualize_training(input_param_file, visualize_level = 1)
-    animate_training(input_param_file, skip_frames =1)
+    animate_training(input_param_file, skip_frames = 1)
 finally
     @info("removing test files")
     rm(path, force = true, recursive = true)
