@@ -254,12 +254,18 @@ function instantiate_inner_loss_function(loss_function_weights, ground_truth_sca
 end
 
 function _inner_loss_function(u, û, loss_function_weights, ground_truth_scale)
-    n = size(ground_truth_scale, 1)
+    n_obs = size(ground_truth_scale, 1)
+    n_preds = size(u, 1)
     loss = 0.0
-    for i in 1:n
+    for i in 1:n_obs
         loss +=
             mae(û[i, :], u[i, :]) / ground_truth_scale[i] * loss_function_weights[1] +
             mse(û[i, :], u[i, :]) / ground_truth_scale[i] * loss_function_weights[2]
+    end
+    for i in (n_obs + 1):n_preds
+        loss +=
+            mae(û[i, :], u[i, :]) * loss_function_weights[1] +
+            mse(û[i, :], u[i, :]) * loss_function_weights[2]
     end
     return loss
 end
