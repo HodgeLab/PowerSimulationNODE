@@ -92,10 +92,8 @@ function batch_multiple_shoot(
         loss += loss_function(u, û)
         if i > 1
             loss +=
-                continuity_term * _default_continuity_loss(
-                    group_predictions[i - 1][:, end],
-                    group_predictions[i][:, 1],
-                )  # Continuity loss for all states 
+                continuity_term *
+                loss_function(group_predictions[i - 1][:, end], group_predictions[i][:, 1])  # Continuity loss for all states 
         end
     end
     t_predictions = [tsteps[r] for r in ranges_batch]
@@ -163,6 +161,3 @@ function shooting_ranges(tsteps::AbstractArray, shoot_times::AbstractArray)
     ]
 end
 
-function _default_continuity_loss(û_end::AbstractArray, u_0::AbstractArray)
-    return sum(abs, û_end - u_0)
-end
