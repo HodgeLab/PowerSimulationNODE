@@ -51,11 +51,24 @@ function visualize_training(input_params_file::String; visualize_level = 1)
         for (i, p) in enumerate(plots_pred)
             Plots.png(p, joinpath(path_to_output, string("_pred_", i)))
         end
+        #Cleanup to be able to delete the arrow files: https://github.com/apache/arrow-julia/issues/61
+        GC.gc()
         return
     end
 end
 
-function animate_training(input_params_file::String; skip_frames = 1)
+function read_arrow_file_to_dataframe(file::AbstractString)
+    return open(file, "r") do io
+        DataFrames.DataFrame(Arrow.Table(io))
+    end
+end
+
+function animate_training(input_params_file::String; skip_frames = 10, fps = 10)
+    _animate_training(input_params_file, skip_frames = skip_frames, fps = fps)
+    GC.gc()
+end
+
+function _animate_training(input_params_file::String; skip_frames = 10, fps = 10)
     params = NODETrainParams(input_params_file)
     path_to_input = joinpath(input_params_file, "..")
     path_to_output = joinpath(input_params_file, "..", "..", "output_data", params.train_id)
@@ -70,13 +83,12 @@ function animate_training(input_params_file::String; skip_frames = 1)
     println("FINAL LOSS: ", output_dict["final_loss"])
     println("--------------------------------")
 
-    df_loss = DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "loss")))
+    df_loss = read_arrow_file_to_dataframe(joinpath(path_to_output, "loss"))
     plots_obs = []
     plots_pred = []
     PVS_name = df_loss.PVS_name[:]
     transition_indices = collect(1:skip_frames:length(PVS_name))
-    df_predictions =
-        DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "predictions")))
+    df_predictions = read_arrow_file_to_dataframe(joinpath(path_to_output, "predictions"))
     TrainInputs = Serialization.deserialize(joinpath(params.input_data_path, "data"))
     tsteps = TrainInputs.tsteps
     fault_data = TrainInputs.fault_data
@@ -138,18 +150,25 @@ function animate_training(input_params_file::String; skip_frames = 1)
         Plots.frame(anim_preds)
     end
 
-    return anim_obs, anim_preds
+    Plots.gif(anim_obs, joinpath(path_to_output, "anim_obs.gif"), fps = fps)
+    Plots.gif(anim_preds, joinpath(path_to_output, "anim_preds.gif"), fps = fps)
+
+    #Cleanup to be able to delete the arrow files: https://github.com/apache/arrow-julia/issues/61
+    df_loss = nothing
+    df_predictions = nothing
+    GC.gc()
+    return
 end
 
 function visualize_2(params, path_to_output, path_to_input)
-    df_loss = DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "loss")))
+    df_loss = read_arrow_file_to_dataframe(joinpath(path_to_output, "loss"))
     p1 = Plots.plot(df_loss.Loss, title = "Loss")
     p2 = Plots.plot(df_loss.RangeCount, title = "Range Count")
     return Plots.plot(p1, p2, layout = (2, 1))
 end
 
 function visualize_3(params, path_to_output, path_to_input, visualize_level)
-    df_loss = DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "loss")))
+    df_loss = read_arrow_file_to_dataframe(joinpath(path_to_output, "loss"))
     plots_loss = []
     plots_obs = []
     plots_pred = []
@@ -176,8 +195,7 @@ function visualize_3(params, path_to_output, path_to_input, visualize_level)
     else
         @warn "Invalid value for parameter visualize_level"
     end
-    df_predictions =
-        DataFrames.DataFrame(Arrow.Table(joinpath(path_to_output, "predictions")))
+    df_predictions = read_arrow_file_to_dataframe(joinpath(path_to_output, "predictions"))
     TrainInputs = Serialization.deserialize(joinpath(params.input_data_path, "data"))
     tsteps = TrainInputs.tsteps
     fault_data = TrainInputs.fault_data
