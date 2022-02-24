@@ -18,6 +18,21 @@ function Base.show(io::IO, ::MIME"text/plain", params::NODETrainParams)
     end
 end
 
+"""
+    function visualize_training(input_params_file::String; visualize_level=1)
+
+Visualize a single training by generating plots. `visualize_level` controls the number and type of plots
+- `visualize_level = 1`: plot end result only (the result used to calculate final loss)
+- `visualize_level = 2`: plot when moving to new fault(s)
+- `visualize_level = 3`: plot when moving to new data range
+- `visualize_level = 4`: plot every iteration moving to new data range (Do not use with trainings with many iterations)
+
+# NOTE: this functions assumes that the file resides in `input_data` directory and that there is a corresponding `output_data` directory with the training outputs. 
+# Examples:
+````
+visualize_training("train_1.json", visualize_level = 3)
+````
+"""
 function visualize_training(input_params_file::String; visualize_level = 1)
     params = NODETrainParams(input_params_file)
     path_to_input = joinpath(input_params_file, "..")
@@ -63,6 +78,18 @@ function read_arrow_file_to_dataframe(file::AbstractString)
     end
 end
 
+"""
+    function animate_training(input_params_file::String; skip_frames=10, fps = 10)
+
+Visualize a single training by generating animation of the training process. Saves a gif in `output_data` for predictions and observations.
+- `skip_frames`: number of training iterations to skip between frames of the animation. 
+- `fps`: frames per second in the output gif
+
+# Examples:
+````
+animate_training("train_1.json", skip_frames=10, fps = 10)
+````
+"""
 function animate_training(input_params_file::String; skip_frames = 10, fps = 10)
     _animate_training(input_params_file, skip_frames = skip_frames, fps = fps)
     GC.gc()
@@ -185,13 +212,13 @@ function visualize_3(params, path_to_output, path_to_input, visualize_level)
         JSON3.read(read(joinpath(path_to_output, "high_level_outputs")), Dict{String, Any})
     PVS_name = df_loss.PVS_name[:]
     if visualize_level == 1
-        transition_indices = [length(PVS_name)]   #LEVEL 1: plot end result only (the result used to calculate final loss)
+        transition_indices = [length(PVS_name)]
     elseif visualize_level == 2
-        transition_indices = find_transition_indices(PVS_name)  #LEVEL 2: plot when moving to new fault(s)
+        transition_indices = find_transition_indices(PVS_name)
     elseif visualize_level == 3
-        transition_indices = find_transition_indices(df_loss.RangeCount)  #LEVEL 3: plot when moving to new data range
+        transition_indices = find_transition_indices(df_loss.RangeCount)
     elseif visualize_level == 4
-        transition_indices = collect(1:length(PVS_name)) #LEVEL 4: plot every iteration moving to new data range
+        transition_indices = collect(1:length(PVS_name))
     else
         @warn "Invalid value for parameter visualize_level"
     end
@@ -263,6 +290,17 @@ function find_transition_indices(list)
     return transition_indices
 end
 
+"""
+    function visualize_summary(output_data_path)
+
+Generates a plot with high level information about a collection of trainings with outputs in `output_data_path`. Visualizations include:
+- plot of total iterations vs total time
+- plot of total trainable parameters vs total time
+# Examples:
+````
+visualize_summary("output_data")
+````
+"""
 function visualize_summary(output_data_path)
     output_directories = readdir(output_data_path)
     high_level_outputs_dict = Dict{String, Dict{String, Any}}()
@@ -337,6 +375,15 @@ function plot_pvs(tsteps, pvs::PSY.PeriodicVariableSource, xaxis)
     return tsteps, V, θ
 end
 
+"""
+    function print_train_parameter_overview(input_data_path)
+
+Prints tables with both constant and changing parameters for a collection of train parameter files in `input_data_path`
+# Examples:
+````
+print_train_parameter_overview("input_data")
+````
+"""
 function print_train_parameter_overview(train_params_folder)
     Matrix = Any[]
     header = Symbol[]

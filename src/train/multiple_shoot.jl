@@ -160,4 +160,3 @@ function shooting_ranges(tsteps::AbstractArray, shoot_times::AbstractArray)
         i in 1:(length(shooting_indices) - 1)
     ]
 end
-
