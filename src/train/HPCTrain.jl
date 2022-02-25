@@ -15,6 +15,9 @@ const bash_file_template = """
 # Number of MPI tasks requested:
 #SBATCH --ntasks={{n_tasks}} \n{{#n_nodes}}#\n#SBATCH --nodes={{n_nodes}} \n {{/n_nodes}}
 #
+# Memory per cpu
+#SBATCH --mem-per-cpu={{mb_per_cpu}}M
+#
 # Processors per task (for future parallel training code):
 #SBATCH --cpus-per-task={{n_cpus_per_task}}
 #
@@ -39,7 +42,7 @@ dataecho \$SLURM_JOB_NODELIST |sed s/\\,/\\\\n/g > hostfile
     --wd {{{project_path}}} \\
     -a {{{train_set_file}}}\\
     --joblog {{{project_path}}}/hpc_train.log \\
-    srun --export=all --exclusive -n1 --cpus-per-task=1 --cpu-bind=cores julia --project={{{project_path}}} {{{project_path}}}/scripts/train_node.jl {}
+    srun --export=all --exclusive -n1 -N1 --mem-per-cpu={{mb_per_cpu}}M --cpus-per-task=1 --cpu-bind=cores julia --project={{{project_path}}} {{{project_path}}}/scripts/train_node.jl {}
 """
 
 struct HPCTrain
@@ -53,6 +56,7 @@ struct HPCTrain
     n_tasks::Int
     n_nodes::Union{Int, Nothing}
     n_cpus_per_task::Int
+    mb_per_cpu::Int
     params_data::Vector{NODETrainParams}
     time_limit::String
     train_bash_file::String
@@ -70,6 +74,7 @@ function SavioHPCTrain(;
     partition = "savio",
     force_generate_inputs = false,
     n_nodes = nothing, # Use with caution in Savio, it can lead to over subscription of nodes
+    mb_per_cpu = 4000,
 )
 
     # Default until we parallelize training code
@@ -85,6 +90,7 @@ function SavioHPCTrain(;
         n_tasks,
         n_nodes,
         n_cpus_per_task,
+        mb_per_cpu,
         params_data,
         time_limit,
         joinpath(scratch_path, project_folder, HPC_TRAIN_FILE),
@@ -103,6 +109,7 @@ function SummitHPCTrain(;
     QoS = "normal",
     partition = "shas",
     force_generate_inputs = false,
+    mb_per_cpu = 4800,
 )
     # Default until we parallelize training code
     n_cpus_per_task = 1
@@ -117,6 +124,7 @@ function SummitHPCTrain(;
         n_tasks,
         nothing, # Default to nothing on Summit since it doesn't dispatch on ssh login
         n_cpus_per_task,
+        mb_per_cpu,
         params_data,
         time_limit,
         joinpath(scratch_path, project_folder, HPC_TRAIN_FILE),
@@ -148,6 +156,7 @@ function generate_train_files(train::HPCTrain)
     data["project_path"] = joinpath(train.scratch_path, train.project_folder)
     data["n_tasks"] = train.n_tasks
     data["n_cpus_per_task"] = train.n_cpus_per_task
+    data["mb_per_cpu"] = train.mb_per_cpu
 
     data["n_nodes"] = train.n_nodes
     if !isnothing(train.n_nodes)
