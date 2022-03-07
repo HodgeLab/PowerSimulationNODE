@@ -15,22 +15,20 @@ mutable struct SurrParams
     pf::Vector{Float64}
     network::Vector{Float64}
     scale::Vector{Float64}
-    n_weights::Vector{Float64}
 end
 
 function vectorize(P::SurrParams)
-    return vcat(P.nn, P.ode, P.pf, P.network, P.scale, P.n_weights)
+    return vcat(P.nn, P.ode, P.pf, P.network, P.scale)
 end
 
 function SurrParams(;)
-    SurrParams([], [], [], [], [], [])
+    SurrParams([], [], [], [], [])
 end
 
-function none_2_0_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
+function none_2_0_f(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
     #PARAMETERS
-    n_weights_nn = p[end]
-    p_nn = p[Int(1):Int(n_weights_nn)]
-    p_fixed = p[(Int(n_weights_nn) + 1):(end - 1)]
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
 
     P_pf = p_fixed[1]
     Q_pf = p_fixed[2]
@@ -64,11 +62,10 @@ function none_2_0_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     dx[i__ii_nn] = nn(nn_input, p_nn)[2] * nn_scale
 end
 
-function none_2_0_t(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
+function none_2_0_t(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
     #PARAMETERS
-    n_weights_nn = p[end]
-    p_nn = p[Int(1):Int(n_weights_nn)]
-    p_fixed = p[(Int(n_weights_nn) + 1):(end - 1)]
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
 
     P_pf = p_fixed[1]
     Q_pf = p_fixed[2]
@@ -104,11 +101,10 @@ function none_2_0_t(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     dx[i__ii_nn] = nn(nn_input, p_nn)[2] * nn_scale
 end
 
-function none_2_1_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
+function none_2_1_f(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
     #PARAMETERS
-    n_weights_nn = p[end]
-    p_nn = p[Int(1):Int(n_weights_nn)]
-    p_fixed = p[(Int(n_weights_nn) + 1):(end - 1)]
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
 
     P_pf = p_fixed[1]
     Q_pf = p_fixed[2]
@@ -146,11 +142,10 @@ function none_2_1_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     dx[i__fb1] = nn(nn_input, p_nn)[3]
 end
 
-function none_2_2_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
+function none_2_2_f(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
     #PARAMETERS
-    n_weights_nn = p[end]
-    p_nn = p[Int(1):Int(n_weights_nn)]
-    p_fixed = p[(Int(n_weights_nn) + 1):(end - 1)]
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
 
     P_pf = p_fixed[1]
     Q_pf = p_fixed[2]
@@ -191,11 +186,10 @@ function none_2_2_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     dx[i__fb2] = nn(nn_input, p_nn)[4]
 end
 
-function none_2_3_f(dx, x, p, t, nn, Vm, Vθ)
+function none_2_3_f(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
     #PARAMETERS
-    n_weights_nn = p[end]
-    p_nn = p[Int(1):Int(n_weights_nn)]
-    p_fixed = p[(Int(n_weights_nn) + 1):(end - 1)]
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
 
     P_pf = p_fixed[1]
     Q_pf = p_fixed[2]
@@ -239,11 +233,10 @@ function none_2_3_f(dx, x, p, t, nn, Vm, Vθ)
     dx[i__fb3] = nn(nn_input, p_nn)[5]
 end
 
-function none_2_4_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
+function none_2_4_f(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
     #PARAMETERS
-    n_weights_nn = p[end]
-    p_nn = p[Int(1):Int(n_weights_nn)]
-    p_fixed = p[(Int(n_weights_nn) + 1):(end - 1)]
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
 
     P_pf = p_fixed[1]
     Q_pf = p_fixed[2]
@@ -290,11 +283,10 @@ function none_2_4_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     dx[i__fb4] = nn(nn_input, p_nn)[6]
 end
 
-function none_2_5_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
+function none_2_5_f(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
     #PARAMETERS
-    n_weights_nn = p[end]
-    p_nn = p[Int(1):Int(n_weights_nn)]
-    p_fixed = p[(Int(n_weights_nn) + 1):(end - 1)]
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
 
     P_pf = p_fixed[1]
     Q_pf = p_fixed[2]
@@ -344,11 +336,10 @@ function none_2_5_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     dx[i__fb5] = nn(nn_input, p_nn)[7]
 end
 
-function none_2_6_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
+function none_2_6_f(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
     #PARAMETERS
-    n_weights_nn = p[end]
-    p_nn = p[Int(1):Int(n_weights_nn)]
-    p_fixed = p[(Int(n_weights_nn) + 1):(end - 1)]
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
 
     P_pf = p_fixed[1]
     Q_pf = p_fixed[2]
@@ -401,11 +392,10 @@ function none_2_6_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     dx[i__fb6] = nn(nn_input, p_nn)[8]
 end
 
-function none_2_7_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
+function none_2_7_f(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
     #PARAMETERS
-    n_weights_nn = p[end]
-    p_nn = p[Int(1):Int(n_weights_nn)]
-    p_fixed = p[(Int(n_weights_nn) + 1):(end - 1)]
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
 
     P_pf = p_fixed[1]
     Q_pf = p_fixed[2]
@@ -461,11 +451,10 @@ function none_2_7_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     dx[i__fb7] = nn(nn_input, p_nn)[9]
 end
 
-function none_2_8_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
+function none_2_8_f(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
     #PARAMETERS
-    n_weights_nn = p[end]
-    p_nn = p[Int(1):Int(n_weights_nn)]
-    p_fixed = p[(Int(n_weights_nn) + 1):(end - 1)]
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
 
     P_pf = p_fixed[1]
     Q_pf = p_fixed[2]
@@ -524,11 +513,10 @@ function none_2_8_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
     dx[i__fb8] = nn(nn_input, p_nn)[10]
 end
 
-function vsm_2_0_f(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
+function vsm_2_0_f(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
     #PARAMETERS
-    n_weights_nn = p[end]
-    p_nn = p[Int(1):Int(n_weights_nn)]
-    p_fixed = p[(Int(n_weights_nn) + 1):(end - 1)]
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
 
     ω_lp = p_fixed[1]
     kp_pll = p_fixed[2]

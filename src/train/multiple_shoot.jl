@@ -101,23 +101,27 @@ function batch_multiple_shoot(
 end
 
 function batch_ranges(batching_factor::Float64, ranges)
-    batch_ranges = []
+    batch_ranges = Array{Vector{Int64}}(undef, length(ranges))
     for rg in ranges
         n_points = length(rg) - 2
         n_choose = Int(floor(n_points * batching_factor))
         if n_choose < 1
             @error "Shooting nodes are too close togeter for data provided and batching factor"
         end
-        batch_range = sort!(
+    end
+    return [
+        sort!(
             vcat(
                 rg[1],
-                StatsBase.sample(rg[2:(end - 1)], n_choose, replace = false),
+                StatsBase.sample(
+                    rg[2:(end - 1)],
+                    Int(floor((length(rg) - 2) * batching_factor)),
+                    replace = false,
+                ),
                 rg[end],
             ),
-        )
-        push!(batch_ranges, batch_range)
-    end
-    return batch_ranges
+        ) for (i, rg) in enumerate(ranges)
+    ]
 end
 
 function generate_initial_conditions(ode_data, params, θ_u0, ranges_batch, prob)

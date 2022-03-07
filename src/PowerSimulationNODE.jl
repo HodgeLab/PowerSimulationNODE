@@ -22,6 +22,7 @@ export animate_training
 export print_train_parameter_overview
 
 import Arrow
+import Zygote
 import DataFrames
 import DataStructures
 import DiffEqBase

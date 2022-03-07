@@ -53,14 +53,15 @@ try
         d,
     )
 
-    #TODO - need additional tests for ode_model = "vsm" and node_unobserved_states != 0 once these are enabled. 
+    #TODO - need additional tests for ode_model = "vsm" 
     p = NODETrainParams(
         base_path = path,
         ode_model = "none",
-        node_unobserved_states = 2, #1
-        learn_initial_condition_unobserved_states = false,
+        node_unobserved_states = 2,
+        sensealg = "ForwardDiff",
+        learn_initial_condition_unobserved_states = true,
         node_layers = 2,
-        node_width = 2,
+        node_width = 2,   
         groupsize_faults = 1,
         verify_psid_node_off = false,
         maxiters = 10,
@@ -83,6 +84,14 @@ try
             ("gen1", :ϕd_ic),
         ], =#
     )
+    status = train(p)
+    @test status
+    input_param_file = joinpath(path, "input_data", "input_test2.json")
+    PowerSimulationNODE.serialize(p, input_param_file)
+    visualize_training(input_param_file, visualize_level = 1)
+    animate_training(input_param_file, skip_frames = 1)
+    p.sensealg = "Zygote"
+    p.train_id = "train_instance_2"
     status = train(p)
     @test status
     input_param_file = joinpath(path, "input_data", "input_test2.json")
