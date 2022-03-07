@@ -199,12 +199,18 @@ function visualize_3(params, path_to_output, path_to_input, visualize_level)
     plots_loss = []
     plots_obs = []
     plots_pred = []
-    p1 = Plots.plot(df_loss.Loss, title = "Loss")   #TODO, Plot the last 5%, last 10% of loss values. Use log scale... 
+    p1 = Plots.plot(df_loss.Loss[1:(end - 1)], yaxis = :log, title = "Loss")
     p2 = Plots.plot(df_loss.RangeCount, title = "Range Count")
     last_5_percent = Int(ceil(length(df_loss.Loss) * 0.05))
     last_10_percent = Int(ceil(length(df_loss.Loss) * 0.10))
-    p3 = Plots.plot(df_loss.Loss[(end - last_5_percent):end], title = "Last 5% of loss")
-    p4 = Plots.plot(df_loss.Loss[(end - last_10_percent):end], title = "Last 10% of loss")
+    p3 = Plots.plot(
+        df_loss.Loss[(end - last_5_percent):(end - 1)],
+        title = "Last 5% of loss",
+    )
+    p4 = Plots.plot(
+        df_loss.Loss[(end - last_10_percent):(end - 1)],
+        title = "Last 10% of loss",
+    )
     p = Plots.plot(p1, p2, p3, p4, layout = (2, 2))
     push!(plots_loss, p)
 
@@ -291,17 +297,18 @@ function find_transition_indices(list)
 end
 
 """
-    function visualize_summary(output_data_path)
+    function generate_summary(output_data_path)
 
 Generates a plot with high level information about a collection of trainings with outputs in `output_data_path`. Visualizations include:
 - plot of total iterations vs total time
 - plot of total trainable parameters vs total time
 # Examples:
 ````
-visualize_summary("output_data")
+d = generate_summary("output_data")
+visualize_summary(d)
 ````
 """
-function visualize_summary(output_data_path)
+function generate_summary(output_data_path)
     output_directories = readdir(output_data_path)
     high_level_outputs_dict = Dict{String, Dict{String, Any}}()
     for dir in output_directories
@@ -315,6 +322,10 @@ function visualize_summary(output_data_path)
         output_dict["n_params"] = n_params
         high_level_outputs_dict[output_dict["train_id"]] = output_dict
     end
+    return high_level_outputs_dict
+end
+
+function visualize_summary(high_level_outputs_dict)
     p1 = Plots.scatter()
     p2 = Plots.scatter()
     p = Plots.plot()
@@ -325,6 +336,7 @@ function visualize_summary(output_data_path)
             label = value["train_id"],
             xlabel = "total time (s)",
             ylabel = "final loss",
+            yaxis = :log,
             markersize = 1,
             markerstrokewidth = 0,
         )
@@ -340,6 +352,7 @@ function visualize_summary(output_data_path)
             label = value["train_id"],
             xlabel = "total time (s)",
             ylabel = "n params",
+            yaxis = :log,
             markersize = 1,
             markerstrokewidth = 0,
         )
@@ -442,7 +455,7 @@ function print_train_parameter_overview(train_params_folder)
     changing_header = header[changing_params_indices]
 
     print("COMMON PARAMETERS:\n")
-    PrettyTables.pretty_table(common_params, header = common_header)
+    PrettyTables.pretty_table(common_params, header = common_header, limit_printing = false)
     print("CHANGING PARAMETERS:\n")
     PrettyTables.pretty_table(
         changing_params,
@@ -451,5 +464,6 @@ function print_train_parameter_overview(train_params_folder)
             (data, i, j) -> true,
             PrettyTables.Crayon(bold = true, background = :red),
         )),
+        limit_printing = false,
     )
 end

@@ -42,8 +42,8 @@ StructTypes.StructType(::Type{NODETrainInputs}) = StructTypes.Struct()
 function NODETrainDataParams(;
     solver = "Rodas4",
     solver_tols = (1e-6, 1e-9),
-    tspan = (0.0, 3.0),
-    steps = 300,
+    tspan = (0.0, 1.0),
+    steps = 100,
     tsteps_spacing = "linear",
     observable_states = [("gen1", :ir_filter), ("gen1", :ii_filter)],
     ode_model = "none",     #TODO - test generating data with VSM model

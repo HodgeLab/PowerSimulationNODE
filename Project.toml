@@ -33,6 +33,7 @@ Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 StructTypes = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
 YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
+Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 
 [compat]
-CUDA = "< 3.8.1" 
+CUDA = "< 3.8.1"

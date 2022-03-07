@@ -52,7 +52,6 @@ function _initialize_surrogate(
     P.pf = fault_dict[:p_pf]
     P.network = fault_dict[:p_network]
     P.nn = DiffEqFlux.initial_params(nn)
-    P.n_weights = [Float64(length(P.nn))]
     if params.ode_model == "none"
         P.scale = [params.node_input_scale, params.node_output_scale]
         #x₀_surr[1:(end-2)] = 0.0  - initialized to zero already 
@@ -194,6 +193,7 @@ Executes training according to params. Assumes the existence of the necessary in
 
 """
 function train(params::NODETrainParams)
+    @info "TRAIN!"
     #READ INPUT DATA AND SYSTEM
     sys = node_load_system(joinpath(params.input_data_path, "system.json"))
     TrainInputs = Serialization.deserialize(joinpath(params.input_data_path, "data"))
@@ -440,7 +440,7 @@ function _train(
         optfun = GalacticOptim.OptimizationFunction(
             (θ, p, batch, time_batch, pvs_name_batch) ->
                 outer_loss_function(θ, batch, time_batch, pvs_name_batch),
-            sensealg, #GalacticOptim.AutoForwardDiff() #GalacticOptim.
+            sensealg, 
         )
 
         optprob = GalacticOptim.OptimizationProblem(optfun, θ_vec)

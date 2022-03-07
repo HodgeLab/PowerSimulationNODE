@@ -161,8 +161,8 @@ function MassMatrix(n_differential::Integer, n_algebraic::Integer)
     return M
 end
 
-function _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs)
-    return (dx, x, p, t) -> surr(dx, x, p, t, nn, Vm, Vθ, node_state_inputs)
+function _instantiate_surr(surr, nn, Vm, Vθ, n_params_nn, node_state_inputs)
+    return (dx, x, p, t) -> surr(dx, x, p, t, nn, Vm, Vθ, n_params_nn, node_state_inputs)
 end
 
 function instantiate_node_state_inputs(params, psid_results_object)
@@ -178,7 +178,7 @@ function instantiate_surr(params, nn, n_observable_states, Vm, Vθ, psid_results
     node_state_inputs = instantiate_node_state_inputs(params, psid_results_object)
     @info "Number of additional state inputs:", length(node_state_inputs(0.01))
     number_of_additional_inputs = length(node_state_inputs(0.0))
-
+    n_params_nn = length(DiffEqFlux.initial_params(nn))
     if params.ode_model == "vsm"
         N_ALGEBRAIC_STATES = 2
         ODE_ORDER = 19
@@ -193,7 +193,7 @@ function instantiate_surr(params, nn, n_observable_states, Vm, Vθ, psid_results
                     "t",
                 ),
             )
-            return _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs),
+            return _instantiate_surr(surr, nn, Vm, Vθ, n_params_nn, node_state_inputs),
             N_ALGEBRAIC_STATES,
             ODE_ORDER
         else
@@ -207,7 +207,7 @@ function instantiate_surr(params, nn, n_observable_states, Vm, Vθ, psid_results
                     "f",
                 ),
             )
-            return _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs),
+            return _instantiate_surr(surr, nn, Vm, Vθ, n_params_nn, node_state_inputs),
             N_ALGEBRAIC_STATES,
             ODE_ORDER
         end
@@ -225,7 +225,7 @@ function instantiate_surr(params, nn, n_observable_states, Vm, Vθ, psid_results
                     "t",
                 ),
             )
-            return _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs),
+            return _instantiate_surr(surr, nn, Vm, Vθ, n_params_nn, node_state_inputs),
             N_ALGEBRAIC_STATES,
             ODE_ORDER
         else
@@ -239,7 +239,7 @@ function instantiate_surr(params, nn, n_observable_states, Vm, Vθ, psid_results
                     "f",
                 ),
             )
-            return _instantiate_surr(surr, nn, Vm, Vθ, node_state_inputs),
+            return _instantiate_surr(surr, nn, Vm, Vθ, n_params_nn, node_state_inputs),
             N_ALGEBRAIC_STATES,
             ODE_ORDER
         end
@@ -311,14 +311,15 @@ function _outer_loss_function(
     group_predictions = []
     group_observations = []
     t_predictions = []
-    unique_pvs_names = unique(pvs_names)
+
+    unique_pvs_names = Zygote.ignore() do
+        return unique(pvs_names)   #unique uses push! (mutates an array) which is not compatible with zygote. 
+    end
 
     for (i, pvs) in enumerate(unique_pvs_names)
         tsteps_subset = tsteps[pvs .== pvs_names]
         y_actual_subset = y_actual[:, pvs .== pvs_names]
         ms_ranges = shooting_ranges(tsteps, training_group[:shoot_times])   #includes the starting range (t=0)
-        y_actual_subset = eltype(θ_vec).(y_actual_subset)
-        tsteps_subset = eltype(θ_vec).(tsteps_subset)      #TODO - need to convert types? 
 
         θ = split_θ(θ_vec, θ_lengths)
         θ_u0_subset = split_θ_u0(θ.θ_u0, i, length(unique_pvs_names))
@@ -371,8 +372,8 @@ function _cb3!(p, l, pred, obs, t_prediction, output, lb_loss, range_count, pvs_
     push!(output["parameters"], [p])
     push!(output["predictions"], (t_prediction, pred, obs))
     output["total_iterations"] += 1
-    @info "loss", l
-    @info "p[1]", p[1]
+    #@info "loss", l
+    #@info "p[1]", p[1]
     (l > lb_loss) && return false
     return true
 end
@@ -380,16 +381,16 @@ end
 function _cb2!(p, l, output, lb_loss, range_count, pvs_names)
     push!(output["loss"], (collect(pvs_names), range_count, l))
     output["total_iterations"] += 1
-    @info "loss", l
-    @info "p[1]", p[1]
+    #@info "loss", l
+    #@info "p[1]", p[1]
     (l > lb_loss) && return false
     return true
 end
 
 function _cb1!(p, l, output, lb_loss)
     output["total_iterations"] += 1
-    @info "loss", l
-    @info "p[1]", p[1]
+    #@info "loss", l
+    #@info "p[1]", p[1]
     (l > lb_loss) && return false
     return true
 end
