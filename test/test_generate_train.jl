@@ -61,7 +61,7 @@ try
         sensealg = "ForwardDiff",
         learn_initial_condition_unobserved_states = true,
         node_layers = 2,
-        node_width = 2,   
+        node_width = 2,
         groupsize_faults = 1,
         verify_psid_node_off = false,
         maxiters = 10,

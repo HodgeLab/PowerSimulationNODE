@@ -440,7 +440,7 @@ function _train(
         optfun = GalacticOptim.OptimizationFunction(
             (θ, p, batch, time_batch, pvs_name_batch) ->
                 outer_loss_function(θ, batch, time_batch, pvs_name_batch),
-            sensealg, 
+            sensealg,
         )
 
         optprob = GalacticOptim.OptimizationProblem(optfun, θ_vec)
