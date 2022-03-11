@@ -22,19 +22,7 @@ function sensealg_map(key)
 end
 
 function surr_map(key)
-    d = Dict(
-        "vsm_2_0_f" => vsm_2_0_f,
-        "none_2_0_f" => none_2_0_f,
-        "none_2_0_t" => none_2_0_t,
-        "none_2_1_f" => none_2_1_f,
-        "none_2_2_f" => none_2_2_f,
-        "none_2_3_f" => none_2_3_f,
-        "none_2_4_f" => none_2_4_f,
-        "none_2_5_f" => none_2_5_f,
-        "none_2_6_f" => none_2_6_f,
-        "none_2_7_f" => none_2_7_f,
-        "none_2_8_f" => none_2_8_f,
-    )
+    d = Dict("vsm_2_0_f" => vsm_2_0_f, "none_2_0_t" => none_2_0_t, "none_2_f" => none_2_f)
     return d[key]
 end
 
@@ -197,16 +185,7 @@ function instantiate_surr(params, nn, n_observable_states, Vm, Vθ, psid_results
             N_ALGEBRAIC_STATES,
             ODE_ORDER
         else
-            surr = surr_map(
-                string(
-                    "vsm_",
-                    n_observable_states,
-                    "_",
-                    params.node_unobserved_states,
-                    "_",
-                    "f",
-                ),
-            )
+            surr = surr_map(string("vsm_", n_observable_states, "_", "f"))
             return _instantiate_surr(surr, nn, Vm, Vθ, n_params_nn, node_state_inputs),
             N_ALGEBRAIC_STATES,
             ODE_ORDER
@@ -229,16 +208,7 @@ function instantiate_surr(params, nn, n_observable_states, Vm, Vθ, psid_results
             N_ALGEBRAIC_STATES,
             ODE_ORDER
         else
-            surr = surr_map(
-                string(
-                    "none_",
-                    n_observable_states,
-                    "_",
-                    params.node_unobserved_states,
-                    "_",
-                    "f",
-                ),
-            )
+            surr = surr_map(string("none_", n_observable_states, "_", "f"))
             return _instantiate_surr(surr, nn, Vm, Vθ, n_params_nn, node_state_inputs),
             N_ALGEBRAIC_STATES,
             ODE_ORDER
@@ -278,12 +248,13 @@ function instantiate_outer_loss_function(
     θ_lengths,
     params,
     observation_function,
+    pvs_names,
+    pvs_ranges,
 )
-    return (θ, y_actual, tsteps, pvs_names) -> _outer_loss_function(
+    return (θ, y_actual, tsteps) -> _outer_loss_function(
         θ,
         y_actual,
         tsteps,
-        pvs_names,
         solver,
         fault_data,
         inner_loss_function,
@@ -291,6 +262,8 @@ function instantiate_outer_loss_function(
         θ_lengths,
         params,
         observation_function,
+        pvs_names,
+        pvs_ranges,
     )
 end
 
@@ -298,7 +271,6 @@ function _outer_loss_function(
     θ_vec,
     y_actual,
     tsteps,
-    pvs_names,
     solver,
     fault_data,
     inner_loss_function,
@@ -306,23 +278,20 @@ function _outer_loss_function(
     θ_lengths,
     params,
     observation_function,
+    pvs_names,
+    pvs_ranges,
 )
     loss = 0.0
     group_predictions = []
     group_observations = []
     t_predictions = []
 
-    unique_pvs_names = Zygote.ignore() do
-        return unique(pvs_names)   #unique uses push! (mutates an array) which is not compatible with zygote. 
-    end
-
-    for (i, pvs) in enumerate(unique_pvs_names)
-        tsteps_subset = tsteps[pvs .== pvs_names]
-        y_actual_subset = y_actual[:, pvs .== pvs_names]
+    for (i, pvs_name) in enumerate(pvs_names)
+        tsteps_subset = tsteps[pvs_ranges[i]]
+        y_actual_subset = y_actual[:, pvs_ranges[i]]
         ms_ranges = shooting_ranges(tsteps, training_group[:shoot_times])   #includes the starting range (t=0)
-
         θ = split_θ(θ_vec, θ_lengths)
-        θ_u0_subset = split_θ_u0(θ.θ_u0, i, length(unique_pvs_names))
+        θ_u0_subset = split_θ_u0(θ.θ_u0, i, length(pvs_names)) #length(pvs_range_dict)) #
 
         single_loss, single_pred, single_observation, single_t_predictions =
             batch_multiple_shoot(
@@ -331,7 +300,7 @@ function _outer_loss_function(
                 θ.θ_observation,
                 y_actual_subset,
                 tsteps_subset,
-                fault_data[pvs],
+                fault_data[pvs_name],
                 inner_loss_function,
                 training_group[:multiple_shoot_continuity_term],
                 solver,
@@ -372,8 +341,8 @@ function _cb3!(p, l, pred, obs, t_prediction, output, lb_loss, range_count, pvs_
     push!(output["parameters"], [p])
     push!(output["predictions"], (t_prediction, pred, obs))
     output["total_iterations"] += 1
-    #@info "loss", l
-    #@info "p[1]", p[1]
+    # @info "loss", l
+    # @info "p[1]", p[1]
     (l > lb_loss) && return false
     return true
 end

@@ -123,7 +123,12 @@ function _calculate_final_loss(
     θ_vec, θ_lengths = combine_θ(θ)
     inner_loss_function =
         instantiate_inner_loss_function(params.loss_function_weights, ground_truth_scale)
-    #@warn fault_data
+
+    ground_truth = concatonate_ground_truth(fault_data, pvs_names, :)
+    t_current = concatonate_t(tsteps, pvs_names, :)
+
+    pvs_ranges = generate_pvs_ranges(pvs_names, length(tsteps))
+
     outer_loss_function = instantiate_outer_loss_function(
         solver,
         fault_data,
@@ -136,7 +141,10 @@ function _calculate_final_loss(
         θ_lengths,
         params,
         observation_function,
+        pvs_names,
+        pvs_ranges,
     )
+
     cb = instantiate_cb!(
         output,
         params.lb_loss,
@@ -144,11 +152,7 @@ function _calculate_final_loss(
         0,  #range_count
         pvs_names,
     )
-    ground_truth = concatonate_ground_truth(fault_data, pvs_names, :)
-    t_current = concatonate_t(tsteps, pvs_names, :)
-    pvs_names = concatonate_pvs_names(pvs_names, length(tsteps))
-    final_loss_for_comparison =
-        outer_loss_function(θ_vec, ground_truth, t_current, pvs_names)
+    final_loss_for_comparison = outer_loss_function(θ_vec, ground_truth, t_current)
 
     cb(
         θ_vec,
@@ -156,7 +160,7 @@ function _calculate_final_loss(
         final_loss_for_comparison[2],
         final_loss_for_comparison[3],
         final_loss_for_comparison[4],
-    )     #Call the callback to record the prediction in output
+    )
     return final_loss_for_comparison[1]
 end
 
@@ -214,7 +218,6 @@ function train(params::NODETrainParams)
         (optimizer_adjust = instantiate_optimizer_adjust(params))
 
     pvss = collect(PSY.get_components(PSY.PeriodicVariableSource, sys))
-    #Ir_scale, Ii_scale = _calculate_loss_function_scaling(params, fault_data)
     ground_truth_scale = _calculate_loss_function_scaling(params, fault_data)
     res = nothing
     output = Dict{String, Any}(
@@ -304,76 +307,75 @@ function train(params::NODETrainParams)
 
     @warn "LENGTHS OF θ to start:", combine_θ(θ)[2]
 
-    try
-        total_time = @elapsed begin
-            for (fault_group_count, group_pvs) in
-                enumerate(IterTools.partition(pvss, params.groupsize_faults))
-                pvs_names_subset = PSY.get_name.(group_pvs)
-                @info "start of fault group" θ.θ_node[end], pvs_names_subset
-                res, output = _train(
-                    θ,  #partitioned form 
-                    params,
-                    sensealg,
-                    solver,
-                    optimizer,
-                    ground_truth_scale,
-                    output,
-                    tsteps,
-                    pvs_names_subset,
-                    fault_data,
-                    per_solve_maxiters,
-                    observation_function,
-                    fault_group_count,
-                )
-                #@warn res
-                θ = res
-                @info "end of fault" θ.θ_node[end]
-            end
-
-            #TODO - Add second training stage here for final adjustments (optimizer_adjust) 
+    #try
+    total_time = @elapsed begin
+        for (fault_group_count, group_pvs) in
+            enumerate(IterTools.partition(pvss, params.groupsize_faults))
+            pvs_names_subset = PSY.get_name.(group_pvs)
+            @info "start of fault group" θ.θ_node[end], pvs_names_subset
+            res, output = _train(
+                θ,  #partitioned form 
+                params,
+                sensealg,
+                solver,
+                optimizer,
+                ground_truth_scale,
+                output,
+                tsteps,
+                pvs_names_subset,
+                fault_data,
+                per_solve_maxiters,
+                observation_function,
+                fault_group_count,
+            )
+            θ = res
+            @info "end of fault" θ.θ_node[end]
         end
 
-        output["total_time"] = total_time
-        pvs_names = PSY.get_name.(pvss)
-
-        @warn "length of u0 after before", length(θ.θ_u0)
-        θ = update_θ_u0(
-            θ,
-            (
-                tspan = (0.0, 0.0),
-                shoot_times = [],
-                multiple_shoot_continuity_term = 1,
-                batching_sample_factor = 1.0,
-            ),
-            solver,
-            fault_data,
-            params,
-            PSY.get_name.(pvss),
-        )
-        @warn "length of u0 after update", length(θ.θ_u0)
-
-        @info "End of training, calculating final loss for comparison:"
-        final_loss_for_comparison = _calculate_final_loss(
-            params,
-            θ,
-            solver,
-            pvs_names,
-            fault_data,
-            tsteps,
-            ground_truth_scale,
-            output,
-            observation_function,
-        )
-        output["final_loss"] = final_loss_for_comparison
-
-        _capture_output(output, params.output_data_path, params.train_id)
-        (params.graphical_report_mode != 0) &&
-            visualize_training(params, visualize_level = params.graphical_report_mode)
-        return true
-        #TODO - uncomment try catch after debugging 
-    catch
-        return false
+        #TODO - Add second training stage here for final adjustments (optimizer_adjust) 
     end
+
+    output["total_time"] = total_time
+    pvs_names = PSY.get_name.(pvss)
+
+    @warn "length of u0 after before", length(θ.θ_u0)
+    θ = update_θ_u0(
+        θ,
+        (
+            tspan = (0.0, 0.0),
+            shoot_times = [],
+            multiple_shoot_continuity_term = 1,
+            batching_sample_factor = 1.0,
+        ),
+        solver,
+        fault_data,
+        params,
+        PSY.get_name.(pvss),
+    )
+    @warn "length of u0 after update", length(θ.θ_u0)
+
+    @info "End of training, calculating final loss for comparison:"
+    final_loss_for_comparison = _calculate_final_loss(
+        params,
+        θ,
+        solver,
+        pvs_names,
+        fault_data,
+        tsteps,
+        ground_truth_scale,
+        output,
+        observation_function,
+    )
+    output["final_loss"] = final_loss_for_comparison
+
+    _capture_output(output, params.output_data_path, params.train_id)
+    (params.graphical_report_mode != 0) &&
+        visualize_training(params, visualize_level = params.graphical_report_mode)
+    return true
+    #TODO - uncomment try catch after debugging 
+    #catch
+    #    return false
+    #end
 end
 
 function _train(
@@ -417,15 +419,16 @@ function _train(
         last_index = findlast(x -> x <= tspan[2], tsteps)
         range = first_index:last_index
         @info "start of training group" range, min_θ.θ_node[end]
+
         i_current_range = concatonate_ground_truth(fault_data, pvs_names_subset, range)   #TODO- need to provide all states for Multiple shoot with VSM model? 
-        t_current_range = concatonate_t(tsteps, pvs_names_subset, range)
-        pvs_names_current_range = concatonate_pvs_names(pvs_names_subset, length(range))
+        t_current_range = @time concatonate_t(tsteps, pvs_names_subset, range)
+
+        pvs_ranges = generate_pvs_ranges(pvs_names_subset, length(range))
+
         batchsize = length(i_current_range[1, :])
 
-        train_loader = Flux.Data.DataLoader(
-            (i_current_range, t_current_range, pvs_names_current_range),
-            batchsize = batchsize,
-        )
+        train_loader =
+            Flux.Data.DataLoader((i_current_range, t_current_range), batchsize = batchsize)
 
         outer_loss_function = instantiate_outer_loss_function(
             solver,
@@ -435,11 +438,14 @@ function _train(
             θ_lengths,
             params,
             observation_function,
+            pvs_names_subset,
+            pvs_ranges,
         )
+        @warn "loss function timing "
+        @time outer_loss_function(θ_vec, i_current_range, t_current_range)
 
         optfun = GalacticOptim.OptimizationFunction(
-            (θ, p, batch, time_batch, pvs_name_batch) ->
-                outer_loss_function(θ, batch, time_batch, pvs_name_batch),
+            (θ, p, batch, time_batch) -> outer_loss_function(θ, batch, time_batch),
             sensealg,
         )
 
@@ -453,16 +459,25 @@ function _train(
             pvs_names_subset,
         )
 
-        res = GalacticOptim.solve(
+        res = @time GalacticOptim.solve(
             optprob,
             optimizer,
             IterTools.ncycle(train_loader, per_solve_maxiters),
             cb = cb,
         )
+        @warn "train time above"
         min_θ = split_θ(copy(res.u), θ_lengths)
         @info "end of training_group" min_θ.θ_node[end]
     end
     return min_θ, output
+end
+
+function generate_pvs_ranges(pvs_names, data_points_per_pvs)
+    pvs_ranges = []
+    for (i, pvs) in enumerate(pvs_names)
+        push!(pvs_ranges, (1 + (i - 1) * data_points_per_pvs):(i * data_points_per_pvs))
+    end
+    return pvs_ranges
 end
 
 function update_θ_u0(
@@ -528,6 +543,7 @@ function update_θ_u0(
     return θ
 end
 
+#TODO- performance improvements 
 function concatonate_ground_truth(fault_data, pvs_names_subset, range)
     ground_truth = []
     for (i, pvs_name) in enumerate(pvs_names_subset)
@@ -542,6 +558,7 @@ function concatonate_ground_truth(fault_data, pvs_names_subset, range)
     return ground_truth
 end
 
+#TODO- performance improvements 
 function concatonate_t(tsteps, pvs_names_subset, range)
     t = []
     for (i, pvs_name) in enumerate(pvs_names_subset)
@@ -553,19 +570,6 @@ function concatonate_t(tsteps, pvs_names_subset, range)
         end
     end
     return t
-end
-
-function concatonate_pvs_names(pvs_names_subset, length_range)
-    concatonated_pvs_names_list = []
-    for (i, pvs_name) in enumerate(pvs_names_subset)
-        if i == 1
-            concatonated_pvs_names_list = fill(pvs_name, length_range)
-        else
-            concatonated_pvs_names_list =
-                vcat(concatonated_pvs_names_list, fill(pvs_name, length_range))
-        end
-    end
-    return concatonated_pvs_names_list
 end
 
 function _capture_output(output_dict, output_directory, id)

@@ -33,7 +33,6 @@ Note:
 The parameter 'continuity_term' should be a relatively big number to enforce a large penalty
 whenever the last point of any group doesn't coincide with the first point of next group.
 """
-#TODO - lots of the logic is going to be in this function, will be worthwile to make it as clean/well-named as possible 
 function batch_multiple_shoot(
     θ_node,
     θ_u0,
@@ -58,7 +57,7 @@ function batch_multiple_shoot(
     ranges_batch = batch_ranges(batching_factor, shooting_ranges)
     u0s = generate_initial_conditions(ode_data, params, θ_u0, ranges_batch, prob)
     @assert length(ranges_batch) == length(u0s)
-
+    
     sols = [
         OrdinaryDiffEq.solve(
             OrdinaryDiffEq.remake(
