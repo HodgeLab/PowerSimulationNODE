@@ -55,6 +55,7 @@ function batch_multiple_shoot(
     P.nn = θ_node
     p = vectorize(P)
     ranges_batch = batch_ranges(batching_factor, shooting_ranges)
+    continuity_batch = [r < batching_factor for r in rand(length(ranges_batch))]
     u0s = generate_initial_conditions(ode_data, params, θ_u0, ranges_batch, prob)
     @assert length(ranges_batch) == length(u0s)
     
@@ -90,9 +91,13 @@ function batch_multiple_shoot(
         û = group_observations[i]
         loss += loss_function(u, û)
         if i > 1
-            loss +=
-                continuity_term *
-                loss_function(group_predictions[i - 1][:, end], group_predictions[i][:, 1])  # Continuity loss for all states 
+            if continuity_batch[i]
+                loss +=
+                    continuity_term * loss_function(
+                        group_predictions[i - 1][:, end],
+                        group_predictions[i][:, 1],
+                    )  # Continuity loss for all states 
+            end
         end
     end
     t_predictions = [tsteps[r] for r in ranges_batch]
