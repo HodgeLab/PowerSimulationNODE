@@ -41,7 +41,7 @@ function batch_multiple_shoot(
     tsteps::AbstractArray,
     fault_data,
     loss_function,
-    continuity_term::Real,
+    continuity_term::Tuple{Float64, Float64},  #make tuple(obs, unobs) 
     solver::DiffEqBase.AbstractODEAlgorithm,
     shooting_ranges::AbstractArray,
     batching_factor::Float64,
@@ -58,7 +58,7 @@ function batch_multiple_shoot(
     continuity_batch = [r < batching_factor for r in rand(length(ranges_batch))]
     u0s = generate_initial_conditions(ode_data, params, θ_u0, ranges_batch, prob)
     @assert length(ranges_batch) == length(u0s)
-    
+
     sols = [
         OrdinaryDiffEq.solve(
             OrdinaryDiffEq.remake(
@@ -85,6 +85,9 @@ function batch_multiple_shoot(
     end
 
     # Calculate multiple shooting loss
+
+    obs_penalty = continuity_term[1]
+    pred_penalty = continuity_term[2]
     loss = 0
     for (i, rg) in enumerate(ranges_batch)
         u = ode_data[:, rg]
@@ -93,10 +96,13 @@ function batch_multiple_shoot(
         if i > 1
             if continuity_batch[i]
                 loss +=
-                    continuity_term * loss_function(
-                        group_predictions[i - 1][:, end],
-                        group_predictions[i][:, 1],
-                    )  # Continuity loss for all states 
+                    pred_penalty *
+                    sum(abs, group_predictions[i - 1][:, end] .- group_predictions[i][:, 1])
+                loss +=
+                    obs_penalty * sum(
+                        abs,
+                        group_observations[i - 1][:, end] .- group_observations[i][:, 1],
+                    )
             end
         end
     end
