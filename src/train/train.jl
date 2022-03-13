@@ -18,7 +18,6 @@ function _calculate_loss_function_scaling(params, fault_data)
             break
         end
         ground_truth_scale = ones(Float64, (dim_ground_truth, 1))
-        @error ground_truth_scale
     else
         @warn "Cannot determine loss function scaling"
     end

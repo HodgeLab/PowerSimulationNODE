@@ -351,8 +351,8 @@ function _cb3!(p, l, pred, obs, t_prediction, output, lb_loss, range_count, pvs_
     push!(output["parameters"], [p])
     push!(output["predictions"], (t_prediction, pred, obs))
     output["total_iterations"] += 1
-    @info "loss", l
-    @info "p[1]", p[1]
+    #@info "loss", l
+    #@info "p[1]", p[1]
     (l > lb_loss) && return false
     return true
 end
