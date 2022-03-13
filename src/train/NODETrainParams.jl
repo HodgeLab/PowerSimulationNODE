@@ -17,7 +17,7 @@
     Tuple{Float64, Float64},
     NamedTuple{
         (:shoot_times, :multiple_shoot_continuity_term, :batching_sample_factor),
-        Tuple{Int64, Float64, Float64},
+        Tuple{Int64, Tuple{Float64, Float64}, Float64},
     }`: Specify the tspan for each group of training, and the multiple shooting and random batching parameter for each group.  
 - `groupsize_faults::Int64`: Number of faults trained on simultaneous `1`:sequential training. if equal to number of pvs in sys_train, parallel training.
 - `loss_function_weights::Tuple{Float64, Float64}`: weights used for loss function `(mae_weight, mse_weight)`.
@@ -60,7 +60,12 @@ mutable struct NODETrainParams
                 :multiple_shoot_continuity_term,
                 :batching_sample_factor,
             ),
-            Tuple{Tuple{Float64, Float64}, Array{Float64}, Float64, Float64},
+            Tuple{
+                Tuple{Float64, Float64},
+                Array{Float64},
+                Tuple{Float64, Float64},
+                Float64,
+            },
         },
     }
     groupsize_faults::Int64
@@ -102,12 +107,12 @@ function NODETrainParams(;
     training_groups = [(
         tspan = (0.0, 1.0),
         shoot_times = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
-        multiple_shoot_continuity_term = 100.0,
+        multiple_shoot_continuity_term = (100.0, 100.0),
         batching_sample_factor = 1.0,
     )],
     groupsize_faults = 1,
-    loss_function_weights = (0.5, 0.5),
-    loss_function_scale = "range",
+    loss_function_weights = (1.0, 0.0),
+    loss_function_scale = "none",
     ode_model = "none",
     node_input_scale = 10e1,
     node_output_scale = 1.0,
@@ -120,7 +125,7 @@ function NODETrainParams(;
     node_width = 2,
     node_activation = "relu",
     rng_seed = 1234,
-    export_mode = 3,
+    output_mode = 3,
     base_path = pwd(),
     input_data_path = joinpath(base_path, "input_data"),
     output_data_path = joinpath(base_path, "output_data"),
@@ -154,7 +159,7 @@ function NODETrainParams(;
         node_width,
         node_activation,
         rng_seed,
-        export_mode,
+        output_mode,
         base_path,
         input_data_path,
         output_data_path,

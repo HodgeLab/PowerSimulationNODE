@@ -22,19 +22,7 @@ function sensealg_map(key)
 end
 
 function surr_map(key)
-    d = Dict(
-        "vsm_2_0_f" => vsm_2_0_f,
-        "none_2_0_f" => none_2_0_f,
-        "none_2_0_t" => none_2_0_t,
-        "none_2_1_f" => none_2_1_f,
-        "none_2_2_f" => none_2_2_f,
-        "none_2_3_f" => none_2_3_f,
-        "none_2_4_f" => none_2_4_f,
-        "none_2_5_f" => none_2_5_f,
-        "none_2_6_f" => none_2_6_f,
-        "none_2_7_f" => none_2_7_f,
-        "none_2_8_f" => none_2_8_f,
-    )
+    d = Dict("vsm_2_0_f" => vsm_2_0_f, "none_2_0_t" => none_2_0_t, "none_2_f" => none_2_f)
     return d[key]
 end
 
@@ -86,43 +74,43 @@ end
 
 function build_nn(input_dim, output_dim, nn_width, nn_hidden, nn_activation)
     if nn_hidden == 1
-        nn = DiffEqFlux.FastChain(
-            DiffEqFlux.FastDense(input_dim, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, output_dim),
+        nn = Flux.Chain(
+            Flux.Dense(input_dim, nn_width, nn_activation),
+            Flux.Dense(nn_width, output_dim),
         )
         return nn
     elseif nn_hidden == 2
-        nn = DiffEqFlux.FastChain(
-            DiffEqFlux.FastDense(input_dim, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, output_dim),
+        nn = Flux.Chain(
+            Flux.Dense(input_dim, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, output_dim),
         )
         return nn
     elseif nn_hidden == 3
-        nn = DiffEqFlux.FastChain(
-            DiffEqFlux.FastDense(input_dim, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, output_dim),
+        nn = Flux.Chain(
+            Flux.Dense(input_dim, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, output_dim),
         )
         return nn
     elseif nn_hidden == 4
-        nn = DiffEqFlux.FastChain(
-            DiffEqFlux.FastDense(input_dim, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, output_dim),
+        nn = Flux.Chain(
+            Flux.Dense(input_dim, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, output_dim),
         )
         return nn
     elseif nn_hidden == 5
-        nn = DiffEqFlux.FastChain(
-            DiffEqFlux.FastDense(input_dim, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, output_dim),
+        nn = Flux.Chain(
+            Flux.Dense(input_dim, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, output_dim),
         )
         return nn
     else
@@ -174,11 +162,19 @@ function instantiate_node_state_inputs(params, psid_results_object)
     return (t) -> (psid_results_object.solution(t, idxs = global_indices))
 end
 
-function instantiate_surr(params, nn, n_observable_states, Vm, Vθ, psid_results_object)
+function instantiate_surr(
+    params,
+    nn,
+    nn_params,
+    n_observable_states,
+    Vm,
+    Vθ,
+    psid_results_object,
+)
     node_state_inputs = instantiate_node_state_inputs(params, psid_results_object)
     @info "Number of additional state inputs:", length(node_state_inputs(0.01))
     number_of_additional_inputs = length(node_state_inputs(0.0))
-    n_params_nn = length(DiffEqFlux.initial_params(nn))
+    n_params_nn = length(nn_params)
     if params.ode_model == "vsm"
         N_ALGEBRAIC_STATES = 2
         ODE_ORDER = 19
@@ -197,16 +193,7 @@ function instantiate_surr(params, nn, n_observable_states, Vm, Vθ, psid_results
             N_ALGEBRAIC_STATES,
             ODE_ORDER
         else
-            surr = surr_map(
-                string(
-                    "vsm_",
-                    n_observable_states,
-                    "_",
-                    params.node_unobserved_states,
-                    "_",
-                    "f",
-                ),
-            )
+            surr = surr_map(string("vsm_", n_observable_states, "_", "f"))
             return _instantiate_surr(surr, nn, Vm, Vθ, n_params_nn, node_state_inputs),
             N_ALGEBRAIC_STATES,
             ODE_ORDER
@@ -229,16 +216,7 @@ function instantiate_surr(params, nn, n_observable_states, Vm, Vθ, psid_results
             N_ALGEBRAIC_STATES,
             ODE_ORDER
         else
-            surr = surr_map(
-                string(
-                    "none_",
-                    n_observable_states,
-                    "_",
-                    params.node_unobserved_states,
-                    "_",
-                    "f",
-                ),
-            )
+            surr = surr_map(string("none_", n_observable_states, "_", "f"))
             return _instantiate_surr(surr, nn, Vm, Vθ, n_params_nn, node_state_inputs),
             N_ALGEBRAIC_STATES,
             ODE_ORDER
@@ -259,13 +237,15 @@ function _inner_loss_function(u, û, loss_function_weights, ground_truth_scale)
     loss = 0.0
     for i in 1:n_obs
         loss +=
-            mae(û[i, :], u[i, :]) / ground_truth_scale[i] * loss_function_weights[1] +
-            mse(û[i, :], u[i, :]) / ground_truth_scale[i] * loss_function_weights[2]
+            sum(abs, û[i, :] .- u[i, :]) / ground_truth_scale[i] *
+            loss_function_weights[1] +
+            sum(abs2, û[i, :] .- u[i, :]) / ground_truth_scale[i] *
+            loss_function_weights[2]
     end
     for i in (n_obs + 1):n_preds
         loss +=
-            mae(û[i, :], u[i, :]) * loss_function_weights[1] +
-            mse(û[i, :], u[i, :]) * loss_function_weights[2]
+            sum(abs, û[i, :] .- u[i, :]) * loss_function_weights[1] +
+            sum(abs2, û[i, :] .- u[i, :]) * loss_function_weights[2]
     end
     return loss
 end
@@ -278,12 +258,13 @@ function instantiate_outer_loss_function(
     θ_lengths,
     params,
     observation_function,
+    pvs_names,
+    pvs_ranges,
 )
-    return (θ, y_actual, tsteps, pvs_names) -> _outer_loss_function(
+    return (θ, y_actual, tsteps) -> _outer_loss_function(
         θ,
         y_actual,
         tsteps,
-        pvs_names,
         solver,
         fault_data,
         inner_loss_function,
@@ -291,6 +272,8 @@ function instantiate_outer_loss_function(
         θ_lengths,
         params,
         observation_function,
+        pvs_names,
+        pvs_ranges,
     )
 end
 
@@ -298,7 +281,6 @@ function _outer_loss_function(
     θ_vec,
     y_actual,
     tsteps,
-    pvs_names,
     solver,
     fault_data,
     inner_loss_function,
@@ -306,23 +288,20 @@ function _outer_loss_function(
     θ_lengths,
     params,
     observation_function,
+    pvs_names,
+    pvs_ranges,
 )
     loss = 0.0
     group_predictions = []
     group_observations = []
     t_predictions = []
 
-    unique_pvs_names = Zygote.ignore() do
-        return unique(pvs_names)   #unique uses push! (mutates an array) which is not compatible with zygote. 
-    end
-
-    for (i, pvs) in enumerate(unique_pvs_names)
-        tsteps_subset = tsteps[pvs .== pvs_names]
-        y_actual_subset = y_actual[:, pvs .== pvs_names]
+    for (i, pvs_name) in enumerate(pvs_names)
+        tsteps_subset = tsteps[pvs_ranges[i]]
+        y_actual_subset = y_actual[:, pvs_ranges[i]]
         ms_ranges = shooting_ranges(tsteps, training_group[:shoot_times])   #includes the starting range (t=0)
-
         θ = split_θ(θ_vec, θ_lengths)
-        θ_u0_subset = split_θ_u0(θ.θ_u0, i, length(unique_pvs_names))
+        θ_u0_subset = split_θ_u0(θ.θ_u0, i, length(pvs_names)) #length(pvs_range_dict)) #
 
         single_loss, single_pred, single_observation, single_t_predictions =
             batch_multiple_shoot(
@@ -331,7 +310,7 @@ function _outer_loss_function(
                 θ.θ_observation,
                 y_actual_subset,
                 tsteps_subset,
-                fault_data[pvs],
+                fault_data[pvs_name],
                 inner_loss_function,
                 training_group[:multiple_shoot_continuity_term],
                 solver,

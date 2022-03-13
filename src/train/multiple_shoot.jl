@@ -33,7 +33,6 @@ Note:
 The parameter 'continuity_term' should be a relatively big number to enforce a large penalty
 whenever the last point of any group doesn't coincide with the first point of next group.
 """
-#TODO - lots of the logic is going to be in this function, will be worthwile to make it as clean/well-named as possible 
 function batch_multiple_shoot(
     θ_node,
     θ_u0,
@@ -42,7 +41,7 @@ function batch_multiple_shoot(
     tsteps::AbstractArray,
     fault_data,
     loss_function,
-    continuity_term::Real,
+    continuity_term::Tuple{Float64, Float64},  #make tuple(obs, unobs) 
     solver::DiffEqBase.AbstractODEAlgorithm,
     shooting_ranges::AbstractArray,
     batching_factor::Float64,
@@ -56,6 +55,7 @@ function batch_multiple_shoot(
     P.nn = θ_node
     p = vectorize(P)
     ranges_batch = batch_ranges(batching_factor, shooting_ranges)
+    continuity_batch = [r < batching_factor for r in rand(length(ranges_batch))]
     u0s = generate_initial_conditions(ode_data, params, θ_u0, ranges_batch, prob)
     @assert length(ranges_batch) == length(u0s)
 
@@ -85,15 +85,25 @@ function batch_multiple_shoot(
     end
 
     # Calculate multiple shooting loss
+
+    obs_penalty = continuity_term[1]
+    pred_penalty = continuity_term[2]
     loss = 0
     for (i, rg) in enumerate(ranges_batch)
         u = ode_data[:, rg]
         û = group_observations[i]
         loss += loss_function(u, û)
         if i > 1
-            loss +=
-                continuity_term *
-                loss_function(group_predictions[i - 1][:, end], group_predictions[i][:, 1])  # Continuity loss for all states 
+            if continuity_batch[i]
+                loss +=
+                    pred_penalty *
+                    sum(abs, group_predictions[i - 1][:, end] .- group_predictions[i][:, 1])
+                loss +=
+                    obs_penalty * sum(
+                        abs,
+                        group_observations[i - 1][:, end] .- group_observations[i][:, 1],
+                    )
+            end
         end
     end
     t_predictions = [tsteps[r] for r in ranges_batch]
