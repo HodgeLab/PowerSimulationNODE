@@ -74,43 +74,43 @@ end
 
 function build_nn(input_dim, output_dim, nn_width, nn_hidden, nn_activation)
     if nn_hidden == 1
-        nn = DiffEqFlux.FastChain(
-            DiffEqFlux.FastDense(input_dim, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, output_dim),
+        nn = Flux.Chain(
+            Flux.Dense(input_dim, nn_width, nn_activation),
+            Flux.Dense(nn_width, output_dim),
         )
         return nn
     elseif nn_hidden == 2
-        nn = DiffEqFlux.FastChain(
-            DiffEqFlux.FastDense(input_dim, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, output_dim),
+        nn = Flux.Chain(
+            Flux.Dense(input_dim, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, output_dim),
         )
         return nn
     elseif nn_hidden == 3
-        nn = DiffEqFlux.FastChain(
-            DiffEqFlux.FastDense(input_dim, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, output_dim),
+        nn = Flux.Chain(
+            Flux.Dense(input_dim, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, output_dim),
         )
         return nn
     elseif nn_hidden == 4
-        nn = DiffEqFlux.FastChain(
-            DiffEqFlux.FastDense(input_dim, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, output_dim),
+        nn = Flux.Chain(
+            Flux.Dense(input_dim, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, output_dim),
         )
         return nn
     elseif nn_hidden == 5
-        nn = DiffEqFlux.FastChain(
-            DiffEqFlux.FastDense(input_dim, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, nn_width, nn_activation),
-            DiffEqFlux.FastDense(nn_width, output_dim),
+        nn = Flux.Chain(
+            Flux.Dense(input_dim, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, nn_width, nn_activation),
+            Flux.Dense(nn_width, output_dim),
         )
         return nn
     else
@@ -162,11 +162,19 @@ function instantiate_node_state_inputs(params, psid_results_object)
     return (t) -> (psid_results_object.solution(t, idxs = global_indices))
 end
 
-function instantiate_surr(params, nn, n_observable_states, Vm, Vθ, psid_results_object)
+function instantiate_surr(
+    params,
+    nn,
+    nn_params,
+    n_observable_states,
+    Vm,
+    Vθ,
+    psid_results_object,
+)
     node_state_inputs = instantiate_node_state_inputs(params, psid_results_object)
     @info "Number of additional state inputs:", length(node_state_inputs(0.01))
     number_of_additional_inputs = length(node_state_inputs(0.0))
-    n_params_nn = length(DiffEqFlux.initial_params(nn))
+    n_params_nn = length(nn_params)
     if params.ode_model == "vsm"
         N_ALGEBRAIC_STATES = 2
         ODE_ORDER = 19
@@ -229,13 +237,15 @@ function _inner_loss_function(u, û, loss_function_weights, ground_truth_scale)
     loss = 0.0
     for i in 1:n_obs
         loss +=
-            mae(û[i, :], u[i, :]) / ground_truth_scale[i] * loss_function_weights[1] +
-            mse(û[i, :], u[i, :]) / ground_truth_scale[i] * loss_function_weights[2]
+            sum(abs, û[i, :] .- u[i, :]) / ground_truth_scale[i] *
+            loss_function_weights[1] +
+            sum(abs2, û[i, :] .- u[i, :]) / ground_truth_scale[i] *
+            loss_function_weights[2]
     end
     for i in (n_obs + 1):n_preds
         loss +=
-            mae(û[i, :], u[i, :]) * loss_function_weights[1] +
-            mse(û[i, :], u[i, :]) * loss_function_weights[2]
+            sum(abs, û[i, :] .- u[i, :]) * loss_function_weights[1] +
+            sum(abs2, û[i, :] .- u[i, :]) * loss_function_weights[2]
     end
     return loss
 end
@@ -341,8 +351,8 @@ function _cb3!(p, l, pred, obs, t_prediction, output, lb_loss, range_count, pvs_
     push!(output["parameters"], [p])
     push!(output["predictions"], (t_prediction, pred, obs))
     output["total_iterations"] += 1
-    # @info "loss", l
-    # @info "p[1]", p[1]
+    @info "loss", l
+    @info "p[1]", p[1]
     (l > lb_loss) && return false
     return true
 end

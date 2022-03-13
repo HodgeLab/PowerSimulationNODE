@@ -12,7 +12,13 @@ function _calculate_loss_function_scaling(params, fault_data)
         ground_truth_scale =
             maximum(full_ground_truth, dims = 2) - minimum(full_ground_truth, dims = 2)
     elseif params.loss_function_scale == "none"
+        dim_ground_truth = 0
+        for (key, value) in fault_data
+            dim_ground_truth = size(value[:ground_truth])[1]
+            break
+        end
         ground_truth_scale = ones(Float64, (dim_ground_truth, 1))
+        @error ground_truth_scale
     else
         @warn "Cannot determine loss function scaling"
     end
@@ -28,6 +34,7 @@ end
 function _initialize_surrogate(
     params,
     nn,
+    nn_params,
     M,
     tsteps,
     fault_dict,
@@ -51,7 +58,7 @@ function _initialize_surrogate(
     end
     P.pf = fault_dict[:p_pf]
     P.network = fault_dict[:p_network]
-    P.nn = DiffEqFlux.initial_params(nn)
+    P.nn = nn_params # DiffEqFlux.initial_params(nn)
     if params.ode_model == "none"
         P.scale = [params.node_input_scale, params.node_output_scale]
         #x₀_surr[1:(end-2)] = 0.0  - initialized to zero already 
@@ -135,7 +142,7 @@ function _calculate_final_loss(
         inner_loss_function,
         (
             shoot_times = [],
-            multiple_shoot_continuity_term = 100,
+            multiple_shoot_continuity_term = (100.0, 100.0), #Shouldn't matter, single shoot
             batching_sample_factor = 1.0,
         ),
         θ_lengths,
@@ -209,7 +216,8 @@ function train(params::NODETrainParams)
     sensealg = instantiate_sensealg(params)
     solver = instantiate_solver(params)
     optimizer = instantiate_optimizer(params)
-    nn = instantiate_nn(params, n_observable_states)
+    nn_full = instantiate_nn(params, n_observable_states)
+    p_nn_init, nn = Flux.destructure(nn_full)
     M = instantiate_M(params)
 
     observation_function, observation_params = instantiate_observation(params)  #observation_function(vector,params)
@@ -247,12 +255,20 @@ function train(params::NODETrainParams)
         Vm, Vθ = Source_to_function_of_time(pvs)
         fault_dict = fault_data[PSY.get_name(pvs)]
         psid_results_object = fault_dict[:psid_results_object]
-        surr, N_ALGEBRAIC_STATES, ODE_ORDER =
-            instantiate_surr(params, nn, n_observable_states, Vm, Vθ, psid_results_object)
+        surr, N_ALGEBRAIC_STATES, ODE_ORDER = instantiate_surr(
+            params,
+            nn,
+            p_nn_init,
+            n_observable_states,
+            Vm,
+            Vθ,
+            psid_results_object,
+        )
 
         surr_prob_node_off, P = _initialize_surrogate(   #change naming
             params,
             nn,
+            p_nn_init,
             M,
             tsteps,
             fault_dict,
@@ -283,7 +299,7 @@ function train(params::NODETrainParams)
     end
 
     θ = partitioned_θ()
-    θ.θ_node = DiffEqFlux.initial_params(nn)
+    θ.θ_node = p_nn_init #  DiffEqFlux.initial_params(nn)
     θ.θ_observation = observation_params
 
     if params.learn_initial_condition_unobserved_states
@@ -344,7 +360,7 @@ function train(params::NODETrainParams)
         (
             tspan = (0.0, 0.0),
             shoot_times = [],
-            multiple_shoot_continuity_term = 1,
+            multiple_shoot_continuity_term = (1.0, 1.0),
             batching_sample_factor = 1.0,
         ),
         solver,

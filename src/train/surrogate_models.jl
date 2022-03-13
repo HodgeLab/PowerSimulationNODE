@@ -43,7 +43,7 @@ function none_2_f(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
 
     #NODE 
     nn_input = vcat(pf, Vr_input, Vi_input, x)
-    out = nn(nn_input, p_nn)
+    out = nn(p_nn)(nn_input) #nn(nn_input, p_nn)
     dx[1:2] = view(out, 1:2) * nn_scale
     dx[3:end] = @view out[3:end]
 end
