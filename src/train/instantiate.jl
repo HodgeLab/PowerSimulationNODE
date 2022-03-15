@@ -338,28 +338,40 @@ end
 function instantiate_cb!(output, lb_loss, exportmode, range_count, pvs_names)
     if Sys.iswindows() || Sys.isapple()
         print_loss = true
-    else 
-        print_loss = false 
-    end 
-        
+    else
+        print_loss = false
+    end
+
     if exportmode == 3
         return (p, l, pred, obs, t) ->
             _cb3!(p, l, pred, obs, t, output, lb_loss, range_count, pvs_names, print_loss)
     elseif exportmode == 2
-        return (p, l, pred, obs, t) -> _cb2!(p, l, output, lb_loss, range_count, pvs_names, print_loss)
+        return (p, l, pred, obs, t) ->
+            _cb2!(p, l, output, lb_loss, range_count, pvs_names, print_loss)
     elseif exportmode == 1
         return (p, l, pred, obs, t) -> _cb1!(p, l, output, lb_loss, print_loss)
     end
 end
 
-function _cb3!(p, l, pred, obs, t_prediction, output, lb_loss, range_count, pvs_names, print_loss)
+function _cb3!(
+    p,
+    l,
+    pred,
+    obs,
+    t_prediction,
+    output,
+    lb_loss,
+    range_count,
+    pvs_names,
+    print_loss,
+)
     push!(output["loss"], (collect(pvs_names), range_count, l))
     push!(output["parameters"], [p])
     push!(output["predictions"], (t_prediction, pred, obs))
     output["total_iterations"] += 1
-    if(print_loss)
+    if (print_loss)
         println(l)
-    end 
+    end
     (l > lb_loss) && return false
     return true
 end
@@ -367,18 +379,18 @@ end
 function _cb2!(p, l, output, lb_loss, range_count, pvs_names, print_loss)
     push!(output["loss"], (collect(pvs_names), range_count, l))
     output["total_iterations"] += 1
-    if(print_loss)
+    if (print_loss)
         println(l)
-    end 
+    end
     (l > lb_loss) && return false
     return true
 end
 
 function _cb1!(p, l, output, lb_loss, print_loss)
     output["total_iterations"] += 1
-    if(print_loss)
+    if (print_loss)
         println(l)
-    end 
+    end
     (l > lb_loss) && return false
     return true
 end

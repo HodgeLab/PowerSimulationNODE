@@ -1,7 +1,7 @@
 #Test development: https://github.com/JuliaLang/Pkg.jl/issues/1973
 using Test
 using Revise
-using PowerSimulationNODE   
+using PowerSimulationNODE
 using PowerSystems
 using PowerSimulationsDynamics
 

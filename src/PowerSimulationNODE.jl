@@ -38,7 +38,7 @@ import Mustache
 import NLsolve
 import Optim
 import OrdinaryDiffEq
-import Plots 
+import Plots
 import PowerSimulationsDynamics
 import PowerSystems
 import Random
@@ -51,7 +51,6 @@ import PrettyTables
 import Zygote
 const PSY = PowerSystems
 const PSID = PowerSimulationsDynamics
-
 
 #TODO Split up code and use Requires strategically to improve load times (especially the instantiate functions)
 include(joinpath("train", "Theta.jl"))
