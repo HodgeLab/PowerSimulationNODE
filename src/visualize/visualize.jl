@@ -421,6 +421,7 @@ function print_train_parameter_overview(train_params_folder)
                     push!(
                         Matrix_row,
                         [[
+                            length(getfield(params, fieldname)),
                             getfield(params, fieldname)[1][:tspan],
                             getfield(params, fieldname)[1][:shoot_times],
                             getfield(params, fieldname)[1][:multiple_shoot_continuity_term],
@@ -453,17 +454,24 @@ function print_train_parameter_overview(train_params_folder)
     common_header = header[common_params_indices]
     changing_params = Matrix[:, changing_params_indices]
     changing_header = header[changing_params_indices]
-
-    print("COMMON PARAMETERS:\n")
-    PrettyTables.pretty_table(common_params, header = common_header, limit_printing = false)
-    print("CHANGING PARAMETERS:\n")
-    PrettyTables.pretty_table(
-        changing_params,
-        header = changing_header,
-        highlighters = (PrettyTables.Highlighter(
-            (data, i, j) -> true,
-            PrettyTables.Crayon(bold = true, background = :red),
-        )),
-        limit_printing = false,
-    )
+    open(joinpath(train_params_folder, "TrainParameterOverview.txt"), "w") do io
+        print(io, "COMMON PARAMETERS:\n")
+        PrettyTables.pretty_table(
+            io,
+            common_params,
+            header = common_header,
+            limit_printing = false,
+        )
+        print(io, "CHANGING PARAMETERS:\n")
+        PrettyTables.pretty_table(
+            io,
+            changing_params,
+            header = changing_header,
+            highlighters = (PrettyTables.Highlighter(
+                (data, i, j) -> true,
+                PrettyTables.Crayon(bold = true, background = :red),
+            )),
+            limit_printing = false,
+        )
+    end
 end

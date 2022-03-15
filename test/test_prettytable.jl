@@ -2,7 +2,7 @@
 #Create three new NODETrainParams and save them as JSON (make two of the )
 #pretty print them to check the 
 
-path = (joinpath(pwd(), "pretty-print-dir"))
+path = (joinpath(pwd(), "test-pretty-print-dir"))
 !isdir(path) && mkdir(path)
 
 try
