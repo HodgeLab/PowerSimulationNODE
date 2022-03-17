@@ -72,6 +72,7 @@ mutable struct NODETrainParams
     loss_function_weights::Tuple{Float64, Float64}
     loss_function_scale::String
     ode_model::String
+    input_PQ::Bool
     node_input_scale::Float64
     node_output_scale::Float64
     node_state_inputs::Vector{Tuple{String, Symbol}}
@@ -114,6 +115,7 @@ function NODETrainParams(;
     loss_function_weights = (1.0, 0.0),
     loss_function_scale = "none",
     ode_model = "none",
+    input_PQ = false,
     node_input_scale = 10e1,
     node_output_scale = 1.0,
     node_state_inputs = [],
@@ -148,6 +150,7 @@ function NODETrainParams(;
         loss_function_weights,
         loss_function_scale,
         ode_model,
+        input_PQ,
         node_input_scale,
         node_output_scale,
         node_state_inputs,

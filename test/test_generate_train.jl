@@ -57,6 +57,7 @@ try
     p = NODETrainParams(
         base_path = path,
         ode_model = "none",
+        input_PQ = false,
         node_unobserved_states = 2,
         sensealg = "ForwardDiff",
         learn_initial_condition_unobserved_states = true,

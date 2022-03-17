@@ -22,7 +22,12 @@ function sensealg_map(key)
 end
 
 function surr_map(key)
-    d = Dict("vsm_2_0_f" => vsm_2_0_f, "none_2_0_t" => none_2_0_t, "none_2_f" => none_2_f)
+    d = Dict(
+        "vsm_2_0_f" => vsm_2_0_f,
+        "none_2_0_t" => none_2_0_t,
+        "none_2_f" => none_2_f,
+        "none_2_f_PQ" => none_2_f_PQ,
+    )
     return d[key]
 end
 
@@ -64,6 +69,9 @@ function instantiate_nn(inputs, n_observable_states)
     nn_hidden = inputs.node_layers
     nn_width = inputs.node_width
     nn_input = n_observable_states + inputs.node_unobserved_states + 6  #P_pf, Q_pf, V_pf, θ_pf, vr(t), vi(t)
+    if (inputs.input_PQ)
+        nn_input += 2 #P(t), Q(t)
+    end
     nn_input += length(inputs.node_state_inputs)
 
     nn_output = n_observable_states + inputs.node_unobserved_states
@@ -216,10 +224,17 @@ function instantiate_surr(
             N_ALGEBRAIC_STATES,
             ODE_ORDER
         else
-            surr = surr_map(string("none_", n_observable_states, "_", "f"))
-            return _instantiate_surr(surr, nn, Vm, Vθ, n_params_nn, node_state_inputs),
-            N_ALGEBRAIC_STATES,
-            ODE_ORDER
+            if params.input_PQ
+                surr = surr_map(string("none_", n_observable_states, "_", "f_PQ"))
+                return _instantiate_surr(surr, nn, Vm, Vθ, n_params_nn, node_state_inputs),
+                N_ALGEBRAIC_STATES,
+                ODE_ORDER
+            else
+                surr = surr_map(string("none_", n_observable_states, "_", "f"))
+                return _instantiate_surr(surr, nn, Vm, Vθ, n_params_nn, node_state_inputs),
+                N_ALGEBRAIC_STATES,
+                ODE_ORDER
+            end
         end
 
     else
