@@ -22,6 +22,7 @@ with_logger(logger) do
     include("test_hpc.jl")
     include("test_serialize.jl")
     include("test_prettytable.jl")
+    include("test_build_param_lists.jl")
 end
 flush(logger)
 close(logger)

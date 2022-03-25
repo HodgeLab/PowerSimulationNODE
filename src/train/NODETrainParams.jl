@@ -3,13 +3,14 @@
 
 # Fields
 - `train_id::Int64`: id for the training instance, used for naming output data folder.
-- `solver::String`: solver used for the NODE problem. Valid Values ["Rodas4"]
+- `solver::String`: solver used for the NODE problem. Valid Values ["Rodas4", "Tsit5", "TRBDF2"]
 - `solver_tols:: Tuple{Float64, Float64}`: solver tolerances (abstol, reltol).
+- `solver_sensealg::String`: sensitivity algorithm for the ODE solve ["InterpolatingAdjoint", "InterpolatingAdjoint_checkpointing"]
 - `sensealg::String`: sensitivity algorithm used in training. Valid Values ["ForwardDiff", "Zygote" ]
 - `optimizer::["Adam", "Bfgs"]`: main optimizer used in training.
 - `optimizer_η::Float64`: Learning rate for Adam (amount by which gradients are discounted before updating weights). Ignored if Adam is not the optimizer.
-- `optimizer_adjust::String: optimizer used for final adjustments (2nd stage). Valid values ["Adam", "Bfgs", "nothing"].
-- `optimizer_adjust_η::Float64`: Learning rate for Adam (amount by which gradients are discounted before updating weights). Ignored if Adam is not the optimizer.
+- `optimizer_adjust::String: optimizer used for final adjustments (2nd stage). Valid values ["Adam", "Bfgs", "nothing"]. NOT YET IMPLEMENTED (TODO)
+- `optimizer_adjust_η::Float64`: Learning rate for Adam (amount by which gradients are discounted before updating weights). Ignored if Adam is not the optimizer.  NOT YET IMPLEMENTED (TODO)
 - `maxiters::Int64`: The maximum possible iterations for the entire training instance. If `lb_loss = 0` and `optimizer = "Adam"` the training should never exit early and maxiters will be hit.
     Note that the number of saved data points can exceed maxiters because there is an additional callback at the end of each individual optimization.
 - `lb_loss::Float64`: If the value of the loss function moves below lb_loss during training, the current optimization ends (current range).
@@ -35,16 +36,17 @@
 - `rng_seed::Int64`: Seed for the random number generator used for initializing the NN for reproducibility across training runs.
 - `output_mode::Int`: `1`: do not collect any data during training, only save high-level data related to training and final results `2`: Same as `1`, also save value of loss throughout training. Valid values [1,2,3]
     `3`: same as `2`, also save parameters and predictions during training.
+- `output_mode_skip::Int`: Only matters if output_mode = 3. Record paramters and predictions every n iterations. Meant to ease memory constraints on HPC. 
 - `base_path:String`: Directory for training where input data is found and output data is written.
 - `input_data_path:String`: From `base_path`, the directory for input data.
 - `output_data_path:String`: From `base_path`, the directory for saving output data.
 - `verify_psid_node_off:Bool`: `true`: before training, check that the surrogate with NODE turned off matches the data provided from PSID simulation.
-- `graphical_report_mode:Int64`: `0`: do not generate plots. `1`: plot final result only. `2` plot for transitions between faults. `3`: plot for transitions between ranges. `4`: plot for every train iteration.
 """
 mutable struct NODETrainParams
     train_id::String
     solver::String
     solver_tols::Tuple{Float64, Float64}
+    solver_sensealg::String
     sensealg::String
     optimizer::String
     optimizer_η::Float64
@@ -85,11 +87,11 @@ mutable struct NODETrainParams
     node_activation::String
     rng_seed::Int64
     output_mode::Int64
+    output_mode_skip::Int64
     base_path::String
     input_data_path::String
     output_data_path::String
     verify_psid_node_off::Bool
-    graphical_report_mode::Int64
 end
 
 StructTypes.StructType(::Type{NODETrainParams}) = StructTypes.Mutable()
@@ -97,7 +99,8 @@ StructTypes.StructType(::Type{NODETrainParams}) = StructTypes.Mutable()
 function NODETrainParams(;
     train_id = "train_instance_1",
     solver = "Rodas4",
-    solver_tols = (1e-6, 1e-9),
+    solver_tols = (1e-6, 1e-3),
+    solver_sensealg = "InterpolatingAdjoint",
     sensealg = "ForwardDiff",
     optimizer = "Adam",
     optimizer_η = 0.001,
@@ -128,16 +131,17 @@ function NODETrainParams(;
     node_activation = "relu",
     rng_seed = 1234,
     output_mode = 3,
+    output_mode_skip = 1,
     base_path = pwd(),
     input_data_path = joinpath(base_path, "input_data"),
     output_data_path = joinpath(base_path, "output_data"),
     verify_psid_node_off = true,
-    graphical_report_mode = 0,
 )
     NODETrainParams(
         train_id,
         solver,
         solver_tols,
+        solver_sensealg,
         sensealg,
         optimizer,
         optimizer_η,
@@ -163,11 +167,11 @@ function NODETrainParams(;
         node_activation,
         rng_seed,
         output_mode,
+        output_mode_skip,
         base_path,
         input_data_path,
         output_data_path,
         verify_psid_node_off,
-        graphical_report_mode,
     )
 end
 

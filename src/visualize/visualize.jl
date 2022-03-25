@@ -113,8 +113,8 @@ function _animate_training(input_params_file::String; skip_frames = 10, fps = 10
     df_loss = read_arrow_file_to_dataframe(joinpath(path_to_output, "loss"))
     plots_obs = []
     plots_pred = []
-    PVS_name = df_loss.PVS_name[:]
-    transition_indices = collect(1:skip_frames:length(PVS_name))
+    PVS_name_recorded_entries = df_loss.PVS_name[output_dict["recorded_iterations"]]
+    transition_indices = collect(1:skip_frames:length(PVS_name_recorded_entries))
     df_predictions = read_arrow_file_to_dataframe(joinpath(path_to_output, "predictions"))
     TrainInputs = Serialization.deserialize(joinpath(params.input_data_path, "data"))
     tsteps = TrainInputs.tsteps
@@ -128,10 +128,10 @@ function _animate_training(input_params_file::String; skip_frames = 10, fps = 10
         obs = [reshape(o, (n_observable, Int(length(o) / n_observable))) for o in obs]
         preds = [reshape(p, (n_total, Int(length(p) / n_total))) for p in preds]
         n_total = size(preds[1])[1]
-        ground_truth = concatonate_ground_truth(fault_data, df_loss[i, :PVS_name], :)
+        ground_truth = concatonate_ground_truth(fault_data, PVS_name_recorded_entries[i], :)
         ir_true = ground_truth[1, :]    #TODO, generalize to more ground truth states (not necessarily currents)
         ii_true = ground_truth[2, :]
-        t_all = concatonate_t(tsteps, df_loss[i, :PVS_name], :)
+        t_all = concatonate_t(tsteps, PVS_name_recorded_entries[i], :)
         p3 = Plots.scatter(t_all', ir_true, ms = 2, msw = 0, label = "truth")
         p4 = Plots.scatter(t_all', ii_true, ms = 2, msw = 0, label = "truth")
 
@@ -142,7 +142,11 @@ function _animate_training(input_params_file::String; skip_frames = 10, fps = 10
         p = Plots.plot(
             p3,
             p4,
-            title = string(df_loss[i, :PVS_name], " loss: ", output_dict["final_loss"]),
+            title = string(
+                PVS_name_recorded_entries[i],
+                " loss: ",
+                output_dict["final_loss"],
+            ),
             layout = (2, 1),
         )
         push!(plots_obs, p)
@@ -216,15 +220,17 @@ function visualize_3(params, path_to_output, path_to_input, visualize_level)
 
     output_dict =
         JSON3.read(read(joinpath(path_to_output, "high_level_outputs")), Dict{String, Any})
-    PVS_name = df_loss.PVS_name[:]
+    PVS_name_recorded_entries = df_loss.PVS_name[output_dict["recorded_iterations"]]
+    RangeCount_recorded_entries = df_loss.RangeCount[output_dict["recorded_iterations"]]
+
     if visualize_level == 1
-        transition_indices = [length(PVS_name)]
+        transition_indices = [length(PVS_name_recorded_entries)]
     elseif visualize_level == 2
-        transition_indices = find_transition_indices(PVS_name)
+        transition_indices = find_transition_indices(PVS_name_recorded_entries)
     elseif visualize_level == 3
-        transition_indices = find_transition_indices(df_loss.RangeCount)
+        transition_indices = find_transition_indices(RangeCount_recorded_entries)
     elseif visualize_level == 4
-        transition_indices = collect(1:length(PVS_name))
+        transition_indices = collect(1:length(PVS_name_recorded_entries))
     else
         @warn "Invalid value for parameter visualize_level"
     end
@@ -242,10 +248,10 @@ function visualize_3(params, path_to_output, path_to_input, visualize_level)
         obs = [reshape(o, (n_observable, Int(length(o) / n_observable))) for o in obs]
         preds = [reshape(p, (n_total, Int(length(p) / n_total))) for p in preds]
         n_total = size(preds[1])[1]
-        ground_truth = concatonate_ground_truth(fault_data, df_loss[i, :PVS_name], :)
+        ground_truth = concatonate_ground_truth(fault_data, PVS_name_recorded_entries[i], :)
         ir_true = ground_truth[1, :]    #TODO, generalize to more ground truth states (not necessarily currents)
         ii_true = ground_truth[2, :]
-        t_all = concatonate_t(tsteps, df_loss[i, :PVS_name], :)
+        t_all = concatonate_t(tsteps, PVS_name_recorded_entries[i], :)
         p3 = Plots.scatter(t_all', ir_true, ms = 2, msw = 0, label = "truth")
         p4 = Plots.scatter(t_all', ii_true, ms = 2, msw = 0, label = "truth")
 
@@ -256,7 +262,11 @@ function visualize_3(params, path_to_output, path_to_input, visualize_level)
         p = Plots.plot(
             p3,
             p4,
-            title = string(df_loss[i, :PVS_name], " loss: ", output_dict["final_loss"]),
+            title = string(
+                RangeCount_recorded_entries[i],
+                " loss: ",
+                output_dict["final_loss"],
+            ),
             layout = (2, 1),
         )
         push!(plots_obs, p)
@@ -414,7 +424,6 @@ function print_train_parameter_overview(train_params_folder)
                 :input_data_path,
                 :output_data_path,
                 :verify_psid_node_off,
-                :graphical_report_mode,
             ]
             if !(fieldname in exclude_fields)
                 if fieldname == :training_groups    #Special case for compact printing 
