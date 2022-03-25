@@ -5,7 +5,9 @@
 #<n observed states>:
 # Integer
 #<additional non state inputs>
-# True or false (don't need dimension, function is vectorized)
+# True or false 
+#<number of hidden states...>   #TODO - make this vectorized to avoid repeated code but still compatible with Zygote
+# Integer [0,4,8,12,16]
 
 mutable struct SurrParams
     nn::Vector{}                    #needs to accept dual numbers during training 
@@ -23,11 +25,11 @@ function SurrParams(;)
     SurrParams([], [], [], [], [])
 end
 
-function none_2_f(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
+function none_2_f_0(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
     #PARAMETERS
-    p_nn = @view p[1:n_weights_nn]
-    p_fixed = @view p[(n_weights_nn + 1):end]
-    pf = @view p_fixed[1:4] #P,Q,V,θ
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
+    pf = p_fixed[1:4] #P,Q,V,θ
     Xtrans = p_fixed[5]
     Rtrans = p_fixed[6]
     V_scale = p_fixed[7]
@@ -41,18 +43,17 @@ function none_2_f(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
         (Vm(t) * sin(Vθ(t)) + (x[1] * Xtrans + x[2] * Rtrans) - pf[3] * sin(pf[4])) *
         V_scale
 
-    #NODE 
-    nn_input = vcat(pf, Vr_input, Vi_input, x)
-    out = nn(p_nn)(nn_input) #nn(nn_input, p_nn)
-    dx[1:2] = view(out, 1:2) * nn_scale
-    dx[3:end] = @view out[3:end]
+    nn_input = [pf[1], pf[2], pf[3], pf[4], Vr_input, Vi_input, x[1], x[2]]
+    out = nn(p_nn)(nn_input)
+    dx[1:2] = out[1:2] * nn_scale
+    dx[3:end] = out[3:end]
 end
 
-function none_2_f_PQ(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
+function none_2_f_0_PQ(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
     #PARAMETERS
-    p_nn = @view p[1:n_weights_nn]
-    p_fixed = @view p[(n_weights_nn + 1):end]
-    pf = @view p_fixed[1:4] #P,Q,V,θ
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
+    pf = p_fixed[1:4] #P,Q,V,θ
     Xtrans = p_fixed[5]
     Rtrans = p_fixed[6]
     V_scale = p_fixed[7]
@@ -68,11 +69,363 @@ function none_2_f_PQ(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
 
     P = Vr_input * x[1] + Vi_input * x[2]
     Q = -Vr_input * x[2] + Vi_input * x[1]
-    #NODE 
-    nn_input = vcat(pf, Vr_input, Vi_input, P, Q, x)
-    out = nn(p_nn)(nn_input) #nn(nn_input, p_nn)
-    dx[1:2] = view(out, 1:2) * nn_scale
-    dx[3:end] = @view out[3:end]
+
+    nn_input = [pf[1], pf[2], pf[3], pf[4], Vr_input, Vi_input, P, Q, x[1], x[2]]
+    out = nn(p_nn)(nn_input)
+    dx[1:2] = out[1:2] * nn_scale
+    dx[3:end] = out[3:end]
+end
+
+function none_2_f_4(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
+    #PARAMETERS
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
+    pf = p_fixed[1:4] #P,Q,V,θ
+    Xtrans = p_fixed[5]
+    Rtrans = p_fixed[6]
+    V_scale = p_fixed[7]
+    nn_scale = p_fixed[8]
+
+    #CALCULATE TERMINAL VOLTAGE 
+    Vr_input =
+        (Vm(t) * cos(Vθ(t)) + (x[1] * Rtrans - x[2] * Xtrans) - pf[3] * cos(pf[4])) *
+        V_scale
+    Vi_input =
+        (Vm(t) * sin(Vθ(t)) + (x[1] * Xtrans + x[2] * Rtrans) - pf[3] * sin(pf[4])) *
+        V_scale
+
+    nn_input =
+        [pf[1], pf[2], pf[3], pf[4], Vr_input, Vi_input, x[1], x[2], x[3], x[4], x[5], x[6]]
+    out = nn(p_nn)(nn_input)
+    dx[1:2] = out[1:2] * nn_scale
+    dx[3:end] = out[3:end]
+end
+
+function none_2_f_4_PQ(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
+    #PARAMETERS
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
+    pf = p_fixed[1:4] #P,Q,V,θ
+    Xtrans = p_fixed[5]
+    Rtrans = p_fixed[6]
+    V_scale = p_fixed[7]
+    nn_scale = p_fixed[8]
+
+    #CALCULATE TERMINAL VOLTAGE 
+    Vr_input =
+        (Vm(t) * cos(Vθ(t)) + (x[1] * Rtrans - x[2] * Xtrans) - pf[3] * cos(pf[4])) *
+        V_scale
+    Vi_input =
+        (Vm(t) * sin(Vθ(t)) + (x[1] * Xtrans + x[2] * Rtrans) - pf[3] * sin(pf[4])) *
+        V_scale
+
+    P = Vr_input * x[1] + Vi_input * x[2]
+    Q = -Vr_input * x[2] + Vi_input * x[1]
+
+    nn_input = [
+        pf[1],
+        pf[2],
+        pf[3],
+        pf[4],
+        Vr_input,
+        Vi_input,
+        P,
+        Q,
+        x[1],
+        x[2],
+        x[3],
+        x[4],
+        x[5],
+        x[6],
+    ]
+    out = nn(p_nn)(nn_input)
+    dx[1:2] = out[1:2] * nn_scale
+    dx[3:end] = out[3:end]
+end
+
+function none_2_f_8(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
+    #PARAMETERS
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
+    pf = p_fixed[1:4] #P,Q,V,θ
+    Xtrans = p_fixed[5]
+    Rtrans = p_fixed[6]
+    V_scale = p_fixed[7]
+    nn_scale = p_fixed[8]
+
+    #CALCULATE TERMINAL VOLTAGE 
+    Vr_input =
+        (Vm(t) * cos(Vθ(t)) + (x[1] * Rtrans - x[2] * Xtrans) - pf[3] * cos(pf[4])) *
+        V_scale
+    Vi_input =
+        (Vm(t) * sin(Vθ(t)) + (x[1] * Xtrans + x[2] * Rtrans) - pf[3] * sin(pf[4])) *
+        V_scale
+
+    nn_input = [
+        pf[1],
+        pf[2],
+        pf[3],
+        pf[4],
+        Vr_input,
+        Vi_input,
+        x[1],
+        x[2],
+        x[3],
+        x[4],
+        x[5],
+        x[6],
+        x[7],
+        x[8],
+        x[9],
+        x[10],
+    ]
+    out = nn(p_nn)(nn_input)
+    dx[1:2] = out[1:2] * nn_scale
+    dx[3:end] = out[3:end]
+end
+
+function none_2_f_8_PQ(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
+    #PARAMETERS
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
+    pf = p_fixed[1:4] #P,Q,V,θ
+    Xtrans = p_fixed[5]
+    Rtrans = p_fixed[6]
+    V_scale = p_fixed[7]
+    nn_scale = p_fixed[8]
+
+    #CALCULATE TERMINAL VOLTAGE 
+    Vr_input =
+        (Vm(t) * cos(Vθ(t)) + (x[1] * Rtrans - x[2] * Xtrans) - pf[3] * cos(pf[4])) *
+        V_scale
+    Vi_input =
+        (Vm(t) * sin(Vθ(t)) + (x[1] * Xtrans + x[2] * Rtrans) - pf[3] * sin(pf[4])) *
+        V_scale
+
+    P = Vr_input * x[1] + Vi_input * x[2]
+    Q = -Vr_input * x[2] + Vi_input * x[1]
+
+    nn_input = [
+        pf[1],
+        pf[2],
+        pf[3],
+        pf[4],
+        Vr_input,
+        Vi_input,
+        P,
+        Q,
+        x[1],
+        x[2],
+        x[3],
+        x[4],
+        x[5],
+        x[6],
+        x[7],
+        x[8],
+        x[9],
+        x[10],
+    ]
+    out = nn(p_nn)(nn_input)
+    dx[1:2] = out[1:2] * nn_scale
+    dx[3:end] = out[3:end]
+end
+
+function none_2_f_12(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
+    #PARAMETERS
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
+    pf = p_fixed[1:4] #P,Q,V,θ
+    Xtrans = p_fixed[5]
+    Rtrans = p_fixed[6]
+    V_scale = p_fixed[7]
+    nn_scale = p_fixed[8]
+
+    #CALCULATE TERMINAL VOLTAGE 
+    Vr_input =
+        (Vm(t) * cos(Vθ(t)) + (x[1] * Rtrans - x[2] * Xtrans) - pf[3] * cos(pf[4])) *
+        V_scale
+    Vi_input =
+        (Vm(t) * sin(Vθ(t)) + (x[1] * Xtrans + x[2] * Rtrans) - pf[3] * sin(pf[4])) *
+        V_scale
+
+    nn_input = [
+        pf[1],
+        pf[2],
+        pf[3],
+        pf[4],
+        Vr_input,
+        Vi_input,
+        x[1],
+        x[2],
+        x[3],
+        x[4],
+        x[5],
+        x[6],
+        x[7],
+        x[8],
+        x[9],
+        x[10],
+        x[11],
+        x[12],
+        x[13],
+        x[14],
+    ]
+    out = nn(p_nn)(nn_input)
+    dx[1:2] = out[1:2] * nn_scale
+    dx[3:end] = out[3:end]
+end
+
+function none_2_f_12_PQ(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
+    #PARAMETERS
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
+    pf = p_fixed[1:4] #P,Q,V,θ
+    Xtrans = p_fixed[5]
+    Rtrans = p_fixed[6]
+    V_scale = p_fixed[7]
+    nn_scale = p_fixed[8]
+
+    #CALCULATE TERMINAL VOLTAGE 
+    Vr_input =
+        (Vm(t) * cos(Vθ(t)) + (x[1] * Rtrans - x[2] * Xtrans) - pf[3] * cos(pf[4])) *
+        V_scale
+    Vi_input =
+        (Vm(t) * sin(Vθ(t)) + (x[1] * Xtrans + x[2] * Rtrans) - pf[3] * sin(pf[4])) *
+        V_scale
+
+    P = Vr_input * x[1] + Vi_input * x[2]
+    Q = -Vr_input * x[2] + Vi_input * x[1]
+
+    nn_input = [
+        pf[1],
+        pf[2],
+        pf[3],
+        pf[4],
+        Vr_input,
+        Vi_input,
+        P,
+        Q,
+        x[1],
+        x[2],
+        x[3],
+        x[4],
+        x[5],
+        x[6],
+        x[7],
+        x[8],
+        x[9],
+        x[10],
+        x[11],
+        x[12],
+        x[13],
+        x[14],
+    ]
+    out = nn(p_nn)(nn_input)
+    dx[1:2] = out[1:2] * nn_scale
+    dx[3:end] = out[3:end]
+end
+
+function none_2_f_16(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
+    #PARAMETERS
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
+    pf = p_fixed[1:4] #P,Q,V,θ
+    Xtrans = p_fixed[5]
+    Rtrans = p_fixed[6]
+    V_scale = p_fixed[7]
+    nn_scale = p_fixed[8]
+
+    #CALCULATE TERMINAL VOLTAGE 
+    Vr_input =
+        (Vm(t) * cos(Vθ(t)) + (x[1] * Rtrans - x[2] * Xtrans) - pf[3] * cos(pf[4])) *
+        V_scale
+    Vi_input =
+        (Vm(t) * sin(Vθ(t)) + (x[1] * Xtrans + x[2] * Rtrans) - pf[3] * sin(pf[4])) *
+        V_scale
+
+    nn_input = [
+        pf[1],
+        pf[2],
+        pf[3],
+        pf[4],
+        Vr_input,
+        Vi_input,
+        x[1],
+        x[2],
+        x[3],
+        x[4],
+        x[5],
+        x[6],
+        x[7],
+        x[8],
+        x[9],
+        x[10],
+        x[11],
+        x[12],
+        x[13],
+        x[14],
+        x[15],
+        x[16],
+        x[17],
+        x[18],
+    ]
+    out = nn(p_nn)(nn_input)
+    dx[1:2] = out[1:2] * nn_scale
+    dx[3:end] = out[3:end]
+end
+
+function none_2_f_16_PQ(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
+    #PARAMETERS
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
+    pf = p_fixed[1:4] #P,Q,V,θ
+    Xtrans = p_fixed[5]
+    Rtrans = p_fixed[6]
+    V_scale = p_fixed[7]
+    nn_scale = p_fixed[8]
+
+    #CALCULATE TERMINAL VOLTAGE 
+    Vr_input =
+        (Vm(t) * cos(Vθ(t)) + (x[1] * Rtrans - x[2] * Xtrans) - pf[3] * cos(pf[4])) *
+        V_scale
+    Vi_input =
+        (Vm(t) * sin(Vθ(t)) + (x[1] * Xtrans + x[2] * Rtrans) - pf[3] * sin(pf[4])) *
+        V_scale
+
+    P = Vr_input * x[1] + Vi_input * x[2]
+    Q = -Vr_input * x[2] + Vi_input * x[1]
+
+    nn_input = [
+        pf[1],
+        pf[2],
+        pf[3],
+        pf[4],
+        Vr_input,
+        Vi_input,
+        P,
+        Q,
+        x[1],
+        x[2],
+        x[3],
+        x[4],
+        x[5],
+        x[6],
+        x[7],
+        x[8],
+        x[9],
+        x[10],
+        x[11],
+        x[12],
+        x[13],
+        x[14],
+        x[15],
+        x[16],
+        x[17],
+        x[18],
+    ]
+    out = nn(p_nn)(nn_input)
+    dx[1:2] = out[1:2] * nn_scale
+    dx[3:end] = out[3:end]
 end
 
 #Todo - rewrite general form 
