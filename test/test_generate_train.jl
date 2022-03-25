@@ -57,16 +57,22 @@ try
     p = NODETrainParams(
         base_path = path,
         ode_model = "none",
+        solver = "Tsit5",
+        solver_tols = (1e-6, 1e-3),
+        solver_sensealg = "InterpolatingAdjoint_checkpointing",
         input_PQ = false,
-        node_unobserved_states = 2,
+        node_unobserved_states = 8,
+        node_activation = "relu",
         sensealg = "ForwardDiff",
         learn_initial_condition_unobserved_states = true,
         node_layers = 2,
-        node_width = 2,
+        node_width = 4,
         groupsize_faults = 1,
         verify_psid_node_off = false,
         maxiters = 10,
         optimizer_η = 0.001,
+        output_mode = 3,
+        output_mode_skip = 2,
         node_input_scale = 1.0,
         training_groups = [
             (
@@ -89,7 +95,7 @@ try
     @test status
     input_param_file = joinpath(path, "input_data", "input_test2.json")
     PowerSimulationNODE.serialize(p, input_param_file)
-    visualize_training(input_param_file, visualize_level = 1)
+    visualize_training(input_param_file, visualize_level = 4)
     animate_training(input_param_file, skip_frames = 1)
     p.sensealg = "Zygote"
     p.train_id = "train_instance_2"

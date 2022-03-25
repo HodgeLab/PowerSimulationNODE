@@ -1,4 +1,5 @@
 [deps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
 PowerSimulationNODE = "4b7d6be9-769c-4710-86e6-88f799a27627"
 PowerSimulationsDynamics = "398b2ede-47ed-4edc-b52e-69e4a48b4336"

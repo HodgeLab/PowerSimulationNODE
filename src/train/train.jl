@@ -119,6 +119,8 @@ function _calculate_final_loss(
     params,
     θ,
     solver,
+    solver_tols,
+    solver_sensealg,
     pvs_names,
     fault_data,
     tsteps,
@@ -137,6 +139,8 @@ function _calculate_final_loss(
 
     outer_loss_function = instantiate_outer_loss_function(
         solver,
+        solver_tols,
+        solver_sensealg,
         fault_data,
         inner_loss_function,
         (
@@ -155,6 +159,7 @@ function _calculate_final_loss(
         output,
         params.lb_loss,
         params.output_mode,
+        1,  #Don't want to skip the final callback
         0,  #range_count
         pvs_names,
     )
@@ -203,7 +208,7 @@ Executes training according to params. Assumes the existence of the necessary in
 
 """
 function train(params::NODETrainParams)
-    @info "TRAIN!"
+    @info "TRAIN!!!"
     #READ INPUT DATA AND SYSTEM
     sys = node_load_system(joinpath(params.input_data_path, "system.json"))
     TrainInputs = Serialization.deserialize(joinpath(params.input_data_path, "data"))
@@ -214,6 +219,8 @@ function train(params::NODETrainParams)
     #INSTANTIATE
     sensealg = instantiate_sensealg(params)
     solver = instantiate_solver(params)
+    solver_tols = params.solver_tols
+    solver_sensealg = instantiate_solver_sensealg(params)
     optimizer = instantiate_optimizer(params)
     nn_full = instantiate_nn(params, n_observable_states)
     p_nn_init, nn = Flux.destructure(nn_full)
@@ -241,7 +248,9 @@ function train(params::NODETrainParams)
         ),
         "total_time" => [],
         "total_iterations" => 0,
+        "recorded_iterations" => [],
         "final_loss" => [],
+        "timing_stats" => [],
         "train_id" => params.train_id,
     )
     per_solve_maxiters = _calculate_per_solve_maxiters(params, length(pvss))
@@ -333,6 +342,8 @@ function train(params::NODETrainParams)
                 params,
                 sensealg,
                 solver,
+                solver_tols,
+                solver_sensealg,
                 optimizer,
                 ground_truth_scale,
                 output,
@@ -374,6 +385,8 @@ function train(params::NODETrainParams)
         params,
         θ,
         solver,
+        solver_tols,
+        solver_sensealg,
         pvs_names,
         fault_data,
         tsteps,
@@ -384,8 +397,6 @@ function train(params::NODETrainParams)
     output["final_loss"] = final_loss_for_comparison
 
     _capture_output(output, params.output_data_path, params.train_id)
-    (params.graphical_report_mode != 0) &&
-        visualize_training(params, visualize_level = params.graphical_report_mode)
     return true
     #TODO - uncomment try catch after debugging 
     #catch
@@ -398,6 +409,8 @@ function _train(
     params::NODETrainParams,
     sensealg::SciMLBase.AbstractADType,
     solver::OrdinaryDiffEq.OrdinaryDiffEqAlgorithm,
+    solver_tols,
+    solver_sensealg,
     optimizer::Union{Flux.Optimise.AbstractOptimiser, Optim.AbstractOptimizer},
     ground_truth_scale::Array{Float64},
     output::Dict{String, Any},
@@ -436,7 +449,7 @@ function _train(
         @info "start of training group" range, min_θ.θ_node[end]
 
         i_current_range = concatonate_ground_truth(fault_data, pvs_names_subset, range)   #TODO- need to provide all states for Multiple shoot with VSM model? 
-        t_current_range = @time concatonate_t(tsteps, pvs_names_subset, range)
+        t_current_range = concatonate_t(tsteps, pvs_names_subset, range)
 
         pvs_ranges = generate_pvs_ranges(pvs_names_subset, length(range))
 
@@ -447,6 +460,8 @@ function _train(
 
         outer_loss_function = instantiate_outer_loss_function(
             solver,
+            solver_tols,
+            solver_sensealg,
             fault_data,
             inner_loss_function,
             training_group,
@@ -456,31 +471,42 @@ function _train(
             pvs_names_subset,
             pvs_ranges,
         )
-        @warn "loss function timing "
-        @time outer_loss_function(θ_vec, i_current_range, t_current_range)
+        outer_loss_function(θ_vec, i_current_range, t_current_range)
 
         optfun = GalacticOptim.OptimizationFunction(
             (θ, p, batch, time_batch) -> outer_loss_function(θ, batch, time_batch),
             sensealg,
         )
 
-        optprob = GalacticOptim.OptimizationProblem(optfun, θ_vec)
+        optfun2 = GalacticOptim.instantiate_function(optfun, θ_vec, sensealg, nothing)
+
+        optprob = GalacticOptim.OptimizationProblem(optfun2, θ_vec)
 
         cb = instantiate_cb!(
             output,
             params.lb_loss,
             params.output_mode,
+            params.output_mode_skip,
             training_group_count,
             pvs_names_subset,
         )
 
-        res = @time GalacticOptim.solve(
+        timing_stats = @timed GalacticOptim.solve(
             optprob,
             optimizer,
             IterTools.ncycle(train_loader, per_solve_maxiters),
             cb = cb,
         )
-        @warn "train time above"
+        push!(
+            output["timing_stats"],
+            (
+                time = timing_stats.time,
+                bytes = timing_stats.bytes,
+                gc_time = timing_stats.gctime,
+            ),
+        )
+        res = timing_stats.value
+
         min_θ = split_θ(copy(res.u), θ_lengths)
         @info "end of training_group" min_θ.θ_node[end]
     end

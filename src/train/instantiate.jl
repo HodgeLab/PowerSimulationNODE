@@ -4,7 +4,21 @@ function optimizer_map(key)
 end
 
 function solver_map(key)
-    d = Dict("Rodas4" => OrdinaryDiffEq.Rodas4)
+    d = Dict(
+        "Rodas4" => OrdinaryDiffEq.Rodas4,
+        "TRBDF2" => OrdinaryDiffEq.TRBDF2,
+        "Tsit5" => OrdinaryDiffEq.Tsit5,
+    )
+    return d[key]
+end
+
+function solver_sensealg_map(key)
+    d = Dict(
+        "InterpolatingAdjoint" =>
+            DiffEqSensitivity.InterpolatingAdjoint(checkpointing = false),
+        "InterpolatingAdjoint_checkpointing" =>
+            DiffEqSensitivity.InterpolatingAdjoint(checkpointing = true),
+    )
     return d[key]
 end
 
@@ -16,8 +30,8 @@ end
 function sensealg_map(key)
     d = Dict(
         "ForwardDiff" => GalacticOptim.AutoForwardDiff,
-        "Zygote" => GalacticOptim.AutoZygote,   #TODO - get another AD other than forward mode working 
-    )   #GalacticOptim.AutoForwardDiff() 
+        "Zygote" => GalacticOptim.AutoZygote,
+    )
     return d[key]
 end
 
@@ -25,8 +39,16 @@ function surr_map(key)
     d = Dict(
         "vsm_2_0_f" => vsm_2_0_f,
         "none_2_0_t" => none_2_0_t,
-        "none_2_f" => none_2_f,
-        "none_2_f_PQ" => none_2_f_PQ,
+        "none_2_f_0" => none_2_f_0,
+        "none_2_f_0_PQ" => none_2_f_0_PQ,
+        "none_2_f_4" => none_2_f_4,
+        "none_2_f_4_PQ" => none_2_f_4_PQ,
+        "none_2_f_8" => none_2_f_8,
+        "none_2_f_8_PQ" => none_2_f_8_PQ,
+        "none_2_f_12" => none_2_f_12,
+        "none_2_f_12_PQ" => none_2_f_12_PQ,
+        "none_2_f_16" => none_2_f_16,
+        "none_2_f_16_PQ" => none_2_f_16_PQ,
     )
     return d[key]
 end
@@ -34,6 +56,10 @@ end
 function activation_map(key)
     d = Dict("relu" => Flux.relu, "hardtanh" => Flux.hardtanh, "sigmoid" => Flux.sigmoid)
     return d[key]
+end
+
+function instantiate_solver_sensealg(inputs)
+    return solver_sensealg_map(inputs.solver_sensealg)
 end
 
 function instantiate_solver(inputs)
@@ -225,12 +251,29 @@ function instantiate_surr(
             ODE_ORDER
         else
             if params.input_PQ
-                surr = surr_map(string("none_", n_observable_states, "_", "f_PQ"))
+                surr = surr_map(
+                    string(
+                        "none_",
+                        n_observable_states,
+                        "_",
+                        "f_",
+                        params.node_unobserved_states,
+                        "PQ",
+                    ),
+                )
                 return _instantiate_surr(surr, nn, Vm, Vθ, n_params_nn, node_state_inputs),
                 N_ALGEBRAIC_STATES,
                 ODE_ORDER
             else
-                surr = surr_map(string("none_", n_observable_states, "_", "f"))
+                surr = surr_map(
+                    string(
+                        "none_",
+                        n_observable_states,
+                        "_",
+                        "f_",
+                        params.node_unobserved_states,
+                    ),
+                )
                 return _instantiate_surr(surr, nn, Vm, Vθ, n_params_nn, node_state_inputs),
                 N_ALGEBRAIC_STATES,
                 ODE_ORDER
@@ -267,6 +310,8 @@ end
 
 function instantiate_outer_loss_function(
     solver,
+    solver_tols,
+    solver_sensealg,
     fault_data,
     inner_loss_function,
     training_group,
@@ -281,6 +326,8 @@ function instantiate_outer_loss_function(
         y_actual,
         tsteps,
         solver,
+        solver_tols,
+        solver_sensealg,
         fault_data,
         inner_loss_function,
         training_group,
@@ -297,6 +344,8 @@ function _outer_loss_function(
     y_actual,
     tsteps,
     solver,
+    solver_tols,
+    solver_sensealg,
     fault_data,
     inner_loss_function,
     training_group,
@@ -329,6 +378,8 @@ function _outer_loss_function(
                 inner_loss_function,
                 training_group[:multiple_shoot_continuity_term],
                 solver,
+                solver_tols,
+                solver_sensealg,
                 ms_ranges,
                 training_group[:batching_sample_factor],
                 params,
@@ -350,7 +401,14 @@ function _outer_loss_function(
     return loss, group_predictions, group_observations, t_predictions
 end
 
-function instantiate_cb!(output, lb_loss, exportmode, range_count, pvs_names)
+function instantiate_cb!(
+    output,
+    lb_loss,
+    exportmode,
+    exportmode_skip,
+    range_count,
+    pvs_names,
+)
     if Sys.iswindows() || Sys.isapple()
         print_loss = true
     else
@@ -358,8 +416,19 @@ function instantiate_cb!(output, lb_loss, exportmode, range_count, pvs_names)
     end
 
     if exportmode == 3
-        return (p, l, pred, obs, t) ->
-            _cb3!(p, l, pred, obs, t, output, lb_loss, range_count, pvs_names, print_loss)
+        return (p, l, pred, obs, t) -> _cb3!(
+            p,
+            l,
+            pred,
+            obs,
+            t,
+            output,
+            lb_loss,
+            range_count,
+            pvs_names,
+            print_loss,
+            exportmode_skip,
+        )
     elseif exportmode == 2
         return (p, l, pred, obs, t) ->
             _cb2!(p, l, output, lb_loss, range_count, pvs_names, print_loss)
@@ -379,11 +448,16 @@ function _cb3!(
     range_count,
     pvs_names,
     print_loss,
+    exportmode_skip,
 )
     push!(output["loss"], (collect(pvs_names), range_count, l))
-    push!(output["parameters"], [p])
-    push!(output["predictions"], (t_prediction, pred, obs))
     output["total_iterations"] += 1
+    if mod(output["total_iterations"], exportmode_skip) == 0
+        push!(output["parameters"], [p])
+        push!(output["predictions"], (t_prediction, pred, obs))
+        push!(output["recorded_iterations"], output["total_iterations"]) #Indices of the recorded iterations... 
+    end
+
     if (print_loss)
         println(l)
     end

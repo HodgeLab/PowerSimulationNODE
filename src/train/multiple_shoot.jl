@@ -43,6 +43,8 @@ function batch_multiple_shoot(
     loss_function,
     continuity_term::Tuple{Float64, Float64},  #make tuple(obs, unobs) 
     solver::DiffEqBase.AbstractODEAlgorithm,
+    solver_tols,
+    solver_sensealg,
     shooting_ranges::AbstractArray,
     batching_factor::Float64,
     params::NODETrainParams,
@@ -68,7 +70,10 @@ function batch_multiple_shoot(
                 u0 = u0s[i],
             ),
             solver;
+            abstol = solver_tols[1],
+            reltol = solver_tols[2],
             saveat = tsteps[rg],
+            sensealg = solver_sensealg,
             kwargs...,
         ) for (i, rg) in enumerate(ranges_batch)
     ]

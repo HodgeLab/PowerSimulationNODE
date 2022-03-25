@@ -30,7 +30,7 @@ test/output_data/
 *.log
 *.png
 .vscode
-
+LocalPreferences.toml 
 *.json
 *.lst
 *.sh
