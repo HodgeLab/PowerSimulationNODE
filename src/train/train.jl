@@ -250,7 +250,9 @@ function train(params::NODETrainParams)
         "total_iterations" => 0,
         "recorded_iterations" => [],
         "final_loss" => [],
+        "timing_stats_compile" => [],
         "timing_stats" => [],
+        "n_params_nn" => length(p_nn_init),
         "train_id" => params.train_id,
     )
     per_solve_maxiters = _calculate_per_solve_maxiters(params, length(pvss))
@@ -489,6 +491,21 @@ function _train(
             params.output_mode_skip,
             training_group_count,
             pvs_names_subset,
+        )
+
+        timing_stats_compile = @timed GalacticOptim.solve(
+            optprob,
+            optimizer,
+            IterTools.ncycle(train_loader, 1),
+            cb = cb,
+        )
+        push!(
+            output["timing_stats_compile"],
+            (
+                time = timing_stats_compile.time,
+                bytes = timing_stats_compile.bytes,
+                gc_time = timing_stats_compile.gctime,
+            ),
         )
 
         timing_stats = @timed GalacticOptim.solve(

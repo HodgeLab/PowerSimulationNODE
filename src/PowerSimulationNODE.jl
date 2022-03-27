@@ -21,6 +21,7 @@ export generate_summary
 export visualize_training
 export animate_training
 export print_train_parameter_overview
+export print_high_level_output_overview
 export build_training_groups_list
 export build_params_list!
 
