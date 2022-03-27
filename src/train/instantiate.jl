@@ -258,7 +258,7 @@ function instantiate_surr(
                         "_",
                         "f_",
                         params.node_unobserved_states,
-                        "PQ",
+                        "_PQ",
                     ),
                 )
                 return _instantiate_surr(surr, nn, Vm, Vθ, n_params_nn, node_state_inputs),
