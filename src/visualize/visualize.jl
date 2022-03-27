@@ -326,13 +326,27 @@ function generate_summary(output_data_path)
             read(joinpath(output_data_path, dir, "high_level_outputs")),
             Dict{String, Any},
         )
-        df_params =
-            DataFrames.DataFrame(Arrow.Table(joinpath(output_data_path, dir, "parameters")))
-        n_params = length(df_params[!, 1][1])
-        output_dict["n_params"] = n_params
         high_level_outputs_dict[output_dict["train_id"]] = output_dict
     end
     return high_level_outputs_dict
+end
+
+function print_high_level_output_overview(
+    high_level_outputs_dict,
+    path;
+    ignore_keys = ["train_id"],
+)
+    for (key, value) in high_level_outputs_dict
+        for (k, v) in value
+            if in(k, ignore_keys)
+                pop!(high_level_outputs_dict[key], k)
+            end
+        end
+    end
+    open(joinpath(path, "HighLevelOverview.txt"), "w") do io
+        print(io, "HIGH LEVEL OVERVIEW:\n")
+        PrettyTables.pretty_table(io, high_level_outputs_dict, limit_printing = false)
+    end
 end
 
 function visualize_summary(high_level_outputs_dict)
@@ -361,7 +375,7 @@ function visualize_summary(high_level_outputs_dict)
             (value["total_time"], value["n_params"]),
             label = value["train_id"],
             xlabel = "total time (s)",
-            ylabel = "n params",
+            ylabel = "n params nn",
             yaxis = :log,
             markersize = 1,
             markerstrokewidth = 0,
@@ -369,7 +383,7 @@ function visualize_summary(high_level_outputs_dict)
         Plots.annotate!(
             p2,
             value["total_time"],
-            value["n_params"],
+            value["n_params_nn"],
             Plots.text(value["train_id"], :red, 3),
         )
         p = Plots.plot(p1, p2)

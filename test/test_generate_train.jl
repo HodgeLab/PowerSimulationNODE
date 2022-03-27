@@ -105,6 +105,9 @@ try
     PowerSimulationNODE.serialize(p, input_param_file)
     visualize_training(input_param_file, visualize_level = 1)
     animate_training(input_param_file, skip_frames = 1)
+
+    a = generate_summary(joinpath(path, "output_data"))
+    print_high_level_output_overview(a, path)
 finally
     @info("removing test files")
     rm(path, force = true, recursive = true)
