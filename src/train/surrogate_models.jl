@@ -428,6 +428,50 @@ function none_2_f_16_PQ(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_input
     dx[3:end] = out[3:end]
 end
 
+
+function none_3_f_8(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
+    #PARAMETERS
+    p_nn = p[1:n_weights_nn]
+    p_fixed = p[(n_weights_nn + 1):end]
+    pf = p_fixed[1:4] #P,Q,V,θ
+    Xtrans = p_fixed[5]
+    Rtrans = p_fixed[6]
+    V_scale = p_fixed[7]
+    nn_scale = p_fixed[8]
+
+    #CALCULATE TERMINAL VOLTAGE 
+    Vr_input =
+        (Vm(t) * cos(Vθ(t)) + (x[1] * Rtrans - x[2] * Xtrans) - pf[3] * cos(pf[4])) *
+        V_scale
+    Vi_input =
+        (Vm(t) * sin(Vθ(t)) + (x[1] * Xtrans + x[2] * Rtrans) - pf[3] * sin(pf[4])) *
+        V_scale
+
+    nn_input = [
+        pf[1],
+        pf[2],
+        pf[3],
+        pf[4],
+        Vr_input,
+        Vi_input,
+        x[1],
+        x[2],
+        x[3],
+        x[4],
+        x[5],
+        x[6],
+        x[7],
+        x[8],
+        x[9],
+        x[10],
+        x[11],
+    ]
+    out = nn(p_nn)(nn_input)
+    dx[1:3] = out[1:3] * nn_scale
+    dx[4:end] = out[4:end]
+end
+
+
 #Todo - rewrite general form 
 function none_2_0_t(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
     #PARAMETERS

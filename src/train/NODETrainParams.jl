@@ -28,6 +28,7 @@
 - `node_input_scale::Float64`: Scale factor on the voltage input to the NODE. Does not apply to other inputs (ie the feedback states).
 - `node_output_scale::Float64`: Scale factor on the current output of the NODE. Does not apply to other outputs (ie the feedback states).
 - `node_state_inputs::Vector{Tuple{String, Symbol`: Additional states that are input to NODE: ("DeviceName", :StateSymbol). The device name and symbol must match the solution objected passed as input data. 
+- `observation_function::String`: Function from latent space of NODE to observed states.  Valid Values ["first_n"]
 - `node_unobserved_states::Int64`: Number of feedback states in the NODE. Does not include the output current states which can be feedback if `node_feedback_current = true`.
 - `node_feedback_current::Bool`: Determines if current is also a feedback state.
 - `node_layers::Int64`: Number of hidden layers in the NODE. Does not include the input or output layer.
@@ -122,7 +123,7 @@ function NODETrainParams(;
     node_input_scale = 10e1,
     node_output_scale = 1.0,
     node_state_inputs = [],
-    observation_function = "first_two",
+    observation_function = "first_n",
     node_unobserved_states = 0,
     initialize_unobserved_states = "random",
     learn_initial_condition_unobserved_states = false,

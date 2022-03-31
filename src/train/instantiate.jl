@@ -22,8 +22,9 @@ function solver_sensealg_map(key)
     return d[key]
 end
 
-function observation_map(key)
-    d = Dict("first_two" => ((x, θ) -> x[1:2, :], Float64[]))
+function observation_map(key, n_observable_states)
+    d = Dict("first_n" => ((x, θ) -> x[1:n_observable_states, :], Float64[]))
+    
     return d[key]
 end
 
@@ -49,6 +50,7 @@ function surr_map(key)
         "none_2_f_12_PQ" => none_2_f_12_PQ,
         "none_2_f_16" => none_2_f_16,
         "none_2_f_16_PQ" => none_2_f_16_PQ,
+        "none_3_f_8" => none_3_f_8,
     )
     return d[key]
 end
@@ -66,8 +68,8 @@ function instantiate_solver(inputs)
     return solver_map(inputs.solver)()
 end
 
-function instantiate_observation(inputs)
-    return observation_map(inputs.observation_function)
+function instantiate_observation(inputs, n_observable_states)
+    return observation_map(inputs.observation_function, n_observable_states)
 end
 
 function instantiate_sensealg(inputs)
