@@ -60,7 +60,6 @@ function batch_multiple_shoot(
     continuity_batch = [r < batching_factor for r in rand(length(ranges_batch))]
     u0s = generate_initial_conditions(ode_data, params, θ_u0, ranges_batch, prob)
     @assert length(ranges_batch) == length(u0s)
-
     sols = [
         OrdinaryDiffEq.solve(
             OrdinaryDiffEq.remake(

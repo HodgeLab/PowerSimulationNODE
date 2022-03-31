@@ -428,7 +428,6 @@ function none_2_f_16_PQ(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_input
     dx[3:end] = out[3:end]
 end
 
-
 function none_3_f_8(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
     #PARAMETERS
     p_nn = p[1:n_weights_nn]
@@ -470,7 +469,6 @@ function none_3_f_8(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)
     dx[1:3] = out[1:3] * nn_scale
     dx[4:end] = out[4:end]
 end
-
 
 #Todo - rewrite general form 
 function none_2_0_t(dx, x, p, t, nn, Vm, Vθ, n_weights_nn, node_state_inputs)

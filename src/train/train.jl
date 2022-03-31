@@ -43,7 +43,8 @@ function _initialize_surrogate( #TODO - remove the vsm part? has completely chan
     ODE_ORDER,
 )
     #Determine Order of the Surrogate 
-    order_surr = ODE_ORDER + n_observable_states + params.node_unobserved_states + N_ALGEBRAIC_STATES    
+    order_surr =
+        ODE_ORDER + n_observable_states + params.node_unobserved_states + N_ALGEBRAIC_STATES
     x₀_surr = zeros(order_surr)
 
     #Build Surrogate Vector 
@@ -58,7 +59,7 @@ function _initialize_surrogate( #TODO - remove the vsm part? has completely chan
     end
     P.pf = fault_dict[:p_pf]
     P.network = fault_dict[:p_network]
-    x₀_observed = fault_dict[:observable_states][:,1]
+    x₀_observed = fault_dict[:observable_states][:, 1]
     P.nn = nn_params # DiffEqFlux.initial_params(nn)
     if params.ode_model == "none"
         P.scale = [params.node_input_scale, params.node_output_scale]
@@ -76,7 +77,7 @@ function _initialize_surrogate( #TODO - remove the vsm part? has completely chan
     Ir_pf = (P_pf * Vr_pf + Q_pf * Vi_pf) / (Vr_pf^2 + Vi_pf^2)
     Ii_pf = (P_pf * Vi_pf - Q_pf * Vr_pf) / (Vi_pf^2 + Vr_pf^2)
 
-    x₀_surr[1:length(x₀_observed)] =    x₀_observed    #Initialize surrogate from train data (first data point?)
+    x₀_surr[1:length(x₀_observed)] = x₀_observed    #Initialize surrogate from train data (first data point?)
 
     if params.ode_model != "none"   #only do an NL solve if there is an ODE part. Otherwise, set initial conditions and try to solve.
         @warn "Power flow results", P.pf
@@ -217,7 +218,7 @@ function train(params::NODETrainParams)
     n_observable_states = TrainInputs.n_observable_states
     tsteps = TrainInputs.tsteps
     fault_data = TrainInputs.fault_data
-    
+
     #INSTANTIATE
     sensealg = instantiate_sensealg(params)
     solver = instantiate_solver(params)
@@ -228,7 +229,8 @@ function train(params::NODETrainParams)
     p_nn_init, nn = Flux.destructure(nn_full)
     M = instantiate_M(params)
 
-    observation_function, observation_params = instantiate_observation(params, n_observable_states)  #observation_function(vector,params)
+    observation_function, observation_params =
+        instantiate_observation(params, n_observable_states)  #observation_function(vector,params)
 
     !(params.optimizer_adjust == "nothing") &&
         (optimizer_adjust = instantiate_optimizer_adjust(params))

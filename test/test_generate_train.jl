@@ -43,7 +43,14 @@ try
     @warn joinpath(TEST_FILES_DIR, PowerSimulationNODE.INPUT_FOLDER_NAME, "system.json")
     d = generate_train_data(
         sys_train,
-        NODETrainDataParams(ode_model = "vsm"),
+        NODETrainDataParams(
+            ode_model = "none",
+            observable_states = [
+                ("gen1", :ir_filter),
+                ("gen1", :ii_filter),
+                ("gen1", :ω_oc),
+            ],
+        ),
         SURROGATE_BUS,
         inv_case78("aa"),
     )
@@ -97,14 +104,14 @@ try
     PowerSimulationNODE.serialize(p, input_param_file)
     visualize_training(input_param_file, visualize_level = 4)
     animate_training(input_param_file, skip_frames = 1)
-    p.sensealg = "Zygote"
-    p.train_id = "train_instance_2"
-    status = train(p)
-    @test status
-    input_param_file = joinpath(path, "input_data", "input_test2.json")
-    PowerSimulationNODE.serialize(p, input_param_file)
-    visualize_training(input_param_file, visualize_level = 1)
-    animate_training(input_param_file, skip_frames = 1)
+    #=     p.sensealg = "Zygote"
+        p.train_id = "train_instance_2"
+        status = train(p)
+        @test status
+        input_param_file = joinpath(path, "input_data", "input_test2.json")
+        PowerSimulationNODE.serialize(p, input_param_file)
+        visualize_training(input_param_file, visualize_level = 1)
+        animate_training(input_param_file, skip_frames = 1) =#
 
     a = generate_summary(joinpath(path, "output_data"))
     print_high_level_output_overview(a, path)

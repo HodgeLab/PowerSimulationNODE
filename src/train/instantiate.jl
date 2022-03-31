@@ -24,7 +24,7 @@ end
 
 function observation_map(key, n_observable_states)
     d = Dict("first_n" => ((x, θ) -> x[1:n_observable_states, :], Float64[]))
-    
+
     return d[key]
 end
 

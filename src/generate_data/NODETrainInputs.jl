@@ -32,7 +32,7 @@ mutable struct NODETrainDataParams
     steps::Int64
     tsteps_spacing::String
     observable_states::Vector{Tuple{String, Symbol}}
-    ode_model::String #"vsm" or "none"
+    ode_model::String
     base_path::String
     output_data_path::String
 end
@@ -97,6 +97,7 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, Dyna
             solver,
             abstol = abstol,
             reltol = reltol,
+            initializealg = OrdinaryDiffEq.NoInit(),
             reset_simulation = false,
             saveat = tsteps,
             enable_progress_bar = false,
@@ -138,7 +139,7 @@ function generate_train_data(sys_train, NODETrainDataParams, SURROGATE_BUS, Dyna
         fault_data[PSY.get_name(pvs)] = Dict(
             :p_network => p_network,
             :p_pf => [P_pf, Q_pf, V_pf, θ_pf],
-            :ground_truth => ode_data,
+            :ground_truth => observables_data,
             :observable_states => observables_data,
             :psid_results_object => psid_results_object,
             :p_ode => [],

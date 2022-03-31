@@ -129,27 +129,17 @@ function _animate_training(input_params_file::String; skip_frames = 10, fps = 10
         preds = [reshape(p, (n_total, Int(length(p) / n_total))) for p in preds]
         n_total = size(preds[1])[1]
         ground_truth = concatonate_ground_truth(fault_data, PVS_name_recorded_entries[i], :)
-        @error size(ground_truth)
-        ir_true = ground_truth[1, :]    #TODO, generalize to more ground truth states (not necessarily currents)
-        ii_true = ground_truth[2, :]            #Just like with predictions, plot as many observed stats as exist in the ground truth data.... 
-        t_all = concatonate_t(tsteps, PVS_name_recorded_entries[i], :)
-        p3 = Plots.scatter(t_all', ir_true, ms = 2, msw = 0, label = "truth")
-        p4 = Plots.scatter(t_all', ii_true, ms = 2, msw = 0, label = "truth")
 
-        for (i, t_pred) in enumerate(t_preds)
-            Plots.scatter!(p3, t_preds[i], obs[i][1, :], ms = 2, msw = 0, legend = false)
-            Plots.scatter!(p4, t_preds[i], obs[i][2, :], ms = 2, msw = 0, legend = false)
+        list_subplots = []
+        for j in 1:n_observable
+            t_all = concatonate_t(tsteps, PVS_name_recorded_entries[i], :)
+            p = Plots.scatter(t_all', ground_truth[j, :], ms = 2, msw = 0, label = "truth")
+            for (k, t_pred) in enumerate(t_preds)
+                Plots.scatter!(p, t_preds[k], obs[k][j, :], ms = 2, msw = 0, legend = false)
+            end
+            push!(list_subplots, p)
         end
-        p = Plots.plot(
-            p3,
-            p4,
-            title = string(
-                PVS_name_recorded_entries[i],
-                " loss: ",
-                output_dict["final_loss"],
-            ),
-            layout = (2, 1),
-        )
+        p = Plots.plot(list_subplots...)
         push!(plots_obs, p)
 
         list_subplots = []
@@ -247,43 +237,24 @@ function visualize_3(params, path_to_output, path_to_input, visualize_level)
         n_total = Int(size(preds[1])[1] / size(t_preds[1])[1])
         n_observable = n_total - params.node_unobserved_states
         obs = [reshape(o, (n_observable, Int(length(o) / n_observable))) for o in obs]
-        @error size(obs)
         preds = [reshape(p, (n_total, Int(length(p) / n_total))) for p in preds]
-        @error size(preds)
         n_total = size(preds[1])[1]
         ground_truth = concatonate_ground_truth(fault_data, PVS_name_recorded_entries[i], :)
 
         list_subplots = []
-        for j in 1:n_observable 
-            #ir_true = ground_truth[1, :]    #TODO, generalize to more ground truth states (not necessarily currents)
-            #ii_true = ground_truth[2, :]
+        for j in 1:n_observable
             t_all = concatonate_t(tsteps, PVS_name_recorded_entries[i], :)
             p = Plots.scatter(t_all', ground_truth[j, :], ms = 2, msw = 0, label = "truth")
-            #p4 = Plots.scatter(t_all', ii_true, ms = 2, msw = 0, label = "truth")
             for (k, t_pred) in enumerate(t_preds)
                 Plots.scatter!(p, t_preds[k], obs[k][j, :], ms = 2, msw = 0, legend = false)
-               # Plots.scatter!(p4, t_preds[k], obs[][2, :], ms = 2, msw = 0, legend = false)
             end
             push!(list_subplots, p)
-
-        end 
+        end
         p = Plots.plot(list_subplots...)
         push!(plots_obs, p)
 
-#=         p = Plots.plot(
-            p3,
-            p4,
-            title = string(
-                RangeCount_recorded_entries[i],
-                " loss: ",
-                output_dict["final_loss"],
-            ),
-            layout = (2, 1),
-        )
-         =#
-
         list_subplots = []
-        for i in 1:size(preds[1])[1] #n_total? 
+        for i in 1:n_total
             p = Plots.plot()
             for (j, tpred) in enumerate(t_preds)
                 Plots.scatter!(
