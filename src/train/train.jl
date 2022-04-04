@@ -639,6 +639,8 @@ function _capture_output(output_dict, output_directory, id)
             open(joinpath(output_path, key), "w") do io
                 Arrow.write(io, df)
             end
+            df = nothing 
+            GC.gc()
         end
     end
     open(joinpath(output_path, "high_level_outputs"), "w") do io
