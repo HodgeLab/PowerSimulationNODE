@@ -398,6 +398,7 @@ function train(params::NODETrainParams)
     )
     output["final_loss"] = final_loss_for_comparison
 
+    GC.gc()     #Run garbage collector manually before file write.
     _capture_output(output, params.output_data_path, params.train_id)
     return true
     #TODO - uncomment try catch after debugging 
