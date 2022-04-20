@@ -234,27 +234,9 @@ function train(params::NODETrainParams)
     pvss = collect(PSY.get_components(PSY.PeriodicVariableSource, sys))
     ground_truth_scale = _calculate_loss_function_scaling(params, fault_data)
     res = nothing
-    output = Dict{String, Any}(
-        "loss" => DataFrames.DataFrame(
-            PVS_name = Vector{String}[],
-            RangeCount = Int[],
-            Loss = Float64[],
-        ),
-        "parameters" => DataFrames.DataFrame(Parameters = Vector{Any}[]),
-        "predictions" => DataFrames.DataFrame(
-            t_prediction = Vector{Any}[],
-            prediction = Vector{Any}[],
-            observation = Vector{Any}[],
-        ),
-        "total_time" => [],
-        "total_iterations" => 0,
-        "recorded_iterations" => [],
-        "final_loss" => [],
-        "timing_stats_compile" => [],
-        "timing_stats" => [],
-        "n_params_nn" => length(p_nn_init),
-        "train_id" => params.train_id,
-    )
+    output = _initialize_output_dict() 
+    output["n_params_nn"] = length(p_nn_init)
+    output["train_id"] = params.train_id
     per_solve_maxiters = _calculate_per_solve_maxiters(params, length(pvss))
 
     !(params.learn_initial_condition_unobserved_states) &&
@@ -299,7 +281,7 @@ function train(params::NODETrainParams)
         else
             surr_prob = surr_prob_node_off
         end
-        if !(params.learn_initial_condition_unobserved_states)
+        if !(params.learn_initial_condition_unobserved_states)      #belongs in initialize_surrogate? 
             x₀_surr = surr_prob.u0
             x₀_surr[(end - params.node_unobserved_states + 1):end] = unobserved_u0
             surr_prob = OrdinaryDiffEq.remake(surr_prob, u0 = x₀_surr)
@@ -339,6 +321,17 @@ function train(params::NODETrainParams)
             enumerate(IterTools.partition(pvss, params.groupsize_faults))
             pvs_names_subset = PSY.get_name.(group_pvs)
             @info "start of fault group" θ.θ_node[end], pvs_names_subset
+            @error pvs_names_subset
+            if fault_group_count > 1
+                θ = update_θ_u0(
+                    θ,
+                    params.training_groups[1],
+                    solver,
+                    fault_data,
+                    params,
+                    pvs_names_subset,
+                )
+            end
             res, output = _train(
                 θ,  #partitioned form 
                 params,
@@ -354,19 +347,40 @@ function train(params::NODETrainParams)
                 fault_data,
                 per_solve_maxiters,
                 observation_function,
-                fault_group_count,
             )
             θ = res
             @info "end of fault" θ.θ_node[end]
         end
 
+        params.training_groups = [params.training_groups[end]]  #optimizer adjust should train on the final training_group (which is presumably the full timespan of interest)
+        pvs_names = (PSY.get_name.(pvss)...,)   #splat all pvs names to tuple 
+
+        res, output = _train(
+            θ,                 
+            params,             
+            sensealg,           
+            solver,             
+            solver_tols,       
+            solver_sensealg,    
+            optimizer_adjust,        
+            ground_truth_scale, 
+            output,            
+            tsteps,           
+            pvs_names,  
+            fault_data,       
+            per_solve_maxiters,
+            observation_function, 
+        )
+ 
+
+
         #TODO - Add second training stage here for final adjustments (optimizer_adjust) 
     end
 
     output["total_time"] = total_time
-    pvs_names = PSY.get_name.(pvss)
 
-    @warn "length of u0 after before", length(θ.θ_u0)
+
+
     θ = update_θ_u0(
         θ,
         (
@@ -380,7 +394,7 @@ function train(params::NODETrainParams)
         params,
         PSY.get_name.(pvss),
     )
-    @warn "length of u0 after update", length(θ.θ_u0)
+
 
     @info "End of training, calculating final loss for comparison:"
     final_loss_for_comparison = _calculate_final_loss(
@@ -414,7 +428,7 @@ function _train(
     solver::OrdinaryDiffEq.OrdinaryDiffEqAlgorithm,
     solver_tols,
     solver_sensealg,
-    optimizer::Union{Flux.Optimise.AbstractOptimiser, Optim.AbstractOptimizer},
+    optimizer::Flux.Optimise.AbstractOptimiser, #Optim.AbstractOptimizer
     ground_truth_scale::Array{Float64},
     output::Dict{String, Any},
     tsteps::Vector{Float64},
@@ -422,17 +436,13 @@ function _train(
     fault_data::Dict{String, Dict{Symbol, Any}},
     per_solve_maxiters::Int64,
     observation_function,
-    fault_group_count::Int64,
 )
-    inner_loss_function =
-        instantiate_inner_loss_function(params.loss_function_weights, ground_truth_scale)
 
     res = nothing
     min_θ = θ
 
     for (training_group_count, training_group) in enumerate(params.training_groups)
-        @warn "length of u0 before update", length(min_θ.θ_u0)
-        if training_group_count > 1 || fault_group_count > 1
+        if training_group_count > 1 
             min_θ = update_θ_u0(
                 min_θ,
                 training_group,
@@ -442,8 +452,6 @@ function _train(
                 pvs_names_subset,
             )
         end
-        @warn "length of u0 after update", length(min_θ.θ_u0)
-
         θ_vec, θ_lengths = combine_θ(min_θ)
         tspan = training_group[:tspan]
         first_index = findfirst(x -> x >= tspan[1], tsteps)
@@ -451,16 +459,18 @@ function _train(
         range = first_index:last_index
         @info "start of training group" range, min_θ.θ_node[end]
 
-        i_current_range = concatonate_ground_truth(fault_data, pvs_names_subset, range)   #TODO- need to provide all states for Multiple shoot with VSM model? 
+        observables_current_range = concatonate_ground_truth(fault_data, pvs_names_subset, range)  
         t_current_range = concatonate_t(tsteps, pvs_names_subset, range)
 
         pvs_ranges = generate_pvs_ranges(pvs_names_subset, length(range))
 
-        batchsize = length(i_current_range[1, :])
+        batchsize = length(observables_current_range[1, :])
 
         train_loader =
-            Flux.Data.DataLoader((i_current_range, t_current_range), batchsize = batchsize)
-
+            Flux.Data.DataLoader((observables_current_range, t_current_range), batchsize = batchsize)
+        inner_loss_function =
+            instantiate_inner_loss_function(params.loss_function_weights, ground_truth_scale)
+    
         outer_loss_function = instantiate_outer_loss_function(
             solver,
             solver_tols,
@@ -474,7 +484,6 @@ function _train(
             pvs_names_subset,
             pvs_ranges,
         )
-        outer_loss_function(θ_vec, i_current_range, t_current_range)
 
         optfun = GalacticOptim.OptimizationFunction(
             (θ, p, batch, time_batch) -> outer_loss_function(θ, batch, time_batch),
@@ -507,12 +516,12 @@ function _train(
                 bytes = timing_stats_compile.bytes,
                 gc_time = timing_stats_compile.gctime,
             ),
-        )
+        )  
 
         timing_stats = @timed GalacticOptim.solve(
             optprob,
             optimizer,
-            IterTools.ncycle(train_loader, per_solve_maxiters),
+            IterTools.ncycle(train_loader, per_solve_maxiters), 
             cb = cb,
         )
         push!(
@@ -531,6 +540,101 @@ function _train(
     return min_θ, output
 end
 
+function _train(
+    θ::partitioned_θ,
+    params::NODETrainParams,
+    sensealg::SciMLBase.AbstractADType,
+    solver::OrdinaryDiffEq.OrdinaryDiffEqAlgorithm,
+    solver_tols,
+    solver_sensealg,
+    optimizer::Optim.AbstractOptimizer, 
+    ground_truth_scale::Array{Float64},
+    output::Dict{String, Any},
+    tsteps::Vector{Float64},
+    pvs_names_subset::Tuple,
+    fault_data::Dict{String, Dict{Symbol, Any}},
+    per_solve_maxiters::Int64,
+    observation_function,
+)
+
+    res = nothing
+    min_θ = θ
+
+    for (training_group_count, training_group) in enumerate(params.training_groups)
+        if training_group_count > 1 
+            min_θ = update_θ_u0(
+                min_θ,
+                training_group,
+                solver,
+                fault_data,
+                params,
+                pvs_names_subset,
+            )
+        end
+        θ_vec, θ_lengths = combine_θ(min_θ)
+        tspan = training_group[:tspan]
+        first_index = findfirst(x -> x >= tspan[1], tsteps)
+        last_index = findlast(x -> x <= tspan[2], tsteps)
+        range = first_index:last_index
+        @info "start of training group" range, min_θ.θ_node[end]
+
+        observables_current_range = concatonate_ground_truth(fault_data, pvs_names_subset, range)  
+        t_current_range = concatonate_t(tsteps, pvs_names_subset, range)
+        pvs_ranges = generate_pvs_ranges(pvs_names_subset, length(range))
+
+        inner_loss_function =
+            instantiate_inner_loss_function(params.loss_function_weights, ground_truth_scale)
+
+        outer_loss_function = (θ) -> _outer_loss_function(
+            θ,
+            observables_current_range,
+            t_current_range,
+            solver,
+            solver_tols,
+            solver_sensealg,
+            fault_data,
+            inner_loss_function,
+            training_group,
+            θ_lengths,
+            params,
+            observation_function,
+            pvs_names_subset,
+            pvs_ranges,
+        )
+
+        optfun = GalacticOptim.OptimizationFunction(
+            (θ, p) -> outer_loss_function(θ),
+            sensealg,
+        )
+
+        optfun2 = GalacticOptim.instantiate_function(optfun, θ_vec, sensealg, nothing)
+
+        optprob = GalacticOptim.OptimizationProblem(optfun2, θ_vec)
+
+        cb = instantiate_cb!(
+            output,
+            params.lb_loss,
+            params.output_mode,
+            params.output_mode_skip,
+            training_group_count,
+            pvs_names_subset,
+        )
+
+        res =  GalacticOptim.solve(
+            optprob,
+            optimizer,
+            maxiters = 2,
+            cb = cb,
+        )
+
+
+        min_θ = split_θ(copy(res.u), θ_lengths)
+        @info "end of training_group" min_θ.θ_node[end]
+    end
+    return min_θ, output
+end
+
+
 function generate_pvs_ranges(pvs_names, data_points_per_pvs)
     pvs_ranges = []
     for (i, pvs) in enumerate(pvs_names)
@@ -548,6 +652,7 @@ function update_θ_u0(
     pvs_names_subset;
     kwargs...,
 )
+    @warn "length of u0 after before", length(θ.θ_u0)
     new_θ_u0 = Float64[]
     saveat = training_group[:shoot_times]
 
@@ -598,6 +703,7 @@ function update_θ_u0(
             new_θ_u0 = vcat(new_θ_u0, vec(Array(sol)))
         end
     end
+    @warn "length of u0 after update", length(new_θ_u0)
     θ.θ_u0 = new_θ_u0
     return θ
 end
@@ -637,9 +743,7 @@ function _capture_output(output_dict, output_directory, id)
     for (key, value) in output_dict
         if typeof(value) == DataFrames.DataFrame
             df = pop!(output_dict, key)
-            open(joinpath(output_path, key), "w") do io
-                Arrow.write(io, df)
-            end
+            _write_arrow_from_df(df, joinpath(output_path, key))    #Address out-of-memory error with function barrier and GC?
             df = nothing 
             GC.gc()
         end
@@ -648,3 +752,33 @@ function _capture_output(output_dict, output_directory, id)
         JSON3.write(io, output_dict)
     end
 end
+
+function _write_arrow_from_df(df, file)
+    open(file, "w") do io
+        Arrow.write(io, df)
+    end
+end 
+
+function _initialize_output_dict() 
+    return Dict{String, Any}(
+        "loss" => DataFrames.DataFrame(
+            PVS_name = Vector{String}[],
+            RangeCount = Int[],
+            Loss = Float64[],
+        ),
+        "parameters" => DataFrames.DataFrame(Parameters = Vector{Any}[]),
+        "predictions" => DataFrames.DataFrame(
+            t_prediction = Vector{Any}[],
+            prediction = Vector{Any}[],
+            observation = Vector{Any}[],
+        ),
+        "total_time" => [],
+        "total_iterations" => 0,
+        "recorded_iterations" => [],
+        "final_loss" => [],
+        "timing_stats_compile" => [],
+        "timing_stats" => [],
+        "n_params_nn" => 0,
+        "train_id" => "",
+    )
+end 

@@ -1,5 +1,5 @@
 function optimizer_map(key)
-    d = Dict("Adam" => Flux.Optimise.ADAM, "Bfgs" => Optim.BFGS)
+    d = Dict("Adam" => Flux.Optimise.ADAM, "Bfgs" => Optim.BFGS, "LBfgs" => Optim.LBFGS)
     return d[key]
 end
 
@@ -85,7 +85,7 @@ end
 function instantiate_optimizer_adjust(inputs)
     if inputs.optimizer_adjust == "Adam"
         return optimizer_map(inputs.optimizer_adjust)(inputs.optimizer_adjust_η)
-    elseif inputs.optimizer_adjust == "Bfgs"
+    elseif inputs.optimizer_adjust == "Bfgs" || "LBfgs"
         return optimizer_map(inputs.optimizer_adjust)()
     end
 end

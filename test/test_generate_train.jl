@@ -64,6 +64,7 @@ try
         node_unobserved_states = 8,
         node_activation = "relu",
         sensealg = "ForwardDiff",
+        optimizer_adjust = "Bfgs",
         learn_initial_condition_unobserved_states = true,
         node_layers = 2,
         node_width = 4,
@@ -72,7 +73,7 @@ try
         maxiters = 10,
         optimizer_η = 0.001,
         output_mode = 3,
-        output_mode_skip = 2,
+        output_mode_skip = 1,
         node_input_scale = 1.0,
         training_groups = [
             (
