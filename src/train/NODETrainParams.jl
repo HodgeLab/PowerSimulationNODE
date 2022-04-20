@@ -41,6 +41,7 @@
 - `input_data_path:String`: From `base_path`, the directory for input data.
 - `output_data_path:String`: From `base_path`, the directory for saving output data.
 - `verify_psid_node_off:Bool`: `true`: before training, check that the surrogate with NODE turned off matches the data provided from PSID simulation.
+- `force_gc:Bool`: `true`: After training and before writing outputs to file, force GC.gc() in order to alleviate out-of-memory problems on hpc.
 """
 mutable struct NODETrainParams
     train_id::String
@@ -92,6 +93,7 @@ mutable struct NODETrainParams
     input_data_path::String
     output_data_path::String
     verify_psid_node_off::Bool
+    force_gc::Bool
 end
 
 StructTypes.StructType(::Type{NODETrainParams}) = StructTypes.Mutable()
@@ -136,6 +138,7 @@ function NODETrainParams(;
     input_data_path = joinpath(base_path, "input_data"),
     output_data_path = joinpath(base_path, "output_data"),
     verify_psid_node_off = true,
+    force_gc = true, 
 )
     NODETrainParams(
         train_id,
@@ -172,6 +175,7 @@ function NODETrainParams(;
         input_data_path,
         output_data_path,
         verify_psid_node_off,
+        force_gc,
     )
 end
 
