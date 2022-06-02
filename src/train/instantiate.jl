@@ -190,29 +190,6 @@ function _instantiate_model_observation(TrainParams, n_ports)
     return model
 end
 
-#= function instantiate_inner_loss_function(loss_function_weights, ground_truth_scale)
-    return (u, û) -> _inner_loss_function(u, û, loss_function_weights, ground_truth_scale)
-end
-
-function _inner_loss_function(u, û, loss_function_weights, ground_truth_scale)
-    n_obs = size(ground_truth_scale, 1)
-    n_preds = size(u, 1)
-    loss = 0.0
-    for i in 1:n_obs
-        loss +=
-            sum(abs, û[i, :] .- u[i, :]) / ground_truth_scale[i] *
-            loss_function_weights[1] +
-            sum(abs2, û[i, :] .- u[i, :]) / ground_truth_scale[i] *
-            loss_function_weights[2]
-    end
-    for i in (n_obs + 1):n_preds
-        loss +=
-            sum(abs, û[i, :] .- u[i, :]) * loss_function_weights[1] +
-            sum(abs2, û[i, :] .- u[i, :]) * loss_function_weights[2]
-    end
-    return loss
-end
- =#
 function _inner_loss_function(surrogate_solution, ground_truth_subset, params)
     rmse_weight = params.loss_function.type_weights.rmse
     mae_weight = params.loss_function.type_weights.mae
