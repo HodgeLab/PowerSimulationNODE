@@ -2,7 +2,7 @@ path = (joinpath(pwd(), "build-param-list-test-dir"))
 !isdir(path) && mkdir(path)
 
 try
-    params_data = NODETrainParams[]
+    params_data = TrainParams[]
     no_change_params = Dict{Symbol, Any}()
     change_params = Dict{Symbol, Any}()
 

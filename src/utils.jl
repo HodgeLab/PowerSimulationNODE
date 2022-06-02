@@ -29,6 +29,21 @@ function Source_to_function_of_time(source::PSY.PeriodicVariableSource)
     return (V, θ)
 end
 
+function generate_exogenous_input(V_funcs, RX)
+    @assert length(V_funcs) == length(RX)
+    return (t, y) -> _exogenous_input(t, y, V_funcs, RX)
+end
+
+function _exogenous_input(t, y, V_funcs, RX)
+    return [
+        if isodd(i)
+            V_funcs[i](t) * cos(V_funcs[i + 1](t)) + (y[i] * RX[i] - y[i + 1] * RX[i + 1])
+        else
+            V_funcs[i - 1](t) * sin(V_funcs[i](t)) + (y[i - 1] * RX[i] + y[i] * RX[i - 1])
+        end for i in 1:length(V_funcs)
+    ]
+end
+
 function Source_to_function_of_time(source::PSY.Source)
     function V(t)
         return PSY.get_internal_voltage(source)
@@ -80,7 +95,7 @@ function build_params_list!(params_data, no_change_params, change_params)
             starting_dict[key] = value[i[j]]
         end
         starting_dict[:train_id] = string(train_id)
-        push!(params_data, NODETrainParams(; starting_dict...))
+        push!(params_data, TrainParams(; starting_dict...))
         starting_dict = no_change_params
         train_id += 1
     end

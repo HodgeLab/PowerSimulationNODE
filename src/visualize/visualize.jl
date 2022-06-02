@@ -1,22 +1,3 @@
-function Base.show(io::IO, ::MIME"text/plain", params::NODETrainParams)
-    for field_name in fieldnames(NODETrainParams)
-        if field_name == :training_groups
-            println(io, "$field_name =")
-            for v in getfield(params, field_name)
-                println(io, "\ttspan: ", v.tspan)
-                println(io, "\tshoot times: ", v.shoot_times)
-                println(
-                    io,
-                    "\tmultiple_shoot_continuity_term: ",
-                    v.multiple_shoot_continuity_term,
-                )
-                println(io, "\tbatching factor: ", v.batching_sample_factor)
-            end
-        else
-            println(io, "$field_name = ", getfield(params, field_name))
-        end
-    end
-end
 
 """
     function visualize_training(input_params_file::String; visualize_level=1)
@@ -33,8 +14,87 @@ Visualize a single training by generating plots. `visualize_level` controls the 
 visualize_training("train_1.json", visualize_level = 3)
 ````
 """
+#TODO - look at this , make a better implementation 
+function apply_to_columns(function_for_column, tsteps, y)
+    output = nothing
+    for i in 1:length(tsteps)
+        if i == 1
+            output = function_for_column(tsteps[i], y[:, i])
+        else
+            output = hcat(output, function_for_column(tsteps[i], y[:, i]))
+        end
+    end
+    return output
+end
+function plot_overview(
+    surrogate_prediction::SteadyStateNeuralODE_solution,
+    fault_index,
+    fault_data,
+    exs,
+)
+    lay = Plots.@layout [a{0.3w} [b c; d e]]
+    r0_pred = surrogate_prediction.r0_pred
+    t_series = surrogate_prediction.t_series
+    r_series = surrogate_prediction.r_series
+    i_series = surrogate_prediction.i_series
+    ϵ = surrogate_prediction.ϵ
+    ground_truth_current = fault_data[fault_index].groundtruth_current
+    ex = exs[fault_index]
+
+    if size(i_series) == size(ground_truth_current)
+        p1 = Plots.plot(t_series, i_series[1, :], label = L"$\hat{y}_1$")
+        #=         Plots.scatter!(
+                    [0.0],
+                    [i_series[1, 1] + ϵ[1]],
+                    color = :black,
+                    label = false,
+                    markersize = 2,
+                )  =#
+        Plots.plot!(t_series, ground_truth_current[1, :], label = L"$y_1$")
+        p2 = Plots.plot(t_series, i_series[2, :], label = L"$\hat{y}_2$")
+        #=          Plots.scatter!(
+                    [0.0],
+                    [i_series[2, 1] + ϵ[2]],
+                    color = :black,
+                    label = false,
+                    markersize = 2,
+                )  =#
+        Plots.plot!(t_series, ground_truth_current[2, :], label = L"$y_2$")
+        V = apply_to_columns(ex, t_series, i_series)
+        V_0 = apply_to_columns(ex, t_series, zero(i_series))
+        p3 = Plots.plot(t_series, V[1, :], label = L"$u_1$")
+        Plots.plot!(t_series, V_0[1, :], label = L"$u_1^0$")
+        p4 = Plots.plot(t_series, V[2, :], label = L"$u_2$")
+        Plots.plot!(t_series, V_0[2, :], label = L"$u_2^0$")
+
+        p5 = Plots.plot()
+        for i in 1:size(r_series, 1)
+            Plots.plot!(t_series, r_series[i, :], label = L"r_%$i")
+            Plots.scatter!(
+                [0.0],
+                [r0_pred[i]],
+                color = :black,
+                label = false,
+                markersize = 2,
+            )
+        end
+        return Plots.plot(
+            p5,
+            p3,
+            p4,
+            p1,
+            p2,
+            layout = lay,
+            dpi = 300,
+            title = string(fault_index),
+        )
+    else
+        return Plots.plot()
+    end
+end
+
 function visualize_training(input_params_file::String; visualize_level = 1)
-    params = NODETrainParams(input_params_file)
+    params = TrainParams(input_params_file)
     path_to_input = joinpath(input_params_file, "..")
     path_to_output = joinpath(input_params_file, "..", "..", "output_data", params.train_id)
     params.input_data_path = path_to_input
@@ -96,7 +156,7 @@ function animate_training(input_params_file::String; skip_frames = 10, fps = 10)
 end
 
 function _animate_training(input_params_file::String; skip_frames = 10, fps = 10)
-    params = NODETrainParams(input_params_file)
+    params = TrainParams(input_params_file)
     path_to_input = joinpath(input_params_file, "..")
     path_to_output = joinpath(input_params_file, "..", "..", "output_data", params.train_id)
     params.input_data_path = path_to_input
@@ -428,8 +488,8 @@ function print_train_parameter_overview(train_params_folder)
     files = filter(x -> contains(x, "train_"), files)
     for (i, f) in enumerate(files)
         Matrix_row = Any[]
-        params = NODETrainParams(f)
-        for fieldname in fieldnames(NODETrainParams)
+        params = TrainParams(f)
+        for fieldname in fieldnames(TrainParams)
             exclude_fields = [
                 :optimizer_adjust,
                 :optimizer_adjust_η,

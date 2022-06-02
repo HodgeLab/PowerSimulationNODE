@@ -57,7 +57,7 @@ struct HPCTrain
     n_nodes::Union{Int, Nothing}
     n_cpus_per_task::Int
     mb_per_cpu::Int
-    params_data::Vector{NODETrainParams}
+    params_data::Vector{TrainParams}
     time_limit::String
     train_bash_file::String
     force_generate_inputs::Bool

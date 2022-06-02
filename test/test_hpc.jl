@@ -2,7 +2,7 @@ path = (joinpath(pwd(), "hpc-test-dir"))
 !isdir(path) && mkdir(path)
 
 try
-    test = [NODETrainParams(train_id = "test1"), NODETrainParams(train_id = "test2")]
+    test = [TrainParams(train_id = "test1"), TrainParams(train_id = "test2")]
 
     hpc_params = SavioHPCTrain(;
         username = "test_user",

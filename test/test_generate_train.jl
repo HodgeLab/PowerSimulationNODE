@@ -1,6 +1,9 @@
 include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
-include(joinpath(TEST_FILES_DIR, "scripts", "build_full_system.jl"))
 
+include(joinpath(TEST_FILES_DIR, "scripts", "build_14bus.jl"))      #Change which system you want to use 
+SURROGATE_BUS = 16 #SURROGATE_BUS = 102  
+fault_generator = "generator-15-1" #  "generator-102-1"
+train_from_coefficients = true
 path = (joinpath(pwd(), "test-train-dir"))
 !isdir(path) && mkdir(path)
 
@@ -12,7 +15,6 @@ try
     full_system_path =
         joinpath(path, PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME, "full_system.json")
     yaml_path = joinpath(path, "scripts", "config.yml")
-    SURROGATE_BUS = 16
 
     cp(
         joinpath(TEST_FILES_DIR, "system_data", "full_system.json"),
@@ -26,26 +28,48 @@ try
     )
     cp(joinpath(TEST_FILES_DIR, "scripts", "config.yml"), yaml_path, force = true)
 
-    @warn "Rebuilding input data files"
     sys_full = node_load_system(full_system_path)
+    @warn "FULL SYSTEM:"
+    display(sys_full)
 
-    pvs_data = fault_data_generator(yaml_path, full_system_path)
-    sys_pvs = build_pvs(pvs_data)
     label_area!(sys_full, [SURROGATE_BUS], "surrogate")
-    @assert check_single_connecting_line_condition(sys_full)
-    sys_surr = remove_area(sys_full, "1")
-    sys_train = build_train_system(sys_surr, sys_pvs, "surrogate")
+
+    ##########GENERATE TRAIN DATA FROM FAULT##############################
+    #perturbations = all_line_trips(sys_full, 0.5)
+    g = PSY.get_component(PSY.DynamicInjection, sys_full, fault_generator)
+    @warn PSY.get_P_ref(g)
+
+    perturbations = [PowerSimulationsDynamics.ControlReferenceChange(0.5, g, :P_ref, 0.55)]
+
+    pvs_data = generate_pvs_data(
+        sys_full,
+        perturbations,
+        GenerateDataParams(tspan = (0.0, 3.0), steps = 300),
+        "surrogate",
+    )
+    g = PSY.get_component(PSY.DynamicInjection, sys_full, fault_generator)
+    @warn PSY.get_P_ref(g)
+
+
+    ##########GENERATE TRAIN DATA FROM PVS COEFFICIENTS###################
+    #keep bias and powerflow quantites same, change perturbation. 
+    if train_from_coefficients
+        pvs_data[1][1].internal_voltage_frequencies = [2 * pi / 3]
+        pvs_data[1][1].internal_voltage_coefficients = [(0.001, 0.0)]
+        pvs_data[1][1].internal_angle_frequencies = [2 * pi / 3]
+        pvs_data[1][1].internal_angle_coefficients = [(0.0, 0.0)]
+    end
+
+    sys_train = create_surrogate_training_system(sys_full, "surrogate", pvs_data)
+    @warn "TRAIN SYSTEM:"
+    display(sys_train)
+
+    d = generate_train_data(sys_train, GenerateDataParams(tspan = (0.0, 6.0), steps = 300))
+
     PSY.to_json(
         sys_train,
         joinpath(path, PowerSimulationNODE.INPUT_FOLDER_NAME, "system.json"),
         force = true,
-    )
-    @warn joinpath(TEST_FILES_DIR, PowerSimulationNODE.INPUT_FOLDER_NAME, "system.json")
-    d = generate_train_data(
-        sys_train,
-        NODETrainDataParams(ode_model = "vsm"),
-        SURROGATE_BUS,
-        inv_case78("aa"),
     )
 
     Serialization.serialize(
@@ -53,45 +77,50 @@ try
         d,
     )
 
-    #TODO - need additional tests for ode_model = "vsm" 
-    p = NODETrainParams(
+    p = TrainParams(
         base_path = path,
-        ode_model = "none",
-        solver = "Tsit5",
-        solver_tols = (1e-6, 1e-3),
-        solver_sensealg = "InterpolatingAdjoint_checkpointing",
-        input_PQ = false,
-        node_unobserved_states = 8,
-        node_activation = "relu",
-        sensealg = "ForwardDiff",
-        learn_initial_condition_unobserved_states = true,
-        node_layers = 2,
-        node_width = 4,
-        groupsize_faults = 1,
-        verify_psid_node_off = false,
-        maxiters = 10,
-        optimizer_η = 0.001,
-        output_mode = 3,
-        output_mode_skip = 2,
-        node_input_scale = 1.0,
-        training_groups = [
-            (
-                tspan = (0.0, 1.0),
-                shoot_times = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
-                multiple_shoot_continuity_term = (100.0, 100.0),
-                batching_sample_factor = 1.0,
-            ),
+        #curriculum = "progressive"
+        curriculum_timespans = [
+            (tspan = (0.0, 0.05), batching_sample_factor = 1.0),    #TODO - implement 
+            #(tspan = (0.0, 1.0), batching_sample_factor = 0.9),
         ],
-        node_state_inputs = [],
-        #= node_state_inputs = [
-            ("gen1", :ir_filter),
-            ("gen1", :ii_filter),
-            ("gen1", :θ_pll),
-            ("gen1", :ϕq_ic),
-            ("gen1", :ϕd_ic),
-        ], =#
+        optimizer = (
+            sensealg = "Zygote",
+            primary = "Adam",
+            primary_η = 0.001,
+            adjust = "nothing",
+            adjust_η = 0.0,
+        ),
+        model_node = (
+            type = "dense",
+            n_layer = 1,
+            width_layers = 10,
+            activation = "hardtanh",
+            normalization = "default",
+            initialization = "default",
+            exogenous_input = "V",
+        ),
+        dynamic_solver = (
+            solver = "Tsit5",
+            tols = (1e-6, 1e-6),
+            sensealg = "InterpolatingAdjoint",
+            maxiters = 1e6,
+        ),
+        steady_state_solver = (
+            solver = "Tsit5",
+            tols = (1e-4, 1e-4),        #High tolerance -> standard NODE with initializer and observation 
+            sensealg = "InterpolatingAdjoint",
+        ),
+        loss_function = (
+            component_weights = (A = 1.0, B = 1.0, C = 1.0),
+            type_weights = (rmse = 1.0, mae = 0.0),
+            scale = "default",
+        ),
     )
+    display(p)
+
     status = train(p)
+
     @test status
     input_param_file = joinpath(path, "input_data", "input_test2.json")
     PowerSimulationNODE.serialize(p, input_param_file)
@@ -110,5 +139,5 @@ try
     print_high_level_output_overview(a, path)
 finally
     @info("removing test files")
-    rm(path, force = true, recursive = true)
+    #rm(path, force = true, recursive = true)
 end
