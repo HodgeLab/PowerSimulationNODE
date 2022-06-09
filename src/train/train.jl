@@ -20,6 +20,7 @@ function _build_exogenous_input_functions(sys, fault_data, branch_order)
     end
     return exs
 end
+
 """
     train(params::TrainParams)
 
@@ -46,37 +47,43 @@ function train(params::TrainParams)
     @warn "# of parameters in surrogate", length(p_nn_init)
     res = nothing
 
-    output = _initialize_training_output_dict()      #TODO - re-examine the output of data - better way to save flux model mid train and restart? 
+    output = _initialize_training_output_dict()
     output["train_id"] = params.train_id
     output["n_params_surrogate"] = length(p_nn_init)
 
     exs = _build_exogenous_input_functions(sys, fault_data, branch_order)
-
+    train_details = params.curriculum_timespans
     fault_indices = collect(1:length(fault_data))
-    train_details = _add_curriculum_timespans_data!(fault_data, params.curriculum_timespans) #TODO - write for more than one curriculum timespan
-    @assert length(train_details) == length(fault_data) == length(exs)
-    train_groups = _generate_training_groups(fault_indices, params.curriculum)
+    timespan_indices = collect(1:length(params.curriculum_timespans))
+    @assert length(fault_data) == length(exs)
+    train_groups =
+        _generate_training_groups(fault_indices, timespan_indices, params.curriculum)
     per_solve_maxiters = _calculate_per_solve_maxiters(
         params,
         length(train_groups) * length(train_groups[1]),
     )
-    θ = p_nn_init
+    if isempty(params.p_start)
+        θ = p_nn_init
+    else
+        θ = params.p_start
+    end
+    try
     total_time = @elapsed begin
         for group in train_groups
             res, output = _train(
                 θ,
-                surrogate,          #The acutal surrogate model
-                fault_data,         #The dictionary with all the data for each type of fault including ground truth, ex(t), etc. # do we need branch order? don't think so 
+                surrogate,
+                fault_data,
                 branch_order,
                 exs,
                 train_details,
-                params,             #High level parameters (check if used...)
-                optimizer,          #Optimizer for training (ADAM)
-                group,              #The group of fault_indices to train on
-                per_solve_maxiters, #per_solve_maxiters, #Maxiters for this training session 
+                params,
+                optimizer,
+                group,
+                per_solve_maxiters,
                 output,
             )
-            θ = res.u #Update new minimum theta 
+            θ = res.u
         end
     end
     output["total_time"] = total_time
@@ -93,19 +100,18 @@ function train(params::TrainParams)
         output,
     )
 
-    output["final_loss"] = final_loss_for_comparison    #Do we need a final loss? Don't think so...
+    output["final_loss"] = final_loss_for_comparison
     if params.force_gc == true
         GC.gc()     #Run garbage collector manually before file write.
         @warn "FORCE GC!"
     end
     _capture_output(output, params.output_data_path, params.train_id)
-    return true
+    return true, θ
     #TODO - uncomment try catch after debugging 
-    #catch
-    #    return false
-    #end
+    catch
+        return false, θ
+    end
 end
-
 
 function _train(
     θ::Vector{Float32},
@@ -119,11 +125,11 @@ function _train(
             Tuple{Tuple{Float64, Float64}, Float64},
         },
     },
-    params::TrainParams,             #High level parameters (check if used...)
-    optimizer::Union{Flux.Optimise.AbstractOptimiser, Optim.AbstractOptimizer},          #Optimizer for training (ADAM)
-    group::Vector{Int64},              #The group of fault_indices to train on
-    per_solve_maxiters::Int, #Maxiters for this training session 
-    output::Dict{String, Any},  #The output dictionary to fill up 
+    params::TrainParams,
+    optimizer::Union{Flux.Optimise.AbstractOptimiser, Optim.AbstractOptimizer},
+    group::Vector{Tuple{Int64, Int64}},
+    per_solve_maxiters::Int,
+    output::Dict{String, Any},
 )
     train_loader =
         Flux.Data.DataLoader(group; batchsize = 1, shuffle = true, partial = true)
@@ -139,17 +145,14 @@ function _train(
 
     sensealg = instantiate_sensealg(params.optimizer)
     optfun = GalacticOptim.OptimizationFunction(
-        (θ, P, fault_index) -> outer_loss_function(θ, fault_index),
+        (θ, P, fault_timespan_index) -> outer_loss_function(θ, fault_timespan_index),
         sensealg,
     )
     optprob = GalacticOptim.OptimizationProblem(optfun, θ)
 
-    cb = instantiate_cb!(
-    output,
-    params.lb_loss,
-    params.output_mode_skip,
-    )
-    #loss, lossA, lossB, lossC, surrogate_solution, fault_index = outer_loss_function(θ, 1)
+    cb = instantiate_cb!(output, params.lb_loss, params.output_mode_skip)
+    loss, lossA, lossB, lossC, surrogate_solution, fault_index =
+        outer_loss_function(θ, (1, 1))
 
     @warn "Everything instantiated, starting solve with one iteration"
     timing_stats_compile = @timed GalacticOptim.solve(
@@ -199,7 +202,7 @@ function _calculate_final_loss(
         },
     },
     params::TrainParams,
-    group::Vector{Int64},
+    group::Vector{Tuple{Int64, Int64}},
     output::Dict{String, Any},
 )
     outer_loss_function = instantiate_outer_loss_function(
@@ -228,16 +231,9 @@ function _calculate_final_loss(
     return l_total, lA_total, lB_total, lC_total
 end
 
-
-function _add_curriculum_timespans_data!(fault_data, curriculum_timespans)
-    n_faults = length(fault_data)
-    n_curriculums = length(curriculum_timespans)
-    if n_curriculums == 1
-        return repeat(curriculum_timespans, n_faults)
-    end
-end
-
-function _generate_training_groups(dataset, curriculum)
+function _generate_training_groups(fault_index, timespan_index, curriculum)
+    x = [(f, t) for f in fault_index, t in timespan_index]
+    dataset = reshape(x, length(x))
     if curriculum == "none"
         grouped_data = [dataset]
     elseif curriculum == "progressive"
@@ -261,8 +257,8 @@ function _initialize_training_output_dict()
         ),
         "predictions" => DataFrames.DataFrame(
             parameters = Vector{Any}[],
-            surrogate_solution =  SteadyStateNeuralODE_solution[],
-            fault_index = Int64[],
+            surrogate_solution = SteadyStateNeuralODE_solution[],
+            fault_index = Tuple{Int64, Int64}[],
         ),
         "total_time" => [],
         "total_iterations" => 0,

@@ -108,7 +108,7 @@ function (s::SteadyStateNeuralODE)(ex, x, tsteps, p = s.p)
     u0_pred = s.re1(p[1:(s.len)])(x)
 
     #SOLVE PROBLEM TO STEADY STATE 
-    ff_ss = OrdinaryDiffEq.ODEFunction{false}(dudt_ss)   #,tgrad=basic_tgrad? TODO 
+    ff_ss = OrdinaryDiffEq.ODEFunction{false}(dudt_ss)   #tgrad=basic_tgrad? - ASK - TODO 
     prob_ss = SteadyStateDiffEq.SteadyStateProblem(
         OrdinaryDiffEq.ODEProblem{false}(
             ff_ss,
@@ -118,12 +118,10 @@ function (s::SteadyStateNeuralODE)(ex, x, tsteps, p = s.p)
         ),   #Todo this is limited to 0-1 s for finding ss
     )
 
-    ss_solution = SteadyStateDiffEq.solve(prob_ss, s.ss_solver; maxiters = 1e5)#; maxiters = 1e3) #TODO - extra call (dummy) to propogate graidents. Needed if not using chain? 
-
-    #Todo add maxiters as a param and instantiate it with the ss solver 
+    ss_solution = SteadyStateDiffEq.solve(prob_ss, s.ss_solver; maxiters = s.args[1])
+    #TODO - extra call (dummy) to propogate gradients needed after ss_solution is reached? if not using chain? 
 
     offset = s.re3(p[(s.len + s.len2 + 1):end])(Array(ss_solution)) - _PQVθ_to_IrIi(x)
-    #offset = [0.0, 0.0] 
     if ss_solution.retcode == :Success
         #SOLVE DYNAMICS
         ff = OrdinaryDiffEq.ODEFunction{false}(dudt_dyn)#,tgrad=basic_tgrad)    
@@ -169,13 +167,13 @@ function _PQVθ_to_IrIi(powerflow)
     return [real(I), imag(I)]
 end
 
-struct SteadyStateNeuralODE_solution        #TODO - look into making this compatible with SciML ecosystem of solution types 
-    r0_pred::Any #TODO - add types 
-    r0::Any
-    t_series::Any
-    r_series::Any
-    i_series::Any
-    ϵ::Any
+struct SteadyStateNeuralODE_solution{T}        #TODO - look into making this compatible with SciML ecosystem of solution types 
+    r0_pred::AbstractArray{T}
+    r0::AbstractArray{T}
+    t_series::AbstractArray{T}
+    r_series::AbstractArray{T}
+    i_series::AbstractArray{T}
+    ϵ::AbstractArray{T}
 end
 
 struct OutputParams{P <: AbstractArray}

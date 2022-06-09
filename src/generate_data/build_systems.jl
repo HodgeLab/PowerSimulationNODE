@@ -17,6 +17,16 @@ function label_area!(sys::PSY.System, bus_numbers, area_name::String)
     end
 end
 
+"""
+    function create_surrogate_training_system(sys_original, surrogate_area_name, pvs_data)
+
+This function takes as input a PowerSystems system and returns a system to be used for generating training data for a surrogate.
+- All components that are not located in `surrogate_area_name` are removed from the system. 
+- Branches that have one side within `surrogate_area_name` and one side outside of `surrogate_area_name` are retained.
+- Buses outside of `surrogate_area_name` that are connected to `surrogate_area_name` by the branches mentioned above are retained.
+- A `PeriodicVariableSource` component is added to the connecting buses mentioned above. The data which defines the `PeriodicVariableSource` is provided in `pvs_data`.
+- The purpose of the `PeriodicVariableSource` is to perturb the system when generating training data. 
+"""
 function create_surrogate_training_system(sys_original, surrogate_area_name, pvs_data)
     sys = deepcopy(sys_original)
     (
@@ -155,16 +165,4 @@ function find_connecting_branches(sys, area_name)
         end
     end
     return connecting_branches
-end
-
-function all_line_trips(sys, t_fault)
-    perturbations = []
-    lines = PSY.get_components(PSY.Line, sys)
-    for l in lines
-        push!(
-            perturbations,
-            PowerSimulationsDynamics.BranchTrip(t_fault, PSY.Line, PSY.get_name(l)),
-        )
-    end
-    return perturbations
 end

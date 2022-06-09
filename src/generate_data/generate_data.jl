@@ -35,6 +35,85 @@ function GenerateDataParams(file::AbstractString)
     return JSON3.read(read(file), GenerateDataParams)
 end
 
+function generate_pvs_data(sys_full, pvs_coeffs, surrogate_area_name)
+    connecting_branches = find_connecting_branches(sys_full, surrogate_area_name)
+    pvs_data = Dict{Int, Array{PVSData}}()
+    for (k, v) in pvs_coeffs
+        bus_results = PowerFlows.run_powerflow(sys_full)["bus_results"]
+        flow_results = PowerFlows.run_powerflow(sys_full)["flow_results"]
+
+        PVSDatas = PVSData[]
+        @warn typeof(PVSDatas)
+        for (i, branch) in enumerate(connecting_branches)
+            from_bus = PSY.get_from(PSY.get_arc(branch))
+            to_bus = PSY.get_to(PSY.get_arc(branch))
+            @assert PSY.get_area(from_bus) != PSY.get_area(to_bus)
+            if PSY.get_area(from_bus) == surrogate_area_name
+                from_or_to = "to"
+            else
+                from_or_to = "from"
+            end
+            branch_name = PSY.get_name(branch)
+            from_bus = PSY.get_from(PSY.get_arc(branch))
+            to_bus = PSY.get_from(PSY.get_arc(branch))
+            display(bus_results)
+            display(flow_results)
+
+            if from_or_to == "from"
+                pvs_bus_results =
+                    filter(row -> row.bus_number == PSY.get_number(from_bus), bus_results)
+                V0 = pvs_bus_results.Vm[1]
+                θ0 = pvs_bus_results.θ[1]
+                connecting_branch_results =
+                    filter(row -> row.line_name == branch_name, flow_results)
+                P0 = connecting_branch_results.P_from_to[1]
+                Q0 = connecting_branch_results.Q_from_to[1]
+            elseif from_or_to == "to"
+                pvs_bus_results =
+                    filter(row -> row.bus_number == PSY.get_number(to_bus), bus_results)
+                V0 = pvs_bus_results.Vm[1]
+                θ0 = pvs_bus_results.θ[1]
+                connecting_branch_results =
+                    filter(row -> row.line_name == branch_name, flow_results)
+                P0 = connecting_branch_results.P_to_from[1]
+                Q0 = connecting_branch_results.Q_to_from[1]
+            end
+
+            current_pvs_data = PVSData(
+                0.0,
+                pvs_coeffs[k][i].internal_voltage_frequencies,
+                pvs_coeffs[k][i].internal_voltage_coefficients,
+                0.0,
+                pvs_coeffs[k][i].internal_angle_frequencies,
+                pvs_coeffs[k][i].internal_angle_coefficients,
+                V0,
+                θ0,
+                P0,
+                Q0,
+                PSY.get_name(branch),
+                from_or_to,
+            )
+            add_calculated_bias!(current_pvs_data)
+            @warn current_pvs_data
+            push!(PVSDatas, current_pvs_data)
+        end
+        pvs_data[k] = PVSDatas
+    end
+    return pvs_data
+end
+function add_calculated_bias!(x::PVSData)
+    V = x.V0
+    θ = x.θ0
+    for c in x.internal_voltage_coefficients
+        V -= c[2]  #cosine part 
+    end
+    for c in x.internal_angle_coefficients
+        θ -= c[2]  #cosine part 
+    end
+    x.internal_voltage_bias = V
+    x.internal_angle_bias = θ
+end
+
 #Method for generating PVS data from fault data
 function generate_pvs_data(sys_full, faults, params, surrogate_area_name; pad_signal = true)
     connecting_branches = find_connecting_branches(sys_full, surrogate_area_name)
@@ -43,11 +122,6 @@ function generate_pvs_data(sys_full, faults, params, surrogate_area_name; pad_si
         solver = instantiate_solver(params)
         solver_tols = params.solver_tols
         tspan = params.tspan
-        @warn typeof(tspan)
-        @warn typeof(solver_tols[1])
-        @warn tspan
-        @warn solver_tols
-
         steps = params.steps
         tsteps = tspan[1]:((tspan[2] - tspan[1]) / steps):tspan[2]
 

@@ -7,7 +7,6 @@ export node_load_system
 export SummitHPCTrain
 export SavioHPCTrain
 export generate_train_files
-export all_line_trips
 export generate_pvs_data
 export run_parallel_train
 export label_area!
@@ -19,7 +18,6 @@ export visualize_training
 export animate_training
 export print_train_parameter_overview
 export print_high_level_output_overview
-export build_training_groups_list
 export build_params_list!
 export create_surrogate_training_system
 
@@ -32,7 +30,7 @@ import FFTW
 import Flux
 import Flux.Losses: mae, mse
 import GalacticOptim
-import GalacticFlux #change to using ? 
+import GalacticFlux
 import IterTools
 import JSON3
 import Logging
@@ -59,13 +57,12 @@ const PSID = PowerSimulationsDynamics
 
 #TODO Split up code and use Requires strategically to improve load times (especially the instantiate functions)
 include(joinpath("train", "SteadyStateNeuralODE.jl"))
-#include(joinpath("train", "surrogate_models.jl"))
 include(joinpath("train", "TrainParams.jl"))
 include("constants.jl")
 include(joinpath("train", "HPCTrain.jl"))
+include(joinpath("generate_data", "data_containers.jl"))
 include(joinpath("generate_data", "generate_data.jl"))
 include(joinpath("generate_data", "build_systems.jl"))
-include(joinpath("generate_data", "data_containers.jl"))
 include(joinpath("train", "train.jl"))
 include(joinpath("train", "instantiate.jl"))
 include(joinpath("visualize", "visualize.jl"))
