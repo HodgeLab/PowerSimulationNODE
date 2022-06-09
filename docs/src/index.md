@@ -1,7 +1,7 @@
 # PowerSimulationNODE Documentation
 
 ```@docs
-NODETrainParams
+TrainParams
 ```
 
 ```

@@ -57,12 +57,28 @@ struct HPCTrain
     n_nodes::Union{Int, Nothing}
     n_cpus_per_task::Int
     mb_per_cpu::Int
-    params_data::Vector{NODETrainParams}
+    params_data::Vector{TrainParams}
     time_limit::String
     train_bash_file::String
     force_generate_inputs::Bool
 end
 
+"""
+    function SavioHPCTrain(;
+        username,
+        params_data,
+        project_folder = "PowerSystemNODEs",
+        scratch_path = "/global/scratch/users",
+        time_limit = "24:00:00",
+        n_tasks = 1,
+        QoS = "savio_normal",
+        partition = "savio",
+        force_generate_inputs = false,
+        n_nodes = nothing, # Use with caution in Savio, it can lead to over subscription of nodes
+        mb_per_cpu = 4000,
+    )
+- Function for generating default `HPCTrain` parameters suitable for Summit HPC at CU Boulder.
+"""
 function SavioHPCTrain(;
     username,
     params_data,
@@ -99,6 +115,21 @@ function SavioHPCTrain(;
 end
 
 # Populated with info from: https://curc.readthedocs.io/en/latest/
+"""
+    function SummitHPCTrain(;
+        username,
+        params_data,
+        project_folder = "PowerSystemNODEs",
+        scratch_path = "/scratch/summit/",
+        time_limit = "24:00:00",
+        n_tasks = 1,  #default to parallelize across all tasks 
+        QoS = "normal",
+        partition = "shas",
+        force_generate_inputs = false,
+        mb_per_cpu = 4800,
+    )
+- Function for generating default `HPCTrain` parameters suitable for Summit HPC at CU Boulder.
+"""
 function SummitHPCTrain(;
     username,
     params_data,
@@ -132,6 +163,11 @@ function SummitHPCTrain(;
     )
 end
 
+"""
+    function generate_train_files(train::HPCTrain)
+
+- Generates the paths and data required to run a training on HPC.
+"""
 function generate_train_files(train::HPCTrain)
     scratch_path = train.scratch_path
     project_folder = train.project_folder

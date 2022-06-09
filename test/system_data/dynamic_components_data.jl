@@ -7,7 +7,7 @@ tg_none() = PSY.TGFixed(1.0) #efficiency
 pss_none() = PSY.PSSFixed(0.0)
 function dyn_gen_classic(generator)    #1.0 is ωref
     return PSY.DynamicGenerator(
-        generator,
+        get_name(generator),
         1.0,
         machine_classic(),
         shaft_damping(),

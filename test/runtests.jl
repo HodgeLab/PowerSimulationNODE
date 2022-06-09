@@ -1,9 +1,11 @@
 #Test development: https://github.com/JuliaLang/Pkg.jl/issues/1973
 using Test
 using Revise
+#using PowerFlows
 using PowerSimulationNODE
 using PowerSystems
 using PowerSimulationsDynamics
+using Plots
 
 using Logging
 import PowerSystems
