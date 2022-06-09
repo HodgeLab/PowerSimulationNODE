@@ -68,46 +68,46 @@ function train(params::TrainParams)
         θ = params.p_start
     end
     try
-    total_time = @elapsed begin
-        for group in train_groups
-            res, output = _train(
-                θ,
-                surrogate,
-                fault_data,
-                branch_order,
-                exs,
-                train_details,
-                params,
-                optimizer,
-                group,
-                per_solve_maxiters,
-                output,
-            )
-            θ = res.u
+        total_time = @elapsed begin
+            for group in train_groups
+                res, output = _train(
+                    θ,
+                    surrogate,
+                    fault_data,
+                    branch_order,
+                    exs,
+                    train_details,
+                    params,
+                    optimizer,
+                    group,
+                    per_solve_maxiters,
+                    output,
+                )
+                θ = res.u
+            end
         end
-    end
-    output["total_time"] = total_time
-    @info "End of training, calculating final loss for comparison:"
-    final_loss_for_comparison = _calculate_final_loss(
-        θ,
-        surrogate,
-        fault_data,
-        branch_order,
-        exs,
-        train_details,
-        params,
-        train_groups[end],
-        output,
-    )
+        output["total_time"] = total_time
+        @info "End of training, calculating final loss for comparison:"
+        final_loss_for_comparison = _calculate_final_loss(
+            θ,
+            surrogate,
+            fault_data,
+            branch_order,
+            exs,
+            train_details,
+            params,
+            train_groups[end],
+            output,
+        )
 
-    output["final_loss"] = final_loss_for_comparison
-    if params.force_gc == true
-        GC.gc()     #Run garbage collector manually before file write.
-        @warn "FORCE GC!"
-    end
-    _capture_output(output, params.output_data_path, params.train_id)
-    return true, θ
-    #TODO - uncomment try catch after debugging 
+        output["final_loss"] = final_loss_for_comparison
+        if params.force_gc == true
+            GC.gc()     #Run garbage collector manually before file write.
+            @warn "FORCE GC!"
+        end
+        _capture_output(output, params.output_data_path, params.train_id)
+        return true, θ
+        #TODO - uncomment try catch after debugging 
     catch
         return false, θ
     end

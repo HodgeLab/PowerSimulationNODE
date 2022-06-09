@@ -116,14 +116,14 @@ try
     @test status
 
     #TODO - test parameter restart
-#=     df_loss = PowerSimulationNODE.read_arrow_file_to_dataframe(joinpath(path, "output_data", p.train_id, "loss"))
-    train1_final_loss = df_loss[end,:Loss]
-    display(train1_final_loss)
-    p.p_start = θ
-    status, θ = train(p)
-    df_loss = PowerSimulationNODE.read_arrow_file_to_dataframe(joinpath(path, "output_data", p.train_id, "loss"))
-    train2_starting_loss = df_loss[1,:Loss]
-    @test train1_final_loss == train2_starting_loss  =#
+    #=     df_loss = PowerSimulationNODE.read_arrow_file_to_dataframe(joinpath(path, "output_data", p.train_id, "loss"))
+        train1_final_loss = df_loss[end,:Loss]
+        display(train1_final_loss)
+        p.p_start = θ
+        status, θ = train(p)
+        df_loss = PowerSimulationNODE.read_arrow_file_to_dataframe(joinpath(path, "output_data", p.train_id, "loss"))
+        train2_starting_loss = df_loss[1,:Loss]
+        @test train1_final_loss == train2_starting_loss  =#
 
     input_param_file = joinpath(path, "input_data", "input_test2.json")
     PowerSimulationNODE.serialize(p, input_param_file)
@@ -134,5 +134,5 @@ try
     print_high_level_output_overview(a, path)
 finally
     @info("removing test files")
-    rm(path, force = true, recursive = true)  
+    rm(path, force = true, recursive = true)
 end

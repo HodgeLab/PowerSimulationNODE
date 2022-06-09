@@ -81,7 +81,7 @@ mutable struct TrainParams
         (:type, :n_layer, :width_layers, :activation),
         Tuple{String, Int64, Int64, String},
     }
-    input_normalization::NamedTuple{   
+    input_normalization::NamedTuple{
         (:x_scale, :x_bias, :exogenous_scale, :exogenous_bias),
         Tuple{Vector{Float64}, Vector{Float64}, Vector{Float64}, Vector{Float64}},
     }
