@@ -59,6 +59,7 @@ struct HPCTrain
     mb_per_cpu::Int
     params_data::Vector{TrainParams}
     time_limit::String
+    generate_data_time::String
     train_bash_file::String
     force_generate_inputs::Bool
 end
@@ -84,7 +85,8 @@ function SavioHPCTrain(;
     params_data,
     project_folder = "PowerSystemNODEs",
     scratch_path = "/global/scratch/users",
-    time_limit = "24:00:00",
+    time_limit = "23:59:59",
+    generate_data_time = "00:30:00",
     n_tasks = 1,
     QoS = "savio_normal",
     partition = "savio",
@@ -109,6 +111,7 @@ function SavioHPCTrain(;
         mb_per_cpu,
         params_data,
         time_limit,
+        generate_data_time,
         joinpath(scratch_path, project_folder, HPC_TRAIN_FILE),
         force_generate_inputs,
     )
@@ -135,13 +138,21 @@ function SummitHPCTrain(;
     params_data,
     project_folder = "PowerSystemNODEs",
     scratch_path = "/scratch/summit/",
-    time_limit = "24:00:00",
+    time_limit = "23:59:59",
+    generate_data_time = "00:30:00",
     n_tasks = 1,  #default to parallelize across all tasks 
     QoS = "normal",
     partition = "shas",
     force_generate_inputs = false,
     mb_per_cpu = 4800,
 )
+    time_format = Dates.DateFormat("H:M:S")
+    for p in params_data
+        time_limit_timeformat = Dates.Time(time_limit, time_format)
+        generate_data_timeformat = Dates.Time(generate_data_time, time_format)
+        p.train_time_limit_seconds =
+            floor((time_limit_timeformat - generate_data_timeformat).value * 10^-9)
+    end
     # Default until we parallelize training code
     n_cpus_per_task = 1
     return HPCTrain(
@@ -158,6 +169,7 @@ function SummitHPCTrain(;
         mb_per_cpu,
         params_data,
         time_limit,
+        generate_data_time,
         joinpath(scratch_path, project_folder, HPC_TRAIN_FILE),
         force_generate_inputs,
     )

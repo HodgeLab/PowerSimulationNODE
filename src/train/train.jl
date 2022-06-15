@@ -28,6 +28,7 @@ Executes training according to params. Assumes the existence of the necessary in
 
 """
 function train(params::TrainParams)
+    params.train_time_limit_seconds += time()
     Random.seed!(params.rng_seed)
     #READ INPUT DATA AND SYSTEM
     sys = node_load_system(joinpath(params.input_data_path, "system.json"))
@@ -150,7 +151,12 @@ function _train(
     )
     optprob = GalacticOptim.OptimizationProblem(optfun, θ)
 
-    cb = instantiate_cb!(output, params.lb_loss, params.output_mode_skip)
+    cb = instantiate_cb!(
+        output,
+        params.lb_loss,
+        params.output_mode_skip,
+        params.train_time_limit_seconds,
+    )  #TODO 
     loss, lossA, lossB, lossC, surrogate_solution, fault_index =
         outer_loss_function(θ, (1, 1))
 

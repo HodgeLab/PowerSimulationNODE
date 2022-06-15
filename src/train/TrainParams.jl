@@ -116,6 +116,7 @@ mutable struct TrainParams
     }
     rng_seed::Int64
     output_mode_skip::Int64
+    train_time_limit_seconds::Int64
     base_path::String
     input_data_path::String
     output_data_path::String
@@ -176,6 +177,7 @@ function TrainParams(;
     ),
     rng_seed = 123,
     output_mode_skip = 1,
+    train_time_limit_seconds = 1e9,
     base_path = pwd(),
     input_data_path = joinpath(base_path, "input_data"),
     output_data_path = joinpath(base_path, "output_data"),
@@ -199,6 +201,7 @@ function TrainParams(;
         loss_function,
         rng_seed,
         output_mode_skip,
+        train_time_limit_seconds,
         base_path,
         input_data_path,
         output_data_path,
