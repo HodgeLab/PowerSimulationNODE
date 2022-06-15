@@ -1,8 +1,8 @@
 include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
 
-include(joinpath(TEST_FILES_DIR, "scripts", "build_14bus.jl"))      #Change which system you want to use 
-SURROGATE_BUS = 16 #SURROGATE_BUS = 102  
-fault_generator = "generator-15-1" #  "generator-102-1"
+include(joinpath(TEST_FILES_DIR, "scripts", "build_2bus.jl"))      #Change which system you want to use 
+SURROGATE_BUS = 102  #SURROGATE_BUS =   16
+fault_generator = "generator-102-1" #  "generator-15-1"
 train_from_coefficients = true
 path = (joinpath(pwd(), "test-train-dir"))
 !isdir(path) && mkdir(path)

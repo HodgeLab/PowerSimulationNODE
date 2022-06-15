@@ -140,8 +140,8 @@ function _visualize_predictions(params, path_to_output, path_to_input, skip)
     plots_pred = []
     for (j, i) in enumerate(recorded_iterations)
         if mod(j, skip) == 0
-            surrogate_prediction = df_predictions[i, "surrogate_solution"]
-            fault_index = df_predictions[i, "fault_index"]
+            surrogate_prediction = df_predictions[j, "surrogate_solution"]
+            fault_index = df_predictions[j, "fault_index"]
             p = plot_overview(surrogate_prediction, fault_index, fault_data, exs)
             push!(plots_pred, p)
         end
@@ -329,6 +329,7 @@ Prints tables with both constant and changing parameters for a collection of tra
 print_train_parameter_overview("input_data")
 ````
 """
+#TODO - add to test and update parameters 
 function print_train_parameter_overview(train_params_folder)
     Matrix = Any[]
     header = Symbol[]

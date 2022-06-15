@@ -286,7 +286,7 @@ function _find_subset(tsteps, train_details)
     return subset
 end
 
-function instantiate_cb!(output, lb_loss, exportmode_skip)
+function instantiate_cb!(output, lb_loss, exportmode_skip, train_time_limit_seconds)
     if Sys.iswindows() || Sys.isapple()
         print_loss = true
     else
@@ -305,6 +305,7 @@ function instantiate_cb!(output, lb_loss, exportmode_skip)
         lb_loss,
         print_loss,
         exportmode_skip,
+        train_time_limit_seconds,
     )
 end
 
@@ -320,6 +321,7 @@ function _cb!(
     lb_loss,
     print_loss,
     exportmode_skip,
+    train_time_limit_seconds,
 )
     push!(output["loss"], (lA, lB, lC, l))
     output["total_iterations"] += 1
@@ -331,6 +333,9 @@ function _cb!(
     if (print_loss)
         println(l)
     end
-    (l > lb_loss) && return false
-    return true
+    if (l > lb_loss) || (time() > train_time_limit_seconds)
+        return false
+    else
+        return true
+    end
 end
