@@ -3,6 +3,7 @@ const INPUT_FOLDER_NAME = "input_data"
 const OUTPUT_FOLDER_NAME = "output_data"
 const INPUT_SYSTEM_FOLDER_NAME = "system_data"
 const HPC_TRAIN_FILE = "hpc_train.sh"
+const HPC_GENERATE_DATA_FILE = "hpc_generate_data.sh"
 
 const PSY_CONSOLE_LEVEL = Logging.Error
 const PSY_FILE_LEVEL = Logging.Info

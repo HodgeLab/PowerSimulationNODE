@@ -28,7 +28,7 @@ Executes training according to params. Assumes the existence of the necessary in
 
 """
 function train(params::TrainParams)
-    params.train_time_limit_seconds += time()
+    params.train_time_limit_seconds += floor(time())
     Random.seed!(params.rng_seed)
     #READ INPUT DATA AND SYSTEM
     sys = node_load_system(joinpath(params.input_data_path, "system.json"))

@@ -166,3 +166,14 @@ function find_connecting_branches(sys, area_name)
     end
     return connecting_branches
 end
+
+"""
+    function scale_area_operating_point!(sys, area_name, generation_scale, load_scale) 
+
+- Takes a system and scales the generating units and loads within the area by a scale factor.
+- Used to generate training datasets with variable operating points.
+"""
+#TODO - write this function 
+function scale_surrogate_operating_point!(sys, area_name, generation_scale, load_scale) 
+    
+end

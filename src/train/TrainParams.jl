@@ -62,6 +62,10 @@
 """
 mutable struct TrainParams
     train_id::String
+    data_generation::NamedTuple{
+        (:operating_points, :perturbations),
+        Tuple{Vector{Tuple}, String}
+    }
     hidden_states::Int64
     model_initializer::NamedTuple{
         (:type, :n_layer, :width_layers, :activation),
@@ -127,6 +131,10 @@ StructTypes.StructType(::Type{TrainParams}) = StructTypes.Mutable()
 
 function TrainParams(;
     train_id = "train_instance_1",
+    data_generation = (
+        operating_points = [(1.0,1.0)],
+        perturbations = "random-steps",
+    ),
     hidden_states = 5,
     model_initializer = (
         type = "dense",     #OutputParams (train initial conditions)
@@ -185,6 +193,7 @@ function TrainParams(;
 )
     TrainParams(
         train_id,
+        data_generation,
         hidden_states,
         model_initializer,
         model_node,
