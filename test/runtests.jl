@@ -5,6 +5,7 @@ using Revise
 using PowerSimulationNODE
 using PowerSystems
 using PowerSimulationsDynamics
+using PowerSimulationsDynamicsSurrogates
 using Plots
 
 using Logging
@@ -14,6 +15,8 @@ using Serialization
 test_file_dir = isempty(dirname(@__FILE__)) ? "test" : dirname(@__FILE__)
 const TEST_FILES_DIR = test_file_dir
 const PSY = PowerSystems
+const PSID = PowerSimulationsDynamics
+const PSIDS = PowerSimulationsDynamicsSurrogates
 
 logger = PSY.configure_logging(;
     console_level = PowerSimulationNODE.NODE_CONSOLE_LEVEL,

@@ -92,42 +92,54 @@ end
 Flux.@functor SteadyStateNeuralODE
 Flux.trainable(m::SteadyStateNeuralODE) = (p = m.p,)
 
-function (s::SteadyStateNeuralODE)(ex, x, tsteps, p = s.p)
-    dudt_ss(u, p, t) =
+function (s::SteadyStateNeuralODE)(ex, x, tsteps, p = s.p)   #r, ex, refs (order of inputs) 
+    dudt_ss(u, p, t) = vcat(
         s.re2(p[(s.len + 1):(s.len + s.len2)])((
-            ex(0.0, s.re3(p[(s.len + s.len2 + 1):end])(u)),
-            u,
-        )) .- u         #TODO: Remove .- u, experiment with inititalization strategies. 
-    dudt_dyn(u, p, t) =
-        s.re2(p[(s.len + 1):(s.len + s.len2)])((
-            ex(t, s.re3(p[(s.len + s.len2 + 1):end])(u)),
-            u,
-        )) .- u
+            u[1:(end - 2)],
+            ex(0.0, s.re3(p[(s.len + s.len2 + 1):end])(u[1:(end - 2)])),
+            u[(end - 1):end],
+        )),
+        s.re3(p[(s.len + s.len2 + 1):end])(u[1:(end - 2)]) .- _PQVθ_to_IrIi(x),
+    )
+
+    dudt_dyn(u, p, t) = s.re2(p[(s.len + 1):(s.len + s.len2)])((
+        u,
+        ex(t, s.re3(p[(s.len + s.len2 + 1):end])(u)),
+        refs,
+    ))
 
     #PREDICTOR 
     u0_pred = s.re1(p[1:(s.len)])(x)
 
     #SOLVE PROBLEM TO STEADY STATE 
-    ff_ss = OrdinaryDiffEq.ODEFunction{false}(dudt_ss)   #tgrad=basic_tgrad? - ASK - TODO 
+    ff_ss = OrdinaryDiffEq.ODEFunction{false}(dudt_ss)
     prob_ss = SteadyStateDiffEq.SteadyStateProblem(
         OrdinaryDiffEq.ODEProblem{false}(
             ff_ss,
             u0_pred,
-            (zero(u0_pred[1]), one(u0_pred[1])),
+            (zero(u0_pred[1]), zero(u0_pred[1])),
             p,
-        ),   #Todo this is limited to 0-1 s for finding ss
+        ),
     )
+    ss_solution = SteadyStateDiffEq.solve(
+        prob_ss,
+        s.ss_solver;
+        abstol = s.args[2],
+        # maxiters = s.args[1],
+    )
+    res = dudt_ss(ss_solution.u, p, 0.0)
 
-    ss_solution = SteadyStateDiffEq.solve(prob_ss, s.ss_solver; maxiters = s.args[1])
-    #TODO - extra call (dummy) to propogate gradients needed after ss_solution is reached? if not using chain? 
+    #residual is close to zero for first train iteration, but not after
+    #TODO - extra call (dummy) to propogate gradients needed after ss_solution is reached? 
+    #https://github.com/SciML/DeepEquilibriumNetworks.jl/blob/9c2626d6080bbda3c06b81d2463744f5e395003f/src/layers/deq.jl#L41
 
-    offset = s.re3(p[(s.len + s.len2 + 1):end])(Array(ss_solution)) - _PQVθ_to_IrIi(x)
-    if ss_solution.retcode == :Success
+    if ss_solution.retcode == :Success  #maybe the retcode doesn't come properly from NLsolve? 
         #SOLVE DYNAMICS
-        ff = OrdinaryDiffEq.ODEFunction{false}(dudt_dyn)#,tgrad=basic_tgrad)    
+        refs = ss_solution.u[(end - 1):end]
+        ff = OrdinaryDiffEq.ODEFunction{false}(dudt_dyn) #,tgrad=basic_tgrad)    
         prob_dyn = OrdinaryDiffEq.ODEProblem{false}(
             ff,
-            ss_solution.u,
+            ss_solution.u[1:(end - 2)],
             (tsteps[1], tsteps[end]),
             p;
             saveat = tsteps,
@@ -136,20 +148,20 @@ function (s::SteadyStateNeuralODE)(ex, x, tsteps, p = s.p)
 
         return SteadyStateNeuralODE_solution(
             u0_pred,
-            Array(ss_solution),
+            Array(ss_solution.u),
             tsteps,
             Array(sol),
-            s.re3(p[(s.len + s.len2 + 1):end])(Array(sol)) .- offset,
-            offset,
+            s.re3(p[(s.len + s.len2 + 1):end])(Array(sol)),
+            res,
         )
     else
         return SteadyStateNeuralODE_solution(
             u0_pred,
-            Array(ss_solution),
+            Array(ss_solution.u),
             tsteps,
-            Array(ss_solution),
-            s.re3(p[(s.len + s.len2 + 1):end])(Array(ss_solution)),
-            offset,
+            Array(ss_solution.u),
+            s.re3(p[(s.len + s.len2 + 1):end])(ss_solution.u[1:(end - 2)]),
+            res,
         )
     end
 end
@@ -176,6 +188,7 @@ struct SteadyStateNeuralODE_solution{T}        #TODO - look into making this com
     ϵ::AbstractArray{T}
 end
 
+#This was for comparing the initializer network with learning the initial conditions directly.
 struct OutputParams{P <: AbstractArray}
     p::P
     function OutputParams(p::P) where {P <: AbstractArray}

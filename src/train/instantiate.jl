@@ -3,13 +3,18 @@ function optimizer_map(key)
     return d[key]
 end
 
+function NormalInitializer(μ = 0.0f0, σ² = 0.01f0)
+    return (dims...) -> randn(Float32, dims...) .* σ² .+ μ
+end
+
 function steadystate_solver_map(solver, tols)
     d = Dict(
-        "Rodas4" => OrdinaryDiffEq.Rodas4,
-        "TRBDF2" => OrdinaryDiffEq.TRBDF2,
-        "Tsit5" => OrdinaryDiffEq.Tsit5,
+        "Rodas4" => SteadyStateDiffEq.DynamicSS(OrdinaryDiffEq.Rodas4()),
+        #"TRBDF2" => OrdinaryDiffEq.TRBDF2,
+        "Tsit5" => SteadyStateDiffEq.DynamicSS(OrdinaryDiffEq.Tsit5()),
+        "SSRootfind" => SteadyStateDiffEq.SSRootfind(),
     )
-    return SteadyStateDiffEq.DynamicSS(d[solver](), abstol = tols[1], reltol = tols[2])
+    return d[solver]
 end
 
 function solver_map(key)
@@ -22,7 +27,7 @@ function solver_map(key)
 end
 
 function instantiate_steadystate_solver(inputs)
-    return steadystate_solver_map(inputs.solver, inputs.tols)
+    return steadystate_solver_map(inputs.solver, inputs.abstol)
 end
 
 function sensealg_map(key)
@@ -62,19 +67,47 @@ function instantiate_optimizer_adjust(inputs)
     end
 end
 
-function instantiate_surrogate(TrainParams, n_ports)
-    steadystate_solver = instantiate_steadystate_solver(TrainParams.steady_state_solver)
-    dynamic_solver = instantiate_solver(TrainParams.dynamic_solver)
-    model_initializer = _instantiate_model_initializer(TrainParams, n_ports)
-    model_node = _instantiate_model_node(TrainParams, n_ports)
-    model_observation = _instantiate_model_observation(TrainParams, n_ports)
+function instantiate_surrogate_psid(
+    params::TrainParams,
+    n_ports::Int64,
+    source_name::String,
+)
+    model_initializer = _instantiate_model_initializer(params, n_ports, flux = false)
+    model_node = _instantiate_model_node(params, n_ports, flux = false)
+    model_observation = _instantiate_model_observation(params, n_ports, flux = false)
+
+    surr = PSIDS.SteadyStateNODE(
+        name = source_name,
+        initializer_structure = model_initializer,
+        node_structure = model_node,
+        observer_structure = model_observation,
+        x_scale = params.input_normalization.x_scale,
+        x_bias = params.input_normalization.x_bias,
+        exogenous_scale = params.input_normalization.exogenous_scale,
+        exogenous_bias = params.input_normalization.exogenous_bias,
+        base_power = 100.0, #TODO - doublecheck 
+        ext = Dict{String, Any}(),
+    )
+    display(surr)
+    return surr
+end
+
+function instantiate_surrogate_flux(params::TrainParams, n_ports::Int64)
+    steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
+    dynamic_solver = instantiate_solver(params.dynamic_solver)
+    model_initializer = _instantiate_model_initializer(params, n_ports, flux = true)
+    model_node = _instantiate_model_node(params, n_ports, flux = true)
+    model_observation = _instantiate_model_observation(params, n_ports, flux = true)
+
     display(model_initializer)
     display(model_node)
     display(model_observation)
-    dynamic_reltol = TrainParams.dynamic_solver.tols[1]
-    dynamic_abstol = TrainParams.dynamic_solver.tols[2]
-    dynamic_maxiters = TrainParams.dynamic_solver.maxiters
-    steadystate_maxiters = TrainParams.steady_state_solver.maxiters
+
+    dynamic_reltol = params.dynamic_solver.tols[1]
+    dynamic_abstol = params.dynamic_solver.tols[2]
+    dynamic_maxiters = params.dynamic_solver.maxiters
+    steadystate_maxiters = params.steady_state_solver.maxiters
+    steadystate_abstol = params.steady_state_solver.abstol
 
     return SteadyStateNeuralODE(
         model_initializer,
@@ -82,107 +115,262 @@ function instantiate_surrogate(TrainParams, n_ports)
         model_observation,
         steadystate_solver,
         dynamic_solver,
-        steadystate_maxiters;
+        steadystate_maxiters,
+        steadystate_abstol;
         abstol = dynamic_abstol,
         reltol = dynamic_reltol,
         maxiters = dynamic_maxiters,
     )
 end
 
-function _instantiate_model_initializer(TrainParams, n_ports)
-    initializer_params = TrainParams.model_initializer
-    hidden_states = TrainParams.hidden_states
+function _instantiate_model_initializer(params, n_ports; flux = true)
+    initializer_params = params.model_initializer
+    hidden_states = params.hidden_states
     type = initializer_params.type
     n_layer = initializer_params.n_layer
     width_layers = initializer_params.width_layers
-    activation = activation_map(initializer_params.activation)
-
+    if flux == true
+        activation = activation_map(initializer_params.activation)
+    else
+        activation = initializer_params.activation
+    end
     vector_layers = []
     if type == "dense"
-        push!(
-            vector_layers,
-            (x) -> (
-                x .* TrainParams.input_normalization.x_scale .+
-                TrainParams.input_normalization.x_bias
-            ),
-        )
-        push!(
-            vector_layers,
-            Dense(SURROGATE_SS_INPUT_DIM * n_ports, width_layers, activation),
-        )
-        for i in 1:n_layer
-            push!(vector_layers, Dense(width_layers, width_layers, activation))
+        if flux == true
+            x_scale = params.input_normalization.x_scale
+            x_bias = params.input_normalization.x_bias
+            push!(vector_layers, (x) -> ((x .+ x_bias) .* x_scale))
         end
-        push!(vector_layers, Dense(width_layers, hidden_states, activation))
-        tuple_layers = Tuple(x for x in vector_layers)
-        model = Chain(tuple_layers)
+        if n_layer == 0
+            if flux == true
+                push!(
+                    vector_layers,
+                    Dense(
+                        SURROGATE_SS_INPUT_DIM * n_ports,
+                        hidden_states + SURROGATE_N_REFS,
+                    ),
+                )
+            else
+                push!(
+                    vector_layers,
+                    (
+                        SURROGATE_SS_INPUT_DIM * n_ports,
+                        hidden_states + SURROGATE_N_REFS,
+                        true,
+                        "identity",
+                    ),
+                )
+            end
+        else
+            if flux == true
+                push!(
+                    vector_layers,
+                    Dense(SURROGATE_SS_INPUT_DIM * n_ports, width_layers, activation),
+                )
+            else
+                push!(
+                    vector_layers,
+                    (SURROGATE_SS_INPUT_DIM * n_ports, width_layers, true, activation),
+                )
+            end
+            for i in 1:(n_layer - 1)
+                if flux == true
+                    push!(vector_layers, Dense(width_layers, width_layers, activation))
+                else
+                    push!(vector_layers, (width_layers, width_layers, true, activation))
+                end
+            end
+            if flux == true
+                push!(vector_layers, Dense(width_layers, hidden_states + SURROGATE_N_REFS))
+            else
+                push!(
+                    vector_layers,
+                    (width_layers, hidden_states + SURROGATE_N_REFS, true, "identity"),
+                )
+            end
+        end
     elseif type == "OutputParams"
         @error "OutputParams layer for inititalizer not yet implemented"
     end
-    return model
+    if flux == true
+        tuple_layers = Tuple(x for x in vector_layers)
+        model = Chain(tuple_layers)
+        return model
+    else
+        return vector_layers
+    end
 end
 
-function _instantiate_model_node(TrainParams, n_ports)
-    node_params = TrainParams.model_node
-    hidden_states = TrainParams.hidden_states
+function _instantiate_model_node(params, n_ports; flux = true)
+    node_params = params.model_node
+    hidden_states = params.hidden_states
     type = node_params.type
     n_layer = node_params.n_layer
     width_layers = node_params.width_layers
-    activation = activation_map(node_params.activation)
+    if flux == true
+        activation = activation_map(node_params.activation)
+    else
+        activation = node_params.activation
+    end
     vector_layers = []
     if type == "dense"
-        push!(
-            vector_layers,
-            Parallel(
-                +,
-                Chain(
+        if flux == true
+            push!(
+                vector_layers,
+                Parallel(
+                    vcat,
+                    (x) -> (x),
                     (x) -> (
-                        x .* TrainParams.input_normalization.exogenous_scale .+
-                        TrainParams.input_normalization.exogenous_bias
+                        (x .+ params.input_normalization.exogenous_bias) .*
+                        params.input_normalization.exogenous_scale
                     ),
+                    (x) -> (x),
+                ),
+            )
+        end
+        if n_layer == 0
+            if flux == true
+                push!(
+                    vector_layers,
                     Dense(
-                        SURROGATE_EXOGENOUS_INPUT_DIM * n_ports,
+                        hidden_states +
+                        (SURROGATE_EXOGENOUS_INPUT_DIM + SURROGATE_N_REFS) * n_ports,
                         hidden_states,
+                        init = NormalInitializer(),
+                    ),
+                )
+            else
+                push!(
+                    vector_layers,
+                    (
+                        hidden_states +
+                        (SURROGATE_EXOGENOUS_INPUT_DIM + SURROGATE_N_REFS) * n_ports,
+                        hidden_states,
+                        true,
+                        "identity",
+                    ),
+                )
+            end
+        else
+            if flux == true
+                push!(
+                    vector_layers,
+                    Dense(
+                        hidden_states +
+                        (SURROGATE_EXOGENOUS_INPUT_DIM + SURROGATE_N_REFS) * n_ports,
+                        width_layers,
+                        activation,
+                        init = NormalInitializer(),
+                    ),
+                )
+            else
+                push!(
+                    vector_layers,
+                    (
+                        hidden_states +
+                        (SURROGATE_EXOGENOUS_INPUT_DIM + SURROGATE_N_REFS) * n_ports,
+                        width_layers,
+                        true,
                         activation,
                     ),
-                ),
-                Dense(hidden_states, hidden_states, activation),
-            ),
-        )
-        if n_layer >= 1
-            push!(vector_layers, Dense(hidden_states, width_layers, activation))
+                )
+            end
+            for i in 1:(n_layer - 1)
+                if flux == true
+                    push!(
+                        vector_layers,
+                        Dense(
+                            width_layers,
+                            width_layers,
+                            activation,
+                            init = NormalInitializer(),
+                        ),
+                    )
+                else
+                    push!(vector_layers, (width_layers, width_layers, true, activation))
+                end
+            end
+            if flux == true
+                push!(
+                    vector_layers,
+                    Dense(width_layers, hidden_states, init = NormalInitializer()),
+                )
+            else
+                push!(vector_layers, (width_layers, hidden_states, true, "identity"))
+            end
         end
-        for i in 1:n_layer
-            push!(vector_layers, Dense(width_layers, width_layers, activation))
-        end
-        push!(vector_layers, Dense(width_layers, hidden_states, activation))
+    elseif type == "OutputParams"
+        @error "OutputParams layer for inititalizer not yet implemented"
+    end
+    if flux == true
         tuple_layers = Tuple(x for x in vector_layers)
         model = Chain(tuple_layers)
+        return model
+    else
+        return vector_layers
     end
-    return model
 end
 
-function _instantiate_model_observation(TrainParams, n_ports)
-    observation_params = TrainParams.model_observation
-    hidden_states = TrainParams.hidden_states
+function _instantiate_model_observation(params, n_ports; flux = true)
+    observation_params = params.model_observation
+    hidden_states = params.hidden_states
     type = observation_params.type
     n_layer = observation_params.n_layer
     width_layers = observation_params.width_layers
-    activation = activation_map(observation_params.activation)
+    if flux == true
+        activation = activation_map(observation_params.activation)
+    else
+        activation = observation_params.activation
+    end
     vector_layers = []
     if type == "dense"
-        push!(vector_layers, Dense(hidden_states, width_layers, activation))
-        for i in 1:n_layer
-            push!(vector_layers, Dense(width_layers, width_layers, activation))
+        if n_layer == 0
+            if flux == true
+                push!(
+                    vector_layers,
+                    Dense(hidden_states, n_ports * SURROGATE_OUTPUT_DIM),  #identity activation for output layer
+                )
+            else
+                push!(
+                    vector_layers,
+                    (hidden_states, n_ports * SURROGATE_OUTPUT_DIM, true, "identity"),  #identity activation for output layer
+                )
+            end
+        else
+            if flux == true
+                push!(vector_layers, Dense(hidden_states, width_layers, activation))
+            else
+                push!(vector_layers, (hidden_states, width_layers, true, activation))
+            end
+            for i in 1:(n_layer - 1)
+                if flux == true
+                    push!(vector_layers, Dense(width_layers, width_layers, activation))
+                else
+                    push!(vector_layers, (width_layers, width_layers, true, activation))
+                end
+            end
+            if flux == true
+                push!(
+                    vector_layers,
+                    Dense(width_layers, n_ports * SURROGATE_OUTPUT_DIM),    #identity activation for output layer
+                )
+            else
+                push!(
+                    vector_layers,
+                    (width_layers, n_ports * SURROGATE_OUTPUT_DIM, true, "identity"),
+                )
+            end
         end
-        push!(
-            vector_layers,
-            Dense(width_layers, SURROGATE_OUTPUT_DIM * n_ports, activation),
-        )
+    elseif type == "OutputParams"
+        @error "OutputParams layer for inititalizer not yet implemented"
+    end
+    if flux == true
         tuple_layers = Tuple(x for x in vector_layers)
         model = Chain(tuple_layers)
+        return model
+    else
+        return vector_layers
     end
-    return model
 end
 
 function _inner_loss_function(surrogate_solution, ground_truth_subset, params)
@@ -195,7 +383,6 @@ function _inner_loss_function(surrogate_solution, ground_truth_subset, params)
     r0 = surrogate_solution.r0
     i_series = surrogate_solution.i_series
     ϵ = surrogate_solution.ϵ
-
     lossA =
         A_weight * (mae_weight * mae(r0_pred, r0) + rmse_weight * sqrt(mse(r0_pred, r0)))
     if size(ground_truth_subset) == size(i_series)
@@ -218,8 +405,7 @@ end
 
 function instantiate_outer_loss_function(
     surrogate::SteadyStateNeuralODE,
-    fault_data::Array{TrainData},
-    branch_order::Array{String},
+    train_dataset::Array{PSIDS.SurrogateDataset},
     exs,
     train_details::Vector{
         NamedTuple{
@@ -233,8 +419,7 @@ function instantiate_outer_loss_function(
         θ,
         fault_timespan_index,
         surrogate,
-        fault_data,
-        branch_order,
+        train_dataset,
         exs,
         train_details,
         params,
@@ -245,8 +430,7 @@ function _outer_loss_function(
     θ,
     fault_timespan_index::Tuple{Int64, Int64},
     surrogate::SteadyStateNeuralODE,
-    fault_data::Array{TrainData},
-    branch_order::Array{String},
+    train_dataset::Array{PSIDS.SurrogateDataset},
     exs,
     train_details::Vector{
         NamedTuple{
@@ -259,13 +443,18 @@ function _outer_loss_function(
     fault_index = fault_timespan_index[1]
     timespan_index = fault_timespan_index[2]
     ex = exs[fault_index]
-    powerflow = fault_data[fault_index].powerflow
-    tsteps = fault_data[fault_index].tsteps
-    groundtruth_current = fault_data[fault_index].groundtruth_current
+    powerflow = train_dataset[fault_index].powerflow
+    tsteps = train_dataset[fault_index].tsteps
+    groundtruth_current = train_dataset[fault_index].groundtruth_current
     index_subset = _find_subset(tsteps, train_details[timespan_index])
     t_subset = tsteps[index_subset]
     groundtruth_subset = groundtruth_current[:, index_subset]
     surrogate_solution = surrogate(ex, powerflow, t_subset, θ)
+    #=          p1 = Plots.plot(tsteps, groundtruth_current[1,:])
+            Plots.plot!(p1, surrogate_solution.t_series, surrogate_solution.i_series[1,:])
+            p2 = Plots.plot(tsteps, groundtruth_current[2,:])
+            Plots.plot!(p2, surrogate_solution.t_series, surrogate_solution.i_series[2,:])
+            display(Plots.plot(p1,p2)) =#
     lossA, lossB, lossC =
         _inner_loss_function(surrogate_solution, groundtruth_subset, params)
     return lossA + lossB + lossC,
@@ -286,7 +475,14 @@ function _find_subset(tsteps, train_details)
     return subset
 end
 
-function instantiate_cb!(output, lb_loss, exportmode_skip, train_time_limit_seconds)
+function instantiate_cb!(
+    output,
+    params,
+    validation_dataset,
+    sys_validation,
+    connecting_branches,
+    surrogate,
+)
     if Sys.iswindows() || Sys.isapple()
         print_loss = true
     else
@@ -302,10 +498,12 @@ function instantiate_cb!(output, lb_loss, exportmode_skip, train_time_limit_seco
         surrogate_solution,
         fault_index,
         output,
-        lb_loss,
+        params,
         print_loss,
-        exportmode_skip,
-        train_time_limit_seconds,
+        validation_dataset,
+        sys_validation,
+        connecting_branches,
+        surrogate,
     )
 end
 
@@ -318,24 +516,51 @@ function _cb!(
     surrogate_solution,
     fault_index,
     output,
-    lb_loss,
+    params,
     print_loss,
-    exportmode_skip,
-    train_time_limit_seconds,
+    validation_dataset,
+    sys_validation,
+    connecting_branches,
+    surrogate,
 )
+    lb_loss = params.lb_loss
+    exportmode_skip = params.output_mode_skip
+    train_time_limit_seconds = params.train_time_limit_seconds
+    validation_loss_every_n = params.validation_loss_every_n
+
     push!(output["loss"], (lA, lB, lC, l))
     output["total_iterations"] += 1
     if mod(output["total_iterations"], exportmode_skip) == 0
         push!(output["predictions"], ([p], surrogate_solution, fault_index))
         push!(output["recorded_iterations"], output["total_iterations"])
     end
-
+    #=     p1 = Plots.plot(surrogate_solution.t_series, surrogate_solution.i_series[1, :])
+        p2 = Plots.plot(surrogate_solution.t_series, surrogate_solution.i_series[2, :])
+        display(Plots.plot(p1, p2)) =#
     if (print_loss)
+        #= 
         println(l)
+        println(p[1:35])
+        println(p[36:100])
+        println(p[101:112])
+                @info l, lA, lB, lC
+                @warn surrogate_solution.r0_pred
+                @warn surrogate_solution.r0
+                @warn p  =#
     end
-    if (l > lb_loss) || (time() > train_time_limit_seconds)
-        return false
-    else
+    if mod(output["total_iterations"], validation_loss_every_n) == 0
+        validation_loss = evaluate_loss(
+            sys_validation,
+            p,
+            validation_dataset,
+            params.validation_data,
+            connecting_branches,
+            surrogate,
+        )
+    end
+    if (l < lb_loss) || (time() > train_time_limit_seconds)
         return true
+    else
+        return false
     end
 end

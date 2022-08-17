@@ -59,9 +59,36 @@
 - `input_data_path:String`: From `base_path`, the directory for input data.
 - `output_data_path:String`: From `base_path`, the directory for saving output data.
 - `force_gc:Bool`: `true`: After training and before writing outputs to file, force GC.gc() in order to alleviate out-of-memory problems on hpc.
+- TODO -  WARNING: must run powerflow on full-system before building derived systems!
 """
 mutable struct TrainParams
     train_id::String
+    surrogate_buses::Vector{Int64}
+    train_data::NamedTuple{
+        (:operating_points, :perturbations, :params, :system),
+        Tuple{
+            Vector{PSIDS.SurrogateOperatingPoint},
+            Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}},
+            PSIDS.GenerateDataParams,
+            String,
+        },
+    }
+    validation_data::NamedTuple{
+        (:operating_points, :perturbations, :params),
+        Tuple{
+            Vector{PSIDS.SurrogateOperatingPoint},
+            Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}},
+            PSIDS.GenerateDataParams,
+        },
+    }
+    test_data::NamedTuple{
+        (:operating_points, :perturbations, :params),
+        Tuple{
+            Vector{PSIDS.SurrogateOperatingPoint},
+            Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}},
+            PSIDS.GenerateDataParams,
+        },
+    }
     hidden_states::Int64
     model_initializer::NamedTuple{
         (:type, :n_layer, :width_layers, :activation),
@@ -86,8 +113,8 @@ mutable struct TrainParams
         Tuple{Vector{Float64}, Vector{Float64}, Vector{Float64}, Vector{Float64}},
     }
     steady_state_solver::NamedTuple{
-        (:solver, :tols, :maxiters),
-        Tuple{String, Tuple{Float64, Float64}, Int},
+        (:solver, :abstol, :maxiters),
+        Tuple{String, Float64, Int},
     }
     dynamic_solver::NamedTuple{
         (:solver, :tols, :maxiters),
@@ -118,15 +145,58 @@ mutable struct TrainParams
     output_mode_skip::Int64
     train_time_limit_seconds::Int64
     base_path::String
-    input_data_path::String
+    system_path::String
+    surrogate_system_path::String
+    validation_loss_every_n::Int64
+    train_data_path::String
+    validation_data_path::String
+    test_data_path::String
     output_data_path::String
     force_gc::Bool
 end
 
 StructTypes.StructType(::Type{TrainParams}) = StructTypes.Mutable()
+StructTypes.StructType(::Type{PSIDS.GenerateDataParams}) = StructTypes.Struct()
+StructTypes.StructType(::Type{PSIDS.PVS}) = StructTypes.Struct()
+StructTypes.StructType(::Type{PSIDS.VStep}) = StructTypes.Struct()
+StructTypes.StructType(::Type{PSIDS.GenerationLoadScale}) = StructTypes.Struct()
+StructTypes.StructType(::Type{PSIDS.RandomBranchTrip}) = StructTypes.Struct()
+StructTypes.StructType(::Type{PSIDS.RandomLoadTrip}) = StructTypes.Struct()
+StructTypes.StructType(::Type{PSIDS.RandomLoadChange}) = StructTypes.Struct()
+
+StructTypes.StructType(::Type{PSIDS.SurrogatePerturbation}) = StructTypes.AbstractType()
+StructTypes.StructType(::Type{PSIDS.SurrogateOperatingPoint}) = StructTypes.AbstractType()
+StructTypes.subtypekey(::Type{PSIDS.SurrogatePerturbation}) = :type
+StructTypes.subtypekey(::Type{PSIDS.SurrogateOperatingPoint}) = :type
+StructTypes.subtypes(::Type{PSIDS.SurrogatePerturbation}) = (
+    PVS = PSIDS.PVS,
+    VStep = PSIDS.VStep,
+    RandomBranchTrip = PSIDS.RandomBranchTrip,
+    RandomLoadTrip = PSIDS.RandomLoadTrip,
+    RandomLoadChange = PSIDS.RandomLoadChange,
+)
+StructTypes.subtypes(::Type{PSIDS.SurrogateOperatingPoint}) =
+    (GenerationLoadScale = PSIDS.GenerationLoadScale,)
 
 function TrainParams(;
     train_id = "train_instance_1",
+    surrogate_buses = [1],
+    train_data = (
+        operating_points = PSIDS.SurrogateOperatingPoint[PSIDS.GenerationLoadScale()],
+        perturbations = [[PSIDS.PVS(source_name = "source_1")]],
+        params = PSIDS.GenerateDataParams(),
+        system = "reduced",     #generate from the reduced system with sources to perturb or the full system
+    ),
+    validation_data = (
+        operating_points = PSIDS.SurrogateOperatingPoint[PSIDS.GenerationLoadScale()],
+        perturbations = [[PSIDS.PVS(source_name = "source_1")]],    #To do - make this a branch impedance double 
+        params = PSIDS.GenerateDataParams(),
+    ),
+    test_data = (
+        operating_points = PSIDS.SurrogateOperatingPoint[PSIDS.GenerationLoadScale()],
+        perturbations = [[PSIDS.VStep(source_name = "InfBus")]],    #To do - make this a branch impedance double 
+        params = PSIDS.GenerateDataParams(),
+    ),
     hidden_states = 5,
     model_initializer = (
         type = "dense",     #OutputParams (train initial conditions)
@@ -154,15 +224,15 @@ function TrainParams(;
         exogenous_bias = [0.0, 0.0],
     ),
     steady_state_solver = (
-        solver = "Tsit5",
-        tols = (1e-4, 1e-4),        #High tolerance -> standard NODE with initializer and observation 
-        maxiters = 1e3,
+        solver = "SSRootfind",
+        abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+        maxiters = 5,
     ),
-    dynamic_solver = (solver = "Tsit5", tols = (1e-6, 1e-6), maxiters = 1e3),
+    dynamic_solver = (solver = "Rodas4", tols = (1e-6, 1e-6), maxiters = 1e3),
     optimizer = (
         sensealg = "Zygote",
         primary = "Adam",
-        primary_η = 0.0001,
+        primary_η = 0.000001,
         adjust = "nothing",
         adjust_η = 0.0,
     ),
@@ -179,12 +249,41 @@ function TrainParams(;
     output_mode_skip = 1,
     train_time_limit_seconds = 1e9,
     base_path = pwd(),
-    input_data_path = joinpath(base_path, "input_data"),
+    system_path = joinpath(
+        base_path,
+        PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
+        "system.json",
+    ),
+    surrogate_system_path = joinpath(
+        base_path,
+        PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
+        "validation_system.json",
+    ),
+    validation_loss_every_n = 100,
+    train_data_path = joinpath(
+        base_path,
+        PowerSimulationNODE.INPUT_FOLDER_NAME,
+        "train_data",
+    ),
+    validation_data_path = joinpath(
+        base_path,
+        PowerSimulationNODE.INPUT_FOLDER_NAME,
+        "validation_data",
+    ),
+    test_data_path = joinpath(
+        base_path,
+        PowerSimulationNODE.INPUT_FOLDER_NAME,
+        "test_data",
+    ),
     output_data_path = joinpath(base_path, "output_data"),
     force_gc = true,
 )
     TrainParams(
         train_id,
+        surrogate_buses,
+        train_data,
+        validation_data,
+        test_data,
         hidden_states,
         model_initializer,
         model_node,
@@ -203,7 +302,12 @@ function TrainParams(;
         output_mode_skip,
         train_time_limit_seconds,
         base_path,
-        input_data_path,
+        system_path,
+        surrogate_system_path,
+        validation_loss_every_n,
+        train_data_path,
+        validation_data_path,
+        test_data_path,
         output_data_path,
         force_gc,
     )

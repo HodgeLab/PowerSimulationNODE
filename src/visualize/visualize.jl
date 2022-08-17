@@ -30,10 +30,10 @@ function plot_overview(surrogate_prediction, fault_index, fault_data, exs)
         Plots.scatter!(p1, t_series, i_series[1, :], label = false, markersize = 1)
         Plots.scatter!(
             [0.0],
-            [i_series[1, 1] + ϵ[1]],
+            [i_series[1, 1]],
             color = :black,
             label = false,
-            markersize = 2,
+            markersize = 1,
         )
         Plots.plot!(tsteps, ground_truth_current[1, :], label = L"$y_1$")
 
@@ -41,10 +41,10 @@ function plot_overview(surrogate_prediction, fault_index, fault_data, exs)
         Plots.scatter!(p2, t_series, i_series[2, :], label = false, markersize = 1)
         Plots.scatter!(
             [0.0],
-            [i_series[2, 1] + ϵ[2]],
+            [i_series[2, 1]],
             color = :black,
             label = false,
-            markersize = 2,
+            markersize = 1,
         )
         Plots.plot!(tsteps, ground_truth_current[2, :], label = L"$y_2$")
         V = apply_to_columns(ex, t_series, i_series)
@@ -92,10 +92,7 @@ visualize_training("train_1.json")
 """
 function visualize_training(input_params_file::String; skip = 1)
     params = TrainParams(input_params_file)
-    path_to_input = joinpath(input_params_file, "..")
     path_to_output = joinpath(input_params_file, "..", "..", "output_data", params.train_id)
-    params.input_data_path = path_to_input
-    params.output_data_path = path_to_output
     output_dict =
         JSON3.read(read(joinpath(path_to_output, "high_level_outputs")), Dict{String, Any})
     println("--------------------------------")
@@ -104,10 +101,10 @@ function visualize_training(input_params_file::String; skip = 1)
     println("TOTAL ITERATIONS: ", output_dict["total_iterations"])
     println("FINAL LOSS: ", output_dict["final_loss"])
     println("--------------------------------")
-    p = _visualize_loss(params, path_to_output, path_to_input)
+    p = _visualize_loss(path_to_output)
     Plots.png(p, joinpath(path_to_output, "loss"))
 
-    plots_pred = _visualize_predictions(params, path_to_output, path_to_input, skip)
+    plots_pred = _visualize_predictions(params, path_to_output, skip)
     for (i, p) in enumerate(plots_pred)
         Plots.png(p, joinpath(path_to_output, string("_pred_", i)))
     end
@@ -116,7 +113,7 @@ function visualize_training(input_params_file::String; skip = 1)
     return
 end
 
-function _visualize_loss(params, path_to_output, path_to_input)
+function _visualize_loss(path_to_output)
     df_loss = read_arrow_file_to_dataframe(joinpath(path_to_output, "loss"))
     p1 = Plots.plot(df_loss.LossA, label = "LossA", yaxis = :log)
     Plots.plot!(p1, df_loss.LossB, label = "LossB")
@@ -125,24 +122,19 @@ function _visualize_loss(params, path_to_output, path_to_input)
     return p1
 end
 
-function _visualize_predictions(params, path_to_output, path_to_input, skip)
+function _visualize_predictions(params, path_to_output, skip)
     output_dict =
         JSON3.read(read(joinpath(path_to_output, "high_level_outputs")), Dict{String, Any})
     recorded_iterations = output_dict["recorded_iterations"]
     df_predictions = read_arrow_file_to_dataframe(joinpath(path_to_output, "predictions"))
-    TrainInputs = Serialization.deserialize(joinpath(params.input_data_path, "data"))
-
-    fault_data = TrainInputs.train_data
-    branch_order = TrainInputs.branch_order
-
-    sys = node_load_system(joinpath(params.input_data_path, "system.json"))
-    exs = _build_exogenous_input_functions(sys, fault_data, branch_order)
+    train_dataset = Serialization.deserialize(params.train_data_path)
+    exs = _build_exogenous_input_functions(params.train_data, train_dataset)
     plots_pred = []
     for (j, i) in enumerate(recorded_iterations)
         if mod(j, skip) == 0
             surrogate_prediction = df_predictions[j, "surrogate_solution"]
             fault_index = df_predictions[j, "fault_index"]
-            p = plot_overview(surrogate_prediction, fault_index, fault_data, exs)
+            p = plot_overview(surrogate_prediction, fault_index, train_dataset, exs)
             push!(plots_pred, p)
         end
     end
@@ -174,10 +166,7 @@ end
 
 function _animate_training(input_params_file::String; skip = 10, fps = 10)
     params = TrainParams(input_params_file)
-    path_to_input = joinpath(input_params_file, "..")
     path_to_output = joinpath(input_params_file, "..", "..", "output_data", params.train_id)
-    params.input_data_path = path_to_input
-    params.output_data_path = path_to_output
     output_dict =
         JSON3.read(read(joinpath(path_to_output, "high_level_outputs")), Dict{String, Any})
     println("--------------------------------")
@@ -186,7 +175,7 @@ function _animate_training(input_params_file::String; skip = 10, fps = 10)
     println("TOTAL ITERATIONS: ", output_dict["total_iterations"])
     println("FINAL LOSS: ", output_dict["final_loss"])
     println("--------------------------------")
-    plots_pred = _visualize_predictions(params, path_to_output, path_to_input, skip)
+    plots_pred = _visualize_predictions(params, path_to_output, skip)
     anim_preds = Plots.Animation()
     for p in plots_pred
         p = Plots.plot(p)
