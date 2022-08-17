@@ -193,7 +193,7 @@ function SummitHPCTrain(;
     force_generate_inputs = false,
     mb_per_cpu = 4800,
 )
-    time_format = Dates.DateFormat("H:M:S")   
+    time_format = Dates.DateFormat("H:M:S")
     for p in params_data
         t = Dates.Time(time_limit_train, time_format)
         z = Dates.Time("00:00:00", time_format)
@@ -289,7 +289,8 @@ function generate_train_files(train::HPCTrain)
     data_generate_tempate["time_limit"] = train.time_limit_generate_data
     data_generate_tempate["partition"] = train.partition
     data_generate_tempate["gnu_parallel_name"] = train.gnu_parallel_name
-    data_generate_tempate["project_path"] = joinpath(train.scratch_path, train.project_folder)
+    data_generate_tempate["project_path"] =
+        joinpath(train.scratch_path, train.project_folder)
     data_generate_tempate["n_cpus_per_task"] = train.n_cpus_per_task
     data_generate_tempate["mb_per_cpu"] = train.mb_per_cpu
     data_generate_tempate["n_nodes"] = train.n_nodes
@@ -300,12 +301,13 @@ function generate_train_files(train::HPCTrain)
     if !ispath(train_set_folder)
         mkpath(train_set_folder)
     end
-    data_generate_tempate["generate_data_set_file"] = joinpath(train_set_folder, "generate_data_files.lst")
+    data_generate_tempate["generate_data_set_file"] =
+        joinpath(train_set_folder, "generate_data_files.lst")
     open(data_generate_tempate["generate_data_set_file"], "w") do file
-        v = [p.data_generation for p in train.params_data]      #todo - improve naming, make more understandable for future 
-        unique_params_data = [train.params_data[p] for p in indexin(unique(v), v) ]
-        data_generate_tempate["n_tasks"] = length(unique_params_data)   
-        for (i,param) in enumerate(unique_params_data) #TODO - filter by unique sets of train parameters
+        v = [p.train_data for p in train.params_data]      #todo - improve naming, make more understandable for future 
+        unique_params_data = [train.params_data[p] for p in indexin(unique(v), v)]
+        data_generate_tempate["n_tasks"] = length(unique_params_data)
+        for (i, param) in enumerate(unique_params_data) #TODO - filter by unique sets of train parameters
             param_file_path = joinpath(
                 train.scratch_path,
                 train.project_folder,
@@ -316,26 +318,24 @@ function generate_train_files(train::HPCTrain)
                 touch(param_file_path)
             end
             #serialize(param, param_file_path)  - already serialized above 
-            for p in train.params_data
-                if param.data_generation == p.data_generation
-                    p.input_data_path = joinpath(p.input_data_path, string("dataset_", i))
-                end 
-            end 
+            #=           for p in train.params_data
+                          if param.train_data == p.train_data
+                              p.input_data_path = joinpath(p.input_data_path, string("dataset_", i))
+                          end
+                      end =#
             write(file, "$param_file_path, dataset_$i \n")
         end
     end
-    
+
     open(train.generate_data_bash_file, "w") do io
         write(io, Mustache.render(generate_data_bash_file_template, data_generate_tempate))
     end
     return
 end
 
-function run_parallel_train(train::HPCTrain)    
+function run_parallel_train(train::HPCTrain)
     generate_data_bash_file = train.generate_data_bash_file
     train_bash_file = train.train_bash_file
     generate_data_job_id = run(`sbatch $generate_data_bash_file --parsable`)       #TODO - test this syntax on hpc 
     return run(`sbatch $train_bash_file --dependency=$generate_data_job_id`)
 end
-
-

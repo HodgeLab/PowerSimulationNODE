@@ -14,6 +14,7 @@ const PSID_FILE_LEVEL = Logging.Error
 const SURROGATE_EXOGENOUS_INPUT_DIM = 2 #[Vr, Vi]
 const SURROGATE_SS_INPUT_DIM = 4    #[P, Q, V, θ]
 const SURROGATE_OUTPUT_DIM = 2 #[Ir, Ii]
+const SURROGATE_N_REFS = 2 #Two references to avoid ϵ
 
 if Sys.iswindows() || Sys.isapple()
     const NODE_CONSOLE_LEVEL = Logging.Info
