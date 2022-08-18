@@ -3,6 +3,33 @@
 
 # Fields
 - `train_id::String`: id for the training instance, used for naming output data folder.
+- `surrogate_buses::Vector{Int64}`: The buses which make up the portion of the system to be replaced with a surrogate.
+- `train_data::NamedTuple{
+    (:operating_points, :perturbations, :params, :system),
+    Tuple{
+        Vector{PSIDS.SurrogateOperatingPoint},
+        Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}},
+        PSIDS.GenerateDataParams,
+        String,
+    },
+    }`: train_data describes the training dataset. The `:system` field options are `"reduced"` and `"full"`. 
+- `validation_data::NamedTuple{
+    (:operating_points, :perturbations, :params),
+    Tuple{
+        Vector{PSIDS.SurrogateOperatingPoint},
+        Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}},
+        PSIDS.GenerateDataParams,
+    },
+    }`: validation_data describes the validation dataset. No system option because validation data always comes from full system. 
+
+- `test_data::NamedTuple{
+    (:operating_points, :perturbations, :params),
+    Tuple{
+        Vector{PSIDS.SurrogateOperatingPoint},
+        Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}},
+        PSIDS.GenerateDataParams,
+    },
+    }`: test_data describes the validation dataset. No system option because test data always comes from full system. 
 - `hidden_states::Int64`: The number of surrogate states. User defined depending on complexity of underlying model.
 - `model_initializer::NamedTuple{
     (:type, :n_layer, :width_layers, :activation),
@@ -23,6 +50,10 @@
     (:type, :n_layer, :width_layers, :activation, :normalization),
     Tuple{String, Int64, Int64, String, String},
     }`: Parameters which determine the structure of the observer NN. `type="dense"`. `n_layer` is the number of hidden layers. `width_layers` is the width of hidden layers. `activation=["tanh", "relu"]` in the activation function. 
+- `input_normalization::NamedTuple{
+    (:x_scale, :x_bias, :exogenous_scale, :exogenous_bias),
+    Tuple{Vector{Float64}, Vector{Float64}, Vector{Float64}, Vector{Float64}},
+    }`: Scale and bias parameters for the exogenous input and the fixed input. 
 - `steady_state_solver::NamedTuple{
     (:solver, :tols),
     Tuple{String, Tuple{Float64, Float64}},
@@ -36,6 +67,7 @@
     Tuple{String, String, Float64, String, Float64},
     }`: The optimizer(s) used during training. `sensealg="AutoZygote"`. The primary optimizer is used throughout the training according to the data provided and the `curriculum`/`curriculum_timespans` parameter.
     WARNING: The adjust optimizer is not yet implemented (TODO)
+- `p_start::Vector{Float32}`: Starting parameters (for initializer, node, and observation together). By default is empty which starts with randomly initialized parameters (see `rng_seed`). 
 - `maxiters::Int64`: The maximum possible iterations for the entire training instance. If `lb_loss = 0` and `optimizer = "Adam"` the training should never exit early and maxiters will be hit.
     Note that the number of saved data points can exceed maxiters because there is an additional callback at the end of each individual optimization.
 - `lb_loss::Float64`: If the value of the loss function moves below lb_loss during training, the current optimization ends (current range).
@@ -46,7 +78,8 @@
         Tuple{Tuple{Float64, Float64}, Float64},
     },
     }`: Indicates the timespan to train on and the sampling factor for batching. If more than one entry in `curriculum_timespans`, each fault from the input data is paired with each value of `curriculum_timespans`
-- `    loss_function::NamedTuple{
+- `validation_loss_every_n::Int64`: Determines how often, during training, the surrogate is added to the full system and loss is evaluated. 
+- `loss_function::NamedTuple{
     (:component_weights, :type_weights),
     Tuple{
         NamedTuple{(:A, :B, :C), Tuple{Float64, Float64, Float64}},
@@ -55,11 +88,16 @@
     }`: Various weighting factors to change the loss function. For A,B,C definitions -- see paper. `type_weights` should sum to one. 
 - `rng_seed::Int64`: Seed for the random number generator used for initializing the NN for reproducibility across training runs.
 - `output_mode_skip::Int`: Record and save output data every `output_mode_skip` iterations. Meant to ease memory constraints on HPC. 
-- `base_path:String`: Directory for training where input data is found and output data is written.
-- `input_data_path:String`: From `base_path`, the directory for input data.
+- `train_time_limit_seconds::Int64`:  
+- `base_path:String`: TODO: Directory for training where input data is found and output data is written.
+- `system_path::String`: Location of the full `System`. Training/validation/test systems are dervied based on `surrogate_buses`.  
+- `surrogate_system_path`: Path to validation system (surrogate is added to this system during training).
+- `train_system_path`: Path to train system (system with only the surrogate represented in detail with sources surrounding).
+- `train_data_path::String`: path to train data. 
+- `validation_data_path::String`: path to validation data.
+- `test_data_path::String`: path to test_data. 
 - `output_data_path:String`: From `base_path`, the directory for saving output data.
 - `force_gc:Bool`: `true`: After training and before writing outputs to file, force GC.gc() in order to alleviate out-of-memory problems on hpc.
-- TODO -  WARNING: must run powerflow on full-system before building derived systems!
 """
 mutable struct TrainParams
     train_id::String
@@ -134,6 +172,7 @@ mutable struct TrainParams
             Tuple{Tuple{Float64, Float64}, Float64},
         },
     }
+    validation_loss_every_n::Int64
     loss_function::NamedTuple{
         (:component_weights, :type_weights),
         Tuple{
@@ -147,7 +186,8 @@ mutable struct TrainParams
     base_path::String
     system_path::String
     surrogate_system_path::String
-    validation_loss_every_n::Int64
+    train_system_path::String
+    connecting_branch_names_path::String
     train_data_path::String
     validation_data_path::String
     test_data_path::String
@@ -241,6 +281,7 @@ function TrainParams(;
     lb_loss = 0.0,
     curriculum = "none",
     curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
+    validation_loss_every_n = 100,
     loss_function = (
         component_weights = (A = 1.0, B = 1.0, C = 1.0),
         type_weights = (rmse = 1.0, mae = 0.0),
@@ -259,7 +300,16 @@ function TrainParams(;
         PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
         "validation_system.json",
     ),
-    validation_loss_every_n = 100,
+    train_system_path = joinpath(
+        base_path,
+        PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
+        "train_system.json",
+    ),
+    connecting_branch_names_path = joinpath(
+        base_path,
+        PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
+        "connecting_branches_names",
+    ),
     train_data_path = joinpath(
         base_path,
         PowerSimulationNODE.INPUT_FOLDER_NAME,
@@ -297,14 +347,16 @@ function TrainParams(;
         lb_loss,
         curriculum,
         curriculum_timespans,
+        validation_loss_every_n,
         loss_function,
         rng_seed,
         output_mode_skip,
         train_time_limit_seconds,
-        base_path,
+        base_path,  #other paths derived from this one must come after 
         system_path,
         surrogate_system_path,
-        validation_loss_every_n,
+        train_system_path,
+        connecting_branch_names_path,
         train_data_path,
         validation_data_path,
         test_data_path,
