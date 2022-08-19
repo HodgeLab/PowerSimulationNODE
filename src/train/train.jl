@@ -181,7 +181,7 @@ end
 Executes training according to params. Assumes the existence of the necessary input files. 
 
 """
-function train(params::TrainParams, connecting_branches::Vector{Tuple{String, Symbol}})
+function train(params::TrainParams)
     params.train_time_limit_seconds += floor(time())
     Random.seed!(params.rng_seed)
 
@@ -189,6 +189,7 @@ function train(params::TrainParams, connecting_branches::Vector{Tuple{String, Sy
     train_dataset = Serialization.deserialize(params.train_data_path)
     validation_dataset = Serialization.deserialize(params.validation_data_path)
     test_dataset = Serialization.deserialize(params.test_data_path)
+    connecting_branches = Serialization.deserialize(params.connecting_branch_names_path)
     @info "Length of possible training conditions (number of fault/operating point combinations):",
     length(train_dataset)
     @info "Length of actual training dataset (stable conditions):", length(train_dataset)   #TODO - filter based on stable == true 

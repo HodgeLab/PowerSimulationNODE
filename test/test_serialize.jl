@@ -8,8 +8,6 @@ try
     #Spot check
     @test test_params.train_data.operating_points[1] ==
           test_params_2.train_data.operating_points[1]
-    display(test_params)
-    display(test_params_2)
 finally
     @info("removing test files")
     rm(path, force = true, recursive = true)

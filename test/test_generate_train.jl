@@ -1,92 +1,20 @@
 
-function generate_and_train_test(p, path)
-    #Generate train and validation systems
-    sys_full = node_load_system(p.system_path)
-    PSY.solve_powerflow!(sys_full)
-    for b in PSY.get_components(PSY.Branch, sys_full)
-        @warn PSY.get_name(b)
-    end
-
-    sys_train, connecting_branches =
-        PSIDS.create_subsystem_from_buses(sys_full, p.surrogate_buses)
-    non_surrogate_buses =
-        get_number.(get_components(Bus, sys_full, x -> get_number(x) ∉ p.surrogate_buses))
-    sys_validation, _ = PSIDS.create_subsystem_from_buses(sys_full, non_surrogate_buses)
-
-    PSY.to_json(
-        sys_validation,
-        joinpath(
-            path,
-            PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
-            "validation_system.json",
-        ),
-        force = true,
-    )
-    display(sys_validation)
-
-    #Generate train, validation, and test, datasets 
-    if p.train_data.system == "reduced"
-        train_data = PSIDS.generate_surrogate_data(
-            sys_train,   #sys_main
-            sys_validation,   #sys_aux
-            p.train_data.perturbations,
-            p.train_data.operating_points,
-            SteadyStateNODEDataParams(connecting_branch_names = connecting_branches),
-            p.train_data.params,
-        )
-    elseif p.train_data.system == "full"
-        train_data = PSIDS.generate_surrogate_data(
-            sys_full,   #sys_main
-            sys_validation,   #sys_aux
-            p.train_data.perturbations,
-            p.train_data.operating_points,
-            SteadyStateNODEDataParams(connecting_branch_names = connecting_branches),
-            p.train_data.params,
-        )
-    else
-        @error "invalid parameter for the system to generate train data (should be reduced or full)"
-    end
-    validation_data = PSIDS.generate_surrogate_data(
-        sys_full,   #sys_main
-        sys_validation,  #sys_aux
-        p.validation_data.perturbations,
-        p.validation_data.operating_points,
-        SteadyStateNODEDataParams(connecting_branch_names = connecting_branches),
-        p.validation_data.params,
-    )
-    test_data = PSIDS.generate_surrogate_data(
-        sys_full,   #sys_main
-        sys_validation,  #sys_aux
-        p.test_data.perturbations,
-        p.test_data.operating_points,
-        SteadyStateNODEDataParams(connecting_branch_names = connecting_branches),
-        p.test_data.params,
-    )
-
-    Serialization.serialize(
-        joinpath(path, PowerSimulationNODE.INPUT_FOLDER_NAME, "train_data"),
-        train_data,
-    )
-    Serialization.serialize(
-        joinpath(path, PowerSimulationNODE.INPUT_FOLDER_NAME, "validation_data"),
-        validation_data,
-    )
-    Serialization.serialize(
-        joinpath(path, PowerSimulationNODE.INPUT_FOLDER_NAME, "test_data"),
-        test_data,
-    )
-
-    display(p)
-    status, θ = train(p, connecting_branches)    #TODO -rework training to incorporate new data files, parameters, etc. 
+function generate_and_train_test(p)
+    build_subsystems(p)
+    generate_train_data(p)
+    generate_validation_data(p)
+    generate_test_data(p)
+    #display(p)
+    status, θ = train(p)
     @test status
-    input_param_file = joinpath(path, "input_data", "input_test1.json")
+    input_param_file = joinpath(p.base_path, "input_data", "input_test1.json")
     PowerSimulationNODE.serialize(p, input_param_file)
     visualize_training(input_param_file, skip = 1)
     animate_training(input_param_file, skip = 1)
-    a = generate_summary(joinpath(path, "output_data"))
-    p = visualize_summary(a)
-    #display(Plots.plot(p))
-    print_high_level_output_overview(a, path)
+    a = generate_summary(joinpath(p.base_path, "output_data"))
+    pp = visualize_summary(a)
+    #display(Plots.plot(pp))
+    print_high_level_output_overview(a, p.base_path)
 end
 
 function _generic_test_setup()
@@ -205,7 +133,7 @@ end
         ),
     )
     try
-        generate_and_train_test(p, path)
+        generate_and_train_test(p)
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -275,6 +203,5 @@ end
     )
     generate_and_train_test(p, path)
 end  =#
-
-#TODO - test train visualization functionality
+#TODO add different parameter cases 
 #TODO - test parameter restart functionality 

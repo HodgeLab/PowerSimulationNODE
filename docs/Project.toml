@@ -1,3 +1,5 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+LiveServer = "16fef848-5104-11e9-1b77-fb7a48bbb589"
 PowerSimulationNODE = "4b7d6be9-769c-4710-86e6-88f799a27627"
+PowerSimulationsDynamicsSurrogates = "de933368-4bb5-470a-b916-9fff09bf2720"
