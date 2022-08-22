@@ -74,7 +74,7 @@ const generate_data_bash_file_template = """
 export TMPDIR={{{project_path}}}/tmp/
 # Check Dependencies
 julia --project={{{project_path}}} -e 'using Pkg; Pkg.instantiate()'
-julia --project={{{project_path}}} -e  {{{project_path}}}/scripts/hpc_train/build_subsystems.jl {{first_parameter_path}}
+julia --project={{{project_path}}} -e  {{{project_path}}}/scripts/hpc_train/build_subsystems.jl {{{first_parameter_path}}}
 
 # Load Parallel
 module load {{gnu_parallel_name}}
