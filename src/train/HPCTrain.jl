@@ -264,6 +264,10 @@ function generate_train_files(train::HPCTrain)
     if !ispath(train_set_folder)
         mkpath(train_set_folder)
     end
+    tmp_folder = joinpath(train_set_folder, "tmp")
+    if !ispath(tmp_folder)
+        mkpath(tmp_folder)
+    end
     data_train_template["train_set_file"] = joinpath(train_set_folder, "train_files.lst")
     open(data_train_template["train_set_file"], "w") do file
         for (i, param) in enumerate(train.params_data)
