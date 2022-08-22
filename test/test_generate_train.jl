@@ -50,6 +50,7 @@ end
         surrogate_buses = SURROGATE_BUSES,
         system_path = full_system_path,
         train_data = (
+            id = "1", 
             operating_points = PSIDS.SurrogateOperatingPoint[PSIDS.GenerationLoadScale(
                 generation_scale = 1.0,
                 load_scale = 1.0,
@@ -65,6 +66,7 @@ end
             system = "full",     #generate from the reduced system with sources to perturb or the full system
         ),
         validation_data = (
+            id = "1",
             operating_points = PSIDS.SurrogateOperatingPoint[PSIDS.GenerationLoadScale(
                 generation_scale = 1.0,
                 load_scale = 1.0,
@@ -79,6 +81,7 @@ end
             ),
         ),
         test_data = (
+            id = "1",
             operating_points = PSIDS.SurrogateOperatingPoint[PSIDS.GenerationLoadScale(
                 generation_scale = 1.0,
                 load_scale = 1.0,

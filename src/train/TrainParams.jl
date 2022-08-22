@@ -5,8 +5,9 @@
 - `train_id::String`: id for the training instance, used for naming output data folder.
 - `surrogate_buses::Vector{Int64}`: The buses which make up the portion of the system to be replaced with a surrogate.
 - `train_data::NamedTuple{
-    (:operating_points, :perturbations, :params, :system),
+    (:id, :operating_points, :perturbations, :params, :system),
     Tuple{
+        String,
         Vector{PSIDS.SurrogateOperatingPoint},
         Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}},
         PSIDS.GenerateDataParams,
@@ -14,8 +15,9 @@
     },
     }`: train_data describes the training dataset. The `:system` field options are `"reduced"` and `"full"`. 
 - `validation_data::NamedTuple{
-    (:operating_points, :perturbations, :params),
+    (:id, :operating_points, :perturbations, :params),
     Tuple{
+        String,
         Vector{PSIDS.SurrogateOperatingPoint},
         Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}},
         PSIDS.GenerateDataParams,
@@ -23,8 +25,9 @@
     }`: validation_data describes the validation dataset. No system option because validation data always comes from full system. 
 
 - `test_data::NamedTuple{
-    (:operating_points, :perturbations, :params),
+    (:id, :operating_points, :perturbations, :params),
     Tuple{
+        String,
         Vector{PSIDS.SurrogateOperatingPoint},
         Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}},
         PSIDS.GenerateDataParams,
@@ -103,8 +106,9 @@ mutable struct TrainParams
     train_id::String
     surrogate_buses::Vector{Int64}
     train_data::NamedTuple{
-        (:operating_points, :perturbations, :params, :system),
+        (:id, :operating_points, :perturbations, :params, :system),
         Tuple{
+            String,
             Vector{PSIDS.SurrogateOperatingPoint},
             Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}},
             PSIDS.GenerateDataParams,
@@ -112,16 +116,18 @@ mutable struct TrainParams
         },
     }
     validation_data::NamedTuple{
-        (:operating_points, :perturbations, :params),
+        (:id, :operating_points, :perturbations, :params),
         Tuple{
+            String,
             Vector{PSIDS.SurrogateOperatingPoint},
             Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}},
             PSIDS.GenerateDataParams,
         },
     }
     test_data::NamedTuple{
-        (:operating_points, :perturbations, :params),
+        (:id, :operating_points, :perturbations, :params),
         Tuple{
+            String,
             Vector{PSIDS.SurrogateOperatingPoint},
             Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}},
             PSIDS.GenerateDataParams,
@@ -222,17 +228,20 @@ function TrainParams(;
     train_id = "train_instance_1",
     surrogate_buses = [1],
     train_data = (
+        id = "1",
         operating_points = PSIDS.SurrogateOperatingPoint[PSIDS.GenerationLoadScale()],
-        perturbations = [[PSIDS.PVS(source_name = "source_1")]],
+        perturbations = [[PSIDS.PVS(source_name = "InfBus")]],
         params = PSIDS.GenerateDataParams(),
         system = "reduced",     #generate from the reduced system with sources to perturb or the full system
     ),
     validation_data = (
+        id = "1",
         operating_points = PSIDS.SurrogateOperatingPoint[PSIDS.GenerationLoadScale()],
-        perturbations = [[PSIDS.PVS(source_name = "source_1")]],    #To do - make this a branch impedance double 
+        perturbations = [[PSIDS.VStep(source_name = "InfBus")]],    #To do - make this a branch impedance double 
         params = PSIDS.GenerateDataParams(),
     ),
     test_data = (
+        id = "1",
         operating_points = PSIDS.SurrogateOperatingPoint[PSIDS.GenerationLoadScale()],
         perturbations = [[PSIDS.VStep(source_name = "InfBus")]],    #To do - make this a branch impedance double 
         params = PSIDS.GenerateDataParams(),
@@ -313,17 +322,17 @@ function TrainParams(;
     train_data_path = joinpath(
         base_path,
         PowerSimulationNODE.INPUT_FOLDER_NAME,
-        "train_data",
+        "train_data_$(train_data.id)",
     ),
     validation_data_path = joinpath(
         base_path,
         PowerSimulationNODE.INPUT_FOLDER_NAME,
-        "validation_data",
+        "validation_data_$(validation_data.id)",
     ),
     test_data_path = joinpath(
         base_path,
         PowerSimulationNODE.INPUT_FOLDER_NAME,
-        "test_data",
+        "test_data_$(test_data.id)",
     ),
     output_data_path = joinpath(base_path, "output_data"),
     force_gc = true,
@@ -393,14 +402,4 @@ function Base.show(io::IO, ::MIME"text/plain", params::TrainParams)
             println(io, "$field_name = ", getfield(params, field_name))
         end
     end
-end
-
-import Base.==
-function ==(x::TrainParams, y::TrainParams)
-    for f in fieldnames(TrainParams)
-        if getfield(x, f) != getfield(y, f)
-            return false
-        end
-    end
-    return true
 end

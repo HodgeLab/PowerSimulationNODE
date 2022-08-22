@@ -1,8 +1,9 @@
 
 function _build_exogenous_input_functions(
     train_data_params::NamedTuple{
-        (:operating_points, :perturbations, :params, :system),
+        (:id, :operating_points, :perturbations, :params, :system),
         Tuple{
+            String,
             Vector{PSIDS.SurrogateOperatingPoint},
             Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}},
             PSIDS.GenerateDataParams,
