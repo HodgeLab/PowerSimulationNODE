@@ -50,7 +50,7 @@ end
         surrogate_buses = SURROGATE_BUSES,
         system_path = full_system_path,
         train_data = (
-            id = "1", 
+            id = "1",
             operating_points = PSIDS.SurrogateOperatingPoint[PSIDS.GenerationLoadScale(
                 generation_scale = 1.0,
                 load_scale = 1.0,

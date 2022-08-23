@@ -97,6 +97,7 @@ struct HPCTrain
     QoS::String
     partition::String
     project_folder::String
+    train_folder::String
     scratch_path::String
     gnu_parallel_name::String
     n_tasks_train::Int
@@ -132,6 +133,7 @@ function SavioHPCTrain(;
     username,
     params_data,
     project_folder = "PowerSystemNODEs",
+    train_folder = "train1",
     scratch_path = "/global/scratch/users",
     time_limit_train = "23:59:59",
     time_limit_generate_data = "00:30:00",
@@ -150,6 +152,7 @@ function SavioHPCTrain(;
         QoS,
         partition,
         project_folder,
+        train_folder,
         scratch_path,
         "gnu-parallel",
         1,   #updated during file generation
@@ -160,8 +163,8 @@ function SavioHPCTrain(;
         params_data,
         time_limit_train,
         time_limit_generate_data,
-        joinpath(scratch_path, project_folder, HPC_GENERATE_DATA_FILE),
-        joinpath(scratch_path, project_folder, HPC_TRAIN_FILE),
+        joinpath(scratch_path, project_folder, train_folder, HPC_GENERATE_DATA_FILE),
+        joinpath(scratch_path, project_folder, train_folder, HPC_TRAIN_FILE),
         force_generate_inputs,
     )
 end
@@ -172,6 +175,7 @@ end
         username,
         params_data,
         project_folder = "PowerSystemNODEs",
+        train_folder = "train1",
         scratch_path = "/scratch/summit/",
         time_limit_train = "24:00:00",
         n_tasks = 1,  #default to parallelize across all tasks 
@@ -186,6 +190,7 @@ function SummitHPCTrain(;
     username,
     params_data,
     project_folder = "PowerSystemNODEs",
+    train_folder = "train1",
     scratch_path = "/scratch/summit/",
     time_limit_train = "23:59:59",
     time_limit_generate_data = "00:30:00",
@@ -209,6 +214,7 @@ function SummitHPCTrain(;
         QoS,
         partition,
         project_folder,
+        train_folder,
         scratch_path,
         "gnu_parallel",
         1,  #updated during file generation
@@ -219,8 +225,8 @@ function SummitHPCTrain(;
         params_data,
         time_limit_train,
         time_limit_generate_data,
-        joinpath(scratch_path, project_folder, HPC_GENERATE_DATA_FILE),
-        joinpath(scratch_path, project_folder, HPC_TRAIN_FILE),
+        joinpath(scratch_path, project_folder, train_folder, HPC_GENERATE_DATA_FILE),
+        joinpath(scratch_path, project_folder, train_folder, HPC_TRAIN_FILE),
         force_generate_inputs,
     )
 end
@@ -231,18 +237,13 @@ end
 - Generates the paths and data required to run a training on HPC.
 """
 function generate_train_files(train::HPCTrain)
-    scratch_path = train.scratch_path
-    project_folder = train.project_folder
-    mkpath(joinpath(scratch_path, project_folder, PowerSimulationNODE.INPUT_FOLDER_NAME))
-    mkpath(
-        joinpath(
-            scratch_path,
-            project_folder,
-            PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
-        ),
-    )
-    mkpath(joinpath(scratch_path, project_folder, PowerSimulationNODE.OUTPUT_FOLDER_NAME))
-    touch(joinpath(scratch_path, project_folder, PowerSimulationNODE.HPC_TRAIN_FILE))
+    path_to_train_folder =
+        joinpath(train.scratch_path, train.project_folder, train.train_folder)
+    mkpath(joinpath(path_to_train_folder, "tmp"))
+    mkpath(joinpath(path_to_train_folder, PowerSimulationNODE.INPUT_FOLDER_NAME))
+    mkpath(joinpath(path_to_train_folder, PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME))
+    mkpath(joinpath(path_to_train_folder, PowerSimulationNODE.OUTPUT_FOLDER_NAME))
+    touch(joinpath(path_to_train_folder, PowerSimulationNODE.HPC_TRAIN_FILE))
 
     data_train_template = Dict()
     data_generate_template = Dict()
@@ -260,29 +261,22 @@ function generate_train_files(train::HPCTrain)
     if !isnothing(train.n_nodes)
         data_train_template["n_nodes"] = train.n_nodes
     end
-    train_set_folder = joinpath(train.scratch_path, train.project_folder)
-    if !ispath(train_set_folder)
-        mkpath(train_set_folder)
-    end
-    tmp_folder = joinpath(train_set_folder, "tmp")
-    if !ispath(tmp_folder)
-        mkpath(tmp_folder)
-    end
-    data_train_template["train_set_file"] = joinpath(train_set_folder, "train_files.lst")
+
+    data_train_template["train_set_file"] =
+        joinpath(path_to_train_folder, "train_files.lst")
     open(data_train_template["train_set_file"], "w") do file
         for (i, param) in enumerate(train.params_data)
             param_file_path = joinpath(
-                train.scratch_path,
-                train.project_folder,
+                path_to_train_folder,
                 PowerSimulationNODE.INPUT_FOLDER_NAME,
                 "train_$(param.train_id).json",
             )
             if !isfile(param_file_path)
                 touch(param_file_path)
             end
-            if i ==1 
-                data_generate_template["first_parameter_path"]  = param_file_path 
-            end 
+            if i == 1
+                data_generate_template["first_parameter_path"] = param_file_path
+            end
             serialize(param, param_file_path)
             write(file, "$param_file_path\n")
         end
@@ -292,35 +286,30 @@ function generate_train_files(train::HPCTrain)
         write(io, Mustache.render(train_bash_file_template, data_train_template))
     end
 
-
     data_generate_template["username"] = train.username
     data_generate_template["account"] = train.account
     data_generate_template["QoS"] = train.QoS
     data_generate_template["time_limit"] = train.time_limit_generate_data
     data_generate_template["partition"] = train.partition
     data_generate_template["gnu_parallel_name"] = train.gnu_parallel_name
-    data_generate_template["project_path"] =
-        joinpath(train.scratch_path, train.project_folder)
+    data_generate_template["project_path"] = path_to_train_folder
     data_generate_template["n_cpus_per_task"] = train.n_cpus_per_task
     data_generate_template["mb_per_cpu"] = train.mb_per_cpu
     data_generate_template["n_nodes"] = train.n_nodes
     if !isnothing(train.n_nodes)
         data_generate_template["n_nodes"] = train.n_nodes
     end
-    train_set_folder = joinpath(train.scratch_path, train.project_folder)
-    if !ispath(train_set_folder)
-        mkpath(train_set_folder)
-    end
+
     data_generate_template["generate_data_set_file"] =
-        joinpath(train_set_folder, "generate_data_files.lst")
+        joinpath(path_to_train_folder, "generate_data_files.lst")
     open(data_generate_template["generate_data_set_file"], "w") do file
         #WRITE UNIQUE TRAIN DATA SETS TO FILE
-        train_data_ids = [p.train_data.id for p in train.params_data] 
-        unique_train_params_data = [train.params_data[p] for p in indexin(unique(train_data_ids), train_data_ids)]
+        train_data_ids = [p.train_data.id for p in train.params_data]
+        unique_train_params_data =
+            [train.params_data[p] for p in indexin(unique(train_data_ids), train_data_ids)]
         for param in unique_train_params_data
             param_file_path = joinpath(
-                train.scratch_path,
-                train.project_folder,
+                path_to_train_folder,
                 PowerSimulationNODE.INPUT_FOLDER_NAME,
                 "train_$(param.train_id).json",
             )
@@ -331,12 +320,14 @@ function generate_train_files(train::HPCTrain)
         end
 
         #WRITE UNIQUE VALIDATION DATA SETS TO FILE
-        validation_data_ids =  [p.validation_data.id for p in train.params_data]    
-        unique_validation_params_data = [train.params_data[p] for p in indexin(unique(validation_data_ids), validation_data_ids)]
+        validation_data_ids = [p.validation_data.id for p in train.params_data]
+        unique_validation_params_data = [
+            train.params_data[p] for
+            p in indexin(unique(validation_data_ids), validation_data_ids)
+        ]
         for param in unique_validation_params_data
             param_file_path = joinpath(
-                train.scratch_path,
-                train.project_folder,
+                path_to_train_folder,
                 PowerSimulationNODE.INPUT_FOLDER_NAME,
                 "train_$(param.train_id).json",
             )
@@ -347,12 +338,12 @@ function generate_train_files(train::HPCTrain)
         end
 
         #WRITE UNIQUE TEST DATA SETS TO FILE
-        test_data_ids =  [p.test_data.id for p in train.params_data]    
-        unique_test_params_data = [train.params_data[p] for p in indexin(unique(test_data_ids), test_data_ids)]
+        test_data_ids = [p.test_data.id for p in train.params_data]
+        unique_test_params_data =
+            [train.params_data[p] for p in indexin(unique(test_data_ids), test_data_ids)]
         for param in unique_test_params_data
             param_file_path = joinpath(
-                train.scratch_path,
-                train.project_folder,
+                path_to_train_folder,
                 PowerSimulationNODE.INPUT_FOLDER_NAME,
                 "train_$(param.train_id).json",
             )
@@ -363,7 +354,10 @@ function generate_train_files(train::HPCTrain)
         end
 
         #NUMBER OF TASKS IN THE GENERATE BASH FILE IS THE TOTAL NUMBER OF DATASETS TO BE GENERATED 
-        data_generate_template["n_tasks"] = length(unique_train_params_data)  + length(unique_validation_params_data) + length(unique_test_params_data)
+        data_generate_template["n_tasks"] =
+            length(unique_train_params_data) +
+            length(unique_validation_params_data) +
+            length(unique_test_params_data)
     end
 
     open(train.generate_data_bash_file, "w") do io
