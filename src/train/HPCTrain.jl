@@ -327,7 +327,7 @@ function generate_train_files(train::HPCTrain)
             if !isfile(param_file_path)
                 touch(param_file_path)
             end
-            write(file, "$param_file_path, train \n")
+            write(file, "$param_file_path,train\n")
         end
 
         #WRITE UNIQUE VALIDATION DATA SETS TO FILE
@@ -343,7 +343,7 @@ function generate_train_files(train::HPCTrain)
             if !isfile(param_file_path)
                 touch(param_file_path)
             end
-            write(file, "$param_file_path, validation \n")
+            write(file, "$param_file_path,validation\n")
         end
 
         #WRITE UNIQUE TEST DATA SETS TO FILE
@@ -359,7 +359,7 @@ function generate_train_files(train::HPCTrain)
             if !isfile(param_file_path)
                 touch(param_file_path)
             end
-            write(file, "$param_file_path, test \n")
+            write(file, "$param_file_path,test\n")
         end
 
         #NUMBER OF TASKS IN THE GENERATE BASH FILE IS THE TOTAL NUMBER OF DATASETS TO BE GENERATED 
