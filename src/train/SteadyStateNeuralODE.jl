@@ -99,7 +99,7 @@ function (s::SteadyStateNeuralODE)(ex, x, tsteps, p = s.p)   #r, ex, refs (order
             ex(0.0, s.re3(p[(s.len + s.len2 + 1):end])(u[1:(end - 2)])),
             u[(end - 1):end],
         )),
-        s.re3(p[(s.len + s.len2 + 1):end])(u[1:(end - 2)]) .- _PQVθ_to_IrIi(x),
+        s.re3(p[(s.len + s.len2 + 1):end])(u[1:(end - 2)]) .- x[1:2], #_PQVθ_to_IrIi(x),
     )
 
     dudt_dyn(u, p, t) = s.re2(p[(s.len + 1):(s.len + s.len2)])((
@@ -117,7 +117,8 @@ function (s::SteadyStateNeuralODE)(ex, x, tsteps, p = s.p)   #r, ex, refs (order
         OrdinaryDiffEq.ODEProblem{false}(
             ff_ss,
             u0_pred,
-            (zero(u0_pred[1]), zero(u0_pred[1])),
+            (zero(u0_pred[1]), one(1.0) * 100),
+            #(zero(u0_pred[1]), zero(u0_pred[1])),  #Possible this is the issue with SS solve? Restricts time to 0?? 
             p,
         ),
     )
@@ -125,17 +126,21 @@ function (s::SteadyStateNeuralODE)(ex, x, tsteps, p = s.p)   #r, ex, refs (order
         prob_ss,
         s.ss_solver;
         abstol = s.args[2],
-        # maxiters = s.args[1],
+        maxiters = s.args[1],
     )
+    #=     display(s.args[1])
+        display(ss_solution.original)
+        display(dudt_ss(u0_pred, p, 0.0))
+        display(ss_solution.u) =#
+
     res = dudt_ss(ss_solution.u, p, 0.0)
 
-    #residual is close to zero for first train iteration, but not after
     #TODO - extra call (dummy) to propogate gradients needed after ss_solution is reached? 
     #https://github.com/SciML/DeepEquilibriumNetworks.jl/blob/9c2626d6080bbda3c06b81d2463744f5e395003f/src/layers/deq.jl#L41
 
-    if ss_solution.retcode == :Success  #maybe the retcode doesn't come properly from NLsolve? 
+    if NLsolve.converged(ss_solution.original)
         #SOLVE DYNAMICS
-        refs = ss_solution.u[(end - 1):end]
+        refs = ss_solution.u[(end - 1):end] #NOTE: refs is used in dudt_dyn
         ff = OrdinaryDiffEq.ODEFunction{false}(dudt_dyn) #,tgrad=basic_tgrad)    
         prob_dyn = OrdinaryDiffEq.ODEProblem{false}(
             ff,
@@ -185,7 +190,7 @@ struct SteadyStateNeuralODE_solution{T}        #TODO - look into making this com
     t_series::AbstractArray{T}
     r_series::AbstractArray{T}
     i_series::AbstractArray{T}
-    ϵ::AbstractArray{T}
+    res::AbstractArray{T}
 end
 
 #This was for comparing the initializer network with learning the initial conditions directly.

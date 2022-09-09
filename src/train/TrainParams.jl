@@ -44,11 +44,11 @@
         :n_layer,
         :width_layers,
         :activation,
-        :initialization,
+        :σ2_initialization,
     ),
-    Tuple{String, Int64, Int64, String, String},
+    Tuple{String, Int64, Int64, String, Float64},
     }`: Parameters which determine the structure of the neural ODE. `type="dense"`. `n_layer` is the number of hidden layers. `width_layers` is the width of hidden layers. `activation=["tanh", "relu"]` in the activation function. 
-    WARNING: Custom initialization routines not yet implemented (TODO)
+    `σ2_initialization` is the variance of the initial params for the node model. Set `σ2_initialization = 0.0` to use the default flux initialization.
 - `model_observation::NamedTuple{
     (:type, :n_layer, :width_layers, :activation, :normalization),
     Tuple{String, Int64, Int64, String, String},
@@ -85,10 +85,13 @@
 - `loss_function::NamedTuple{
     (:component_weights, :type_weights),
     Tuple{
-        NamedTuple{(:A, :B, :C), Tuple{Float64, Float64, Float64}},
+        NamedTuple{(:initialization_weight, :dynamic_weight, :residual_penalty), Tuple{Float64, Float64, Float64}},
         NamedTuple{(:rmse, :mae), Tuple{Float64, Float64}},
-    },
-    }`: Various weighting factors to change the loss function. For A,B,C definitions -- see paper. `type_weights` should sum to one. 
+    }, 
+    }`: Various weighting factors to change the loss function. `initialization_weight` scales the portion of loss function penalizing the difference between predicted steady state and actual.
+    `dynamic_weight` scales the portion of the loss function penalizing differences in the output time series.
+    `residual_penalty` scales the loss function if the implicit layer does not converge (if set to Inf, the loss is infinite anytime the implicit layer does not converge).
+    `type_weights` should sum to one. 
 - `rng_seed::Int64`: Seed for the random number generator used for initializing the NN for reproducibility across training runs.
 - `output_mode_skip::Int`: Record and save output data every `output_mode_skip` iterations. Meant to ease memory constraints on HPC. 
 - `train_time_limit_seconds::Int64`:  
@@ -139,14 +142,8 @@ mutable struct TrainParams
         Tuple{String, Int64, Int64, String},
     }
     model_node::NamedTuple{
-        (
-            :type,
-            :n_layer,
-            :width_layers,
-            :activation,
-            :initialization,    #TODO - implement 
-        ),
-        Tuple{String, Int64, Int64, String, String},
+        (:type, :n_layer, :width_layers, :activation, :σ2_initialization),
+        Tuple{String, Int64, Int64, String, Float64},
     }
     model_observation::NamedTuple{
         (:type, :n_layer, :width_layers, :activation),
@@ -182,7 +179,10 @@ mutable struct TrainParams
     loss_function::NamedTuple{
         (:component_weights, :type_weights),
         Tuple{
-            NamedTuple{(:A, :B, :C), Tuple{Float64, Float64, Float64}},
+            NamedTuple{
+                (:initialization_weight, :dynamic_weight, :residual_penalty),
+                Tuple{Float64, Float64, Float64},
+            },
             NamedTuple{(:rmse, :mae), Tuple{Float64, Float64}},
         },
     }
@@ -258,7 +258,7 @@ function TrainParams(;
         n_layer = 1,
         width_layers = 4,
         activation = "hardtanh",
-        initialization = "default",
+        σ2_initialization = 0.0,
     ),
     model_observation = (
         type = "dense",
@@ -292,7 +292,11 @@ function TrainParams(;
     curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
     validation_loss_every_n = 100,
     loss_function = (
-        component_weights = (A = 1.0, B = 1.0, C = 1.0),
+        component_weights = (
+            initialization_weight = 1.0,
+            dynamic_weight = 1.0,
+            residual_penalty = 1.0,
+        ),
         type_weights = (rmse = 1.0, mae = 0.0),
     ),
     rng_seed = 123,

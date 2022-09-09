@@ -23,7 +23,7 @@ function plot_overview(surrogate_prediction, fault_index, fault_data, exs)
         r_series = surrogate_prediction.r_series
         dim_r = Int(length(r_series) / length(t_series))
         r_series = reshape(r_series, (dim_r, length(t_series)))    #Loses shape when serialized/deserialized to arrow
-        ϵ = surrogate_prediction.ϵ
+        res = surrogate_prediction.res
         ex = exs[fault_index[1]]
 
         p1 = Plots.plot(t_series, i_series[1, :], label = L"$\hat{y}_1$")
@@ -115,9 +115,8 @@ end
 
 function _visualize_loss(path_to_output)
     df_loss = read_arrow_file_to_dataframe(joinpath(path_to_output, "loss"))
-    p1 = Plots.plot(df_loss.LossA, label = "LossA", yaxis = :log)
-    Plots.plot!(p1, df_loss.LossB, label = "LossB")
-    Plots.plot!(p1, df_loss.LossC, label = "LossC")
+    p1 = Plots.plot(df_loss.Loss_initialization, label = "Loss Init", yaxis = :log)
+    Plots.plot!(p1, df_loss.Loss_dynamic, label = "Loss Dynamic")
     Plots.plot!(p1, df_loss.Loss, label = "Total Loss")
     return p1
 end

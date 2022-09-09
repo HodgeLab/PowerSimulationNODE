@@ -10,7 +10,7 @@ function _build_exogenous_input_functions(
             String,
         },
     },
-    train_dataset::Vector{PSIDS.SurrogateDataset},
+    train_dataset::Vector{PSIDS.SteadyStateNODEData},
 )
     exs = []
     n_perturbations = length(train_data_params.perturbations)
@@ -39,7 +39,7 @@ function _surrogate_perturbation_to_function_of_time(
     train_data_params,
 ) where {
     T <: Vector{Union{PSID.Perturbation, PSIDS.SurrogatePerturbation}},
-    D <: PSIDS.SurrogateDataset,
+    D <: PSIDS.SteadyStateNODEData,
 }
     @warn typeof(data)
     #@assert length(data.branch_order) == length(perturbation)
@@ -91,7 +91,18 @@ function _single_perturbation_to_function_of_time(
     data::PSIDS.SteadyStateNODEData,
     port_ix::Int64,
 )
-    V_bias = data.powerflow[(port_ix * 4) - 1]
+    #NOTE: train dataset has powerflow results at the surrogate
+    #      to bias the PVS we need to calculate drop across connecting impedance.
+    Ir = data.powerflow[(port_ix * 4) - 3]
+    Ii = data.powerflow[(port_ix * 4) - 2]
+    Vm = data.powerflow[(port_ix * 4) - 1]
+    Vθ = data.powerflow[port_ix * 4]
+    Vr = Vm * cos(Vθ)
+    Vi = Vm * sin(Vθ)
+    x = data.connecting_impedance[(port_ix * 2) - 1]
+    r = data.connecting_impedance[(port_ix * 2)]
+
+    V_bias = sqrt((Vr - Ir * r + Ii * x)^2 + (Vi - Ir * x - Ii * r)^2)
     V_freqs = single_perturbation.internal_voltage_frequencies
     V_coeffs = single_perturbation.internal_voltage_coefficients
     function V(t)
@@ -102,9 +113,9 @@ function _single_perturbation_to_function_of_time(
         end
         return val
     end
-    θ_bias = data.powerflow[port_ix * 4]
-    θ_freqs = single_perturbation.internal_voltage_frequencies
-    θ_coeffs = single_perturbation.internal_voltage_coefficients
+    θ_bias = atan((Vi - Ir * x - Ii * r) / (Vr - Ir * r + Ii * x))
+    θ_freqs = single_perturbation.internal_angle_frequencies
+    θ_coeffs = single_perturbation.internal_angle_coefficients
     function θ(t)
         val = θ_bias
         for (i, ω) in enumerate(θ_freqs)
@@ -133,7 +144,7 @@ function evaluate_loss(sys, θ, groundtruth_dataset, params, connecting_branches
             θ[(surrogate.len + 1):(surrogate.len + surrogate.len2)],
         )
         PSIDS.set_observer_parameters!(s, θ[(surrogate.len + surrogate.len2 + 1):end])
-        display(s)
+        @warn "Evaluation loss for surrogate:", s
     end
 
     operating_points = params.operating_points
@@ -230,12 +241,10 @@ function train(params::TrainParams)
     output = _initialize_training_output_dict()
     output["train_id"] = params.train_id
     output["n_params_surrogate"] = n_parameters
-    @warn size(train_dataset[1].powerflow)
-    @warn size(train_dataset[1].groundtruth_current)
     exs = _build_exogenous_input_functions(params.train_data, train_dataset)    #can build ex from the components in params.train_data or from the dataset values by interpolating...
-
-    @warn exs[1](1.0, [1, 1])
     #want to test how this impacts the speed of a single train iteration (the interpolation)
+    @warn exs[1](1.0, [1, 1])
+
     train_details = params.curriculum_timespans
     fault_indices = collect(1:length(train_dataset))
     timespan_indices = collect(1:length(params.curriculum_timespans))
@@ -251,58 +260,57 @@ function train(params::TrainParams)
     else
         θ = params.p_start
     end
-    try
-        total_time = @elapsed begin
-            for group in train_groups
-                res, output = _train(
-                    θ,
-                    surrogate,
-                    connecting_branches,
-                    train_dataset,
-                    validation_dataset,
-                    sys_validation,
-                    exs,
-                    train_details,
-                    params,
-                    optimizer,
-                    group,
-                    per_solve_maxiters,
-                    output,
-                )
-                θ = res.u
-            end
+    #try  -TODO uncomment 
+    total_time = @elapsed begin
+        for group in train_groups
+            res, output = _train(
+                θ,
+                surrogate,
+                connecting_branches,
+                train_dataset,
+                validation_dataset,
+                sys_validation,
+                exs,
+                train_details,
+                params,
+                optimizer,
+                group,
+                per_solve_maxiters,
+                output,
+            )
+            θ = res.u
         end
-        output["total_time"] = total_time
-        @info "End of training, calculating final loss for comparison:"
-        final_loss_for_comparison = _calculate_final_loss(
-            θ,
-            surrogate,
-            test_dataset,
-            sys_validation,
-            exs,
-            train_details,
-            params,
-            train_groups[end],
-        )
-
-        output["final_loss"] = final_loss_for_comparison
-        if params.force_gc == true
-            GC.gc()     #Run garbage collector manually before file write.
-            @warn "FORCE GC!"
-        end
-        _capture_output(output, params.output_data_path, params.train_id)
-        return true, θ
-    catch
-        return false, θ
     end
+    output["total_time"] = total_time
+
+    #=     output["final_loss"] = evaluate_loss(   
+            sys_validation,
+            θ,
+            validation_dataset,
+            params.validation_data,
+            connecting_branches,
+            surrogate,
+        ) =#
+    output["final_loss"] = 0.0  #TODO - calculate an actual final loss on the validation dataset 
+
+    if params.force_gc == true
+        GC.gc()     #Run garbage collector manually before file write.
+        @warn "FORCE GC!"
+    end
+    _capture_output(output, params.output_data_path, params.train_id)
+    return true, θ
+    #catch e
+    #    @warn e 
+    #    return false, θ
+    #end
 end
 
 function _train(
     θ::Vector{Float32},
     surrogate::SteadyStateNeuralODE,
-    connecting_branches::Vector{Tuple{String, Symbol}},   #NEW 
-    train_dataset::Vector{PSIDS.SurrogateDataset},
-    validation_dataset::Vector{PSIDS.SurrogateDataset},
+    connecting_branches::Vector{Tuple{String, Symbol}},
+    train_dataset::Vector{PSIDS.SteadyStateNODEData},
+    validation_dataset::Vector{PSIDS.SteadyStateNODEData},
     sys_validation::PSY.System,
     exs,
     train_details::Vector{
@@ -312,14 +320,13 @@ function _train(
         },
     },
     params::TrainParams,
-    optimizer::Union{Flux.Optimise.AbstractOptimiser, Optim.AbstractOptimizer},
+    optimizer::Union{OptimizationOptimisers.Optimisers.Adam, Optim.AbstractOptimizer},
     group::Vector{Tuple{Int64, Int64}},
     per_solve_maxiters::Int,
     output::Dict{String, Any},
 )
     train_loader =
         Flux.Data.DataLoader(group; batchsize = 1, shuffle = true, partial = true)
-
     outer_loss_function = instantiate_outer_loss_function(
         surrogate,
         train_dataset,
@@ -329,11 +336,11 @@ function _train(
     )
 
     sensealg = instantiate_sensealg(params.optimizer)
-    optfun = GalacticOptim.OptimizationFunction(
+    optfun = Optimization.OptimizationFunction(
         (θ, P, fault_timespan_index) -> outer_loss_function(θ, fault_timespan_index),
         sensealg,
     )
-    optprob = GalacticOptim.OptimizationProblem(optfun, θ)
+    optprob = Optimization.OptimizationProblem(optfun, θ)
 
     cb = instantiate_cb!(
         output,
@@ -344,11 +351,12 @@ function _train(
         surrogate,
     )
 
-    loss, lossA, lossB, lossC, surrogate_solution, fault_index =
+    #Calculate loss before training
+    loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index =
         outer_loss_function(θ, (1, 1))
-    display(loss)
+
     @warn "Everything instantiated, starting solve with one iteration"
-    timing_stats_compile = @timed GalacticOptim.solve(
+    timing_stats_compile = @timed Optimization.solve(
         optprob,
         optimizer,
         IterTools.ncycle(train_loader, 1),
@@ -364,7 +372,7 @@ function _train(
     )
 
     @warn "Starting full train.", per_solve_maxiters
-    timing_stats = @timed GalacticOptim.solve(
+    timing_stats = @timed Optimization.solve(
         optprob,
         optimizer,
         IterTools.ncycle(train_loader, per_solve_maxiters),
@@ -380,41 +388,6 @@ function _train(
     )
     res = timing_stats.value
     return res, output
-end
-
-function _calculate_final_loss(
-    θ::Vector{Float32},
-    surrogate::SteadyStateNeuralODE,
-    test_dataset::Vector{PSIDS.SurrogateDataset},
-    sys_validation::PSY.System, #TODO - calculate final loss by adding the surrogate to the validation system and testing against test_dataset
-    exs,
-    train_details::Vector{
-        NamedTuple{
-            (:tspan, :batching_sample_factor),
-            Tuple{Tuple{Float64, Float64}, Float64},
-        },
-    },
-    params::TrainParams,
-    group::Vector{Tuple{Int64, Int64}},
-)
-    outer_loss_function =
-        instantiate_outer_loss_function(surrogate, test_dataset, exs, train_details, params)
-
-    lA_total = 0.0
-    lB_total = 0.0
-    lC_total = 0.0
-    l_total = 0.0
-
-    for fault_index in group
-        loss, lossA, lossB, lossC, surrogate_solution, fault_index =
-            outer_loss_function(θ, fault_index)
-        lA_total += lossA
-        lB_total += lossB
-        lC_total += lossC
-        l_total += loss
-    end
-
-    return l_total, lA_total, lB_total, lC_total
 end
 
 function _generate_training_groups(fault_index, timespan_index, curriculum)
@@ -436,9 +409,8 @@ end
 function _initialize_training_output_dict()
     return Dict{String, Any}(
         "loss" => DataFrames.DataFrame(
-            LossA = Float64[],
-            LossB = Float64[],
-            LossC = Float64[],
+            Loss_initialization = Float64[],
+            Loss_dynamic = Float64[],
             Loss = Float64[],
         ),
         "predictions" => DataFrames.DataFrame(

@@ -25,20 +25,17 @@ export generate_test_data
 import Arrow
 import Dates
 import DataFrames
-import DataStructures
-import DiffEqBase
-import DiffEqSensitivity
-import FFTW
 import Flux
 import Flux.Losses: mae, mse
-import GalacticOptim
-import GalacticFlux
+import Optimization
 import IterTools
 import JSON3
 import Logging
 import Mustache
 import NLsolve
 import Optim
+import Optimization
+import OptimizationOptimisers
 import OrdinaryDiffEq
 import SteadyStateDiffEq
 import Plots
@@ -50,6 +47,7 @@ import Random
 import Serialization
 import StatsBase
 import SciMLBase
+import SciMLSensitivity
 import StructTypes
 import YAML
 import PrettyTables
@@ -59,14 +57,11 @@ const PSY = PowerSystems
 const PSID = PowerSimulationsDynamics
 const PSIDS = PowerSimulationsDynamicsSurrogates
 
-#TODO Split up code and use Requires strategically to improve load times (especially the instantiate functions)
+# Split up code and use Requires strategically to improve load times? (especially the instantiate functions)
 include(joinpath("train", "SteadyStateNeuralODE.jl"))
 include(joinpath("train", "TrainParams.jl"))
 include("constants.jl")
 include(joinpath("train", "HPCTrain.jl"))
-#include(joinpath("generate_data", "data_containers.jl"))
-#include(joinpath("generate_data", "generate_data.jl"))
-#include(joinpath("generate_data", "build_systems.jl"))
 include(joinpath("train", "generate.jl"))
 include(joinpath("train", "train.jl"))
 include(joinpath("train", "instantiate.jl"))

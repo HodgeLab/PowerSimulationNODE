@@ -2,13 +2,16 @@
 using Test
 using Revise
 #using PowerFlows
+using Random
+using OrdinaryDiffEq
 using PowerSimulationNODE
 using PowerSystems
 using PowerSimulationsDynamics
 using PowerSimulationsDynamicsSurrogates
 using Plots
-
+using Flux
 using Logging
+using LinearAlgebra
 import PowerSystems
 using Serialization
 
@@ -28,6 +31,7 @@ with_logger(logger) do
     include("test_serialize.jl")
     include("test_prettytable.jl")
     include("test_build_param_lists.jl")
+    include("test_psidsurrogate_vs_trainsurrogate.jl")
 end
 flush(logger)
 close(logger)

@@ -1,10 +1,10 @@
 function optimizer_map(key)
-    d = Dict("Adam" => Flux.Optimise.ADAM, "Bfgs" => Optim.BFGS)
+    d = Dict("Adam" => OptimizationOptimisers.Optimisers.ADAM, "Bfgs" => Optim.BFGS)
     return d[key]
 end
 
-function NormalInitializer(μ = 0.0f0, σ² = 0.01f0)
-    return (dims...) -> randn(Float32, dims...) .* σ² .+ μ
+function NormalInitializer(μ = 0.0f0; σ² = 0.05f0)
+    return (dims...) -> randn(Float32, dims...) .* Float32(σ²) .+ Float32(μ)
 end
 
 function steadystate_solver_map(solver, tols)
@@ -20,6 +20,7 @@ end
 function solver_map(key)
     d = Dict(
         "Rodas4" => OrdinaryDiffEq.Rodas4,
+        "Rodas5" => OrdinaryDiffEq.Rodas5,
         "TRBDF2" => OrdinaryDiffEq.TRBDF2,
         "Tsit5" => OrdinaryDiffEq.Tsit5,
     )
@@ -32,8 +33,8 @@ end
 
 function sensealg_map(key)
     d = Dict(
-        "ForwardDiff" => GalacticOptim.AutoForwardDiff,
-        "Zygote" => GalacticOptim.AutoZygote,
+        "ForwardDiff" => Optimization.AutoForwardDiff,
+        "Zygote" => Optimization.AutoZygote,
     )
     return d[key]
 end
@@ -207,6 +208,7 @@ function _instantiate_model_node(params, n_ports; flux = true)
     type = node_params.type
     n_layer = node_params.n_layer
     width_layers = node_params.width_layers
+    σ2_initialization = node_params.σ2_initialization
     if flux == true
         activation = activation_map(node_params.activation)
     else
@@ -230,15 +232,26 @@ function _instantiate_model_node(params, n_ports; flux = true)
         end
         if n_layer == 0
             if flux == true
-                push!(
-                    vector_layers,
-                    Dense(
-                        hidden_states +
-                        (SURROGATE_EXOGENOUS_INPUT_DIM + SURROGATE_N_REFS) * n_ports,
-                        hidden_states,
-                        init = NormalInitializer(),
-                    ),
-                )
+                if σ2_initialization == 0.0
+                    push!(
+                        vector_layers,
+                        Dense(
+                            hidden_states +
+                            (SURROGATE_EXOGENOUS_INPUT_DIM + SURROGATE_N_REFS) * n_ports,
+                            hidden_states,
+                        ),
+                    )
+                else
+                    push!(
+                        vector_layers,
+                        Dense(
+                            hidden_states +
+                            (SURROGATE_EXOGENOUS_INPUT_DIM + SURROGATE_N_REFS) * n_ports,
+                            hidden_states,
+                            init = NormalInitializer(σ² = σ2_initialization),
+                        ),
+                    )
+                end
             else
                 push!(
                     vector_layers,
@@ -253,16 +266,28 @@ function _instantiate_model_node(params, n_ports; flux = true)
             end
         else
             if flux == true
-                push!(
-                    vector_layers,
-                    Dense(
-                        hidden_states +
-                        (SURROGATE_EXOGENOUS_INPUT_DIM + SURROGATE_N_REFS) * n_ports,
-                        width_layers,
-                        activation,
-                        init = NormalInitializer(),
-                    ),
-                )
+                if σ2_initialization == 0.0
+                    push!(
+                        vector_layers,
+                        Dense(
+                            hidden_states +
+                            (SURROGATE_EXOGENOUS_INPUT_DIM + SURROGATE_N_REFS) * n_ports,
+                            width_layers,
+                            activation,
+                        ),
+                    )
+                else
+                    push!(
+                        vector_layers,
+                        Dense(
+                            hidden_states +
+                            (SURROGATE_EXOGENOUS_INPUT_DIM + SURROGATE_N_REFS) * n_ports,
+                            width_layers,
+                            activation,
+                            init = NormalInitializer(σ² = σ2_initialization),
+                        ),
+                    )
+                end
             else
                 push!(
                     vector_layers,
@@ -277,24 +302,36 @@ function _instantiate_model_node(params, n_ports; flux = true)
             end
             for i in 1:(n_layer - 1)
                 if flux == true
-                    push!(
-                        vector_layers,
-                        Dense(
-                            width_layers,
-                            width_layers,
-                            activation,
-                            init = NormalInitializer(),
-                        ),
-                    )
+                    if σ2_initialization == 0.0
+                        push!(vector_layers, Dense(width_layers, width_layers, activation))
+                    else
+                        push!(
+                            vector_layers,
+                            Dense(
+                                width_layers,
+                                width_layers,
+                                activation,
+                                init = NormalInitializer(σ² = σ2_initialization),
+                            ),
+                        )
+                    end
                 else
                     push!(vector_layers, (width_layers, width_layers, true, activation))
                 end
             end
             if flux == true
-                push!(
-                    vector_layers,
-                    Dense(width_layers, hidden_states, init = NormalInitializer()),
-                )
+                if σ2_initialization == 0.0
+                    push!(vector_layers, Dense(width_layers, hidden_states))
+                else
+                    push!(
+                        vector_layers,
+                        Dense(
+                            width_layers,
+                            hidden_states,
+                            init = NormalInitializer(σ² = σ2_initialization),
+                        ),
+                    )
+                end
             else
                 push!(vector_layers, (width_layers, hidden_states, true, "identity"))
             end
@@ -376,36 +413,35 @@ end
 function _inner_loss_function(surrogate_solution, ground_truth_subset, params)
     rmse_weight = params.loss_function.type_weights.rmse
     mae_weight = params.loss_function.type_weights.mae
-    A_weight = params.loss_function.component_weights.A
-    B_weight = params.loss_function.component_weights.B
-    C_weight = params.loss_function.component_weights.C
+    initialization_weight = params.loss_function.component_weights.initialization_weight
+    dynamic_weight = params.loss_function.component_weights.dynamic_weight
+    residual_penalty = params.loss_function.component_weights.residual_penalty
     r0_pred = surrogate_solution.r0_pred
     r0 = surrogate_solution.r0
     i_series = surrogate_solution.i_series
-    ϵ = surrogate_solution.ϵ
-    lossA =
-        A_weight * (mae_weight * mae(r0_pred, r0) + rmse_weight * sqrt(mse(r0_pred, r0)))
+    res = surrogate_solution.res
+    loss_initialization =
+        initialization_weight *
+        (mae_weight * mae(r0_pred, r0) + rmse_weight * sqrt(mse(r0_pred, r0)))
     if size(ground_truth_subset) == size(i_series)
-        lossB =
-            B_weight * (
+        loss_dynamic =
+            dynamic_weight * (
                 mae_weight * mae(ground_truth_subset, i_series) +
                 rmse_weight * sqrt(mse(ground_truth_subset, i_series))
             )
     else
-        lossB = Inf
+        loss_dynamic =
+            residual_penalty * (
+                mae_weight * mae(res, zeros(length(res))) +
+                rmse_weight * sqrt(mse(res, zeros(length(res))))
+            )
     end
-
-    lossC =
-        C_weight * (
-            mae_weight * mae(ϵ, zeros(length(ϵ))) +
-            rmse_weight * sqrt(mse(ϵ, zeros(length(ϵ))))
-        )
-    return lossA, lossB, lossC
+    return loss_initialization, loss_dynamic
 end
 
 function instantiate_outer_loss_function(
     surrogate::SteadyStateNeuralODE,
-    train_dataset::Array{PSIDS.SurrogateDataset},
+    train_dataset::Vector{PSIDS.SteadyStateNODEData},
     exs,
     train_details::Vector{
         NamedTuple{
@@ -430,7 +466,7 @@ function _outer_loss_function(
     θ,
     fault_timespan_index::Tuple{Int64, Int64},
     surrogate::SteadyStateNeuralODE,
-    train_dataset::Array{PSIDS.SurrogateDataset},
+    train_dataset::Vector{PSIDS.SteadyStateNODEData},
     exs,
     train_details::Vector{
         NamedTuple{
@@ -455,12 +491,11 @@ function _outer_loss_function(
             p2 = Plots.plot(tsteps, groundtruth_current[2,:])
             Plots.plot!(p2, surrogate_solution.t_series, surrogate_solution.i_series[2,:])
             display(Plots.plot(p1,p2)) =#
-    lossA, lossB, lossC =
+    loss_initialization, loss_dynamic =
         _inner_loss_function(surrogate_solution, groundtruth_subset, params)
-    return lossA + lossB + lossC,
-    lossA,
-    lossB,
-    lossC,
+    return loss_initialization + loss_dynamic,
+    loss_initialization,
+    loss_dynamic,
     surrogate_solution,
     fault_timespan_index
 end
@@ -489,12 +524,11 @@ function instantiate_cb!(
         print_loss = false
     end
 
-    return (p, l, lA, lB, lC, surrogate_solution, fault_index) -> _cb!(
+    return (p, l, l_initialization, l_dynamic, surrogate_solution, fault_index) -> _cb!(
         p,
         l,
-        lA,
-        lB,
-        lC,
+        l_initialization,
+        l_dynamic,
         surrogate_solution,
         fault_index,
         output,
@@ -510,9 +544,8 @@ end
 function _cb!(
     p,
     l,
-    lA,
-    lB,
-    lC,
+    l_initialization,
+    l_dynamic,
     surrogate_solution,
     fault_index,
     output,
@@ -528,7 +561,7 @@ function _cb!(
     train_time_limit_seconds = params.train_time_limit_seconds
     validation_loss_every_n = params.validation_loss_every_n
 
-    push!(output["loss"], (lA, lB, lC, l))
+    push!(output["loss"], (l_initialization, l_dynamic, l))
     output["total_iterations"] += 1
     if mod(output["total_iterations"], exportmode_skip) == 0
         push!(output["predictions"], ([p], surrogate_solution, fault_index))
@@ -538,18 +571,19 @@ function _cb!(
         p2 = Plots.plot(surrogate_solution.t_series, surrogate_solution.i_series[2, :])
         display(Plots.plot(p1, p2)) =#
     if (print_loss)
-        #= 
-        println(l)
-        println(p[1:35])
-        println(p[36:100])
-        println(p[101:112])
-                @info l, lA, lB, lC
-                @warn surrogate_solution.r0_pred
-                @warn surrogate_solution.r0
-                @warn p  =#
+        println(
+            "total loss: ",
+            l,
+            "\t init loss: ",
+            l_initialization,
+            "\t dynamic loss: ",
+            l_dynamic,
+            "\t fault/timespan index: ",
+            fault_index,
+        )
     end
     if mod(output["total_iterations"], validation_loss_every_n) == 0
-        validation_loss = evaluate_loss(
+        validation_loss = evaluate_loss(    #TODO - test this part 
             sys_validation,
             p,
             validation_dataset,
@@ -558,7 +592,7 @@ function _cb!(
             surrogate,
         )
     end
-    if (l < lb_loss) || (time() > train_time_limit_seconds)
+    if (l < lb_loss) || (time() > train_time_limit_seconds) #TODO - stopping condition should be based on validation_loss
         return true
     else
         return false
