@@ -12,7 +12,7 @@ const PSID_CONSOLE_LEVEL = Logging.Error
 const PSID_FILE_LEVEL = Logging.Error
 
 const SURROGATE_EXOGENOUS_INPUT_DIM = 2 #[Vr, Vi]
-const SURROGATE_SS_INPUT_DIM = 4    #[P, Q, V, θ]
+const SURROGATE_SS_INPUT_DIM = 3    #[P, Q, V, θ]  --> changed to [Vq, Id, Iq] (Vq = 0 in local ref frame)
 const SURROGATE_OUTPUT_DIM = 2 #[Ir, Ii]
 const SURROGATE_N_REFS = 2
 

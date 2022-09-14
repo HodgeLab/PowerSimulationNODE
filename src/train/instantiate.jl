@@ -583,7 +583,7 @@ function _cb!(
         )
     end
     if mod(output["total_iterations"], validation_loss_every_n) == 0
-        validation_loss = evaluate_loss(    #TODO - test this part 
+        validation_loss = evaluate_loss(    #TODO - test this part
             sys_validation,
             p,
             validation_dataset,

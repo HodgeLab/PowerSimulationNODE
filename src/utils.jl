@@ -37,9 +37,9 @@ end
 function _exogenous_input(t, y, V_funcs, RX)
     return [
         if isodd(i)
-            V_funcs[i](t) * cos(V_funcs[i + 1](t)) + (y[i] * RX[i] - y[i + 1] * RX[i + 1])
+            V_funcs[i](t) + (y[i] * RX[i] - y[i + 1] * RX[i + 1])
         else
-            V_funcs[i - 1](t) * sin(V_funcs[i](t)) + (y[i - 1] * RX[i] + y[i] * RX[i - 1])
+            V_funcs[i](t) + (y[i - 1] * RX[i] + y[i] * RX[i - 1])
         end for i in 1:length(V_funcs)
     ]
 end

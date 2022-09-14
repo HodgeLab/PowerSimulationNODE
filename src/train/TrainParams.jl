@@ -267,8 +267,8 @@ function TrainParams(;
         activation = "hardtanh",
     ),
     input_normalization = (
-        x_scale = [1.0, 1.0, 1.0, 1.0],
-        x_bias = [0.0, 0.0, 0.0, 0.0],
+        x_scale = [1.0, 1.0, 1.0],
+        x_bias = [0.0, 0.0, 0.0],
         exogenous_scale = [1.0, 1.0],
         exogenous_bias = [0.0, 0.0],
     ),

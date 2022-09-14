@@ -128,8 +128,8 @@ end
             adjust_η = 0.0,
         ),
         input_normalization = (
-            x_scale = [1.0, 1.0, 1.0, 1.0],  #TODO - set defaults 
-            x_bias = [0.0, 0.0, 0.0, 0.0],
+            x_scale = [1.0, 1.0, 1.0],  #TODO - set defaults 
+            x_bias = [0.0, 0.0, 0.0],
             exogenous_scale = [20.0, 20.0],
             exogenous_bias = [-1.0, -1.0],
         ),

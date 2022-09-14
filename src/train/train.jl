@@ -65,9 +65,9 @@ function _surrogate_perturbation_to_function_of_time(
 
     elseif train_data_params.system == "reduced"
         for (ix, p_single) in enumerate(perturbation)
-            Vm, Vθ = _single_perturbation_to_function_of_time(p_single, data, ix)
-            push!(V_funcs, Vm)
-            push!(V_funcs, Vθ)
+            Vr, Vi = _single_perturbation_to_function_of_time(p_single, data, ix)
+            push!(V_funcs, Vr)
+            push!(V_funcs, Vi)
         end
     else
         @error "invalid value"
@@ -75,7 +75,7 @@ function _surrogate_perturbation_to_function_of_time(
     R = data.connecting_impedance[:, 1]
     X = data.connecting_impedance[:, 2]
     RX = collect(Iterators.flatten(zip(R, X)))
-    return generate_exogenous_input(V_funcs, RX)
+    return generate_exogenous_input(V_funcs, RX)    #Vfuncs are opposite the surrogate
 end
 
 function _single_perturbation_to_function_of_time(
@@ -91,17 +91,14 @@ function _single_perturbation_to_function_of_time(
     data::PSIDS.SteadyStateNODEData,
     port_ix::Int64,
 )
-    #NOTE: train dataset has powerflow results at the surrogate
-    #      to bias the PVS we need to calculate drop across connecting impedance.
     Ir = data.powerflow[(port_ix * 4) - 3]
     Ii = data.powerflow[(port_ix * 4) - 2]
-    Vm = data.powerflow[(port_ix * 4) - 1]
-    Vθ = data.powerflow[port_ix * 4]
-    Vr = Vm * cos(Vθ)
-    Vi = Vm * sin(Vθ)
+    Vr = data.powerflow[(port_ix * 4) - 1]
+    Vi = data.powerflow[port_ix * 4]
     x = data.connecting_impedance[(port_ix * 2) - 1]
     r = data.connecting_impedance[(port_ix * 2)]
-
+    @warn Ir, Ii, Vr, Vi, x, r
+    #NOTE: train dataset has powerflow results at the surrogate, to bias the PVS we need to calculate drop across connecting impedance.
     V_bias = sqrt((Vr - Ir * r + Ii * x)^2 + (Vi - Ir * x - Ii * r)^2)
     V_freqs = single_perturbation.internal_voltage_frequencies
     V_coeffs = single_perturbation.internal_voltage_coefficients
@@ -124,7 +121,15 @@ function _single_perturbation_to_function_of_time(
         end
         return val
     end
-    return (V, θ)
+    function Vr_func(t)
+        return V(t) * cos(θ(t))
+    end
+    function Vi_func(t)
+        return V(t) * sin(θ(t))
+    end
+    @warn Vr_func(0.0), Vi_func(0.0)
+    @warn θ_freqs, θ_coeffs
+    return (Vr_func, Vi_func)
 end
 
 function _single_perturbation_to_function_of_time(
@@ -370,7 +375,6 @@ function _train(
             gc_time = timing_stats_compile.gctime,
         ),
     )
-
     @warn "Starting full train.", per_solve_maxiters
     timing_stats = @timed Optimization.solve(
         optprob,

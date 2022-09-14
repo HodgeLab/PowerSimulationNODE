@@ -92,24 +92,32 @@ end
 Flux.@functor SteadyStateNeuralODE
 Flux.trainable(m::SteadyStateNeuralODE) = (p = m.p,)
 
-function (s::SteadyStateNeuralODE)(ex, x, tsteps, p = s.p)   #r, ex, refs (order of inputs) 
+function (s::SteadyStateNeuralODE)(ex, x, tsteps, p = s.p) #x = [Ir, Ii, Vr, Vi]
+    θ = atan(x[4] / x[3])
+    dq_ri = [sin(θ) -cos(θ); cos(θ) sin(θ)] #   PSID.ri_dq(θ)
+    ri_dq = [sin(θ) cos(θ); -cos(θ) sin(θ)]
+    _, Vq = dq_ri * [x[3]; x[4]] #Vd is zero by definition 
+    Id, Iq = dq_ri * [x[1]; x[2]]
+
+    #u here includes both states and refs 
     dudt_ss(u, p, t) = vcat(
         s.re2(p[(s.len + 1):(s.len + s.len2)])((
             u[1:(end - 2)],
-            ex(0.0, s.re3(p[(s.len + s.len2 + 1):end])(u[1:(end - 2)])),
+            dq_ri * ex(0.0, s.re3(p[(s.len + s.len2 + 1):end])(u[1:(end - 2)])),
             u[(end - 1):end],
         )),
-        s.re3(p[(s.len + s.len2 + 1):end])(u[1:(end - 2)]) .- x[1:2], #_PQVθ_to_IrIi(x),
+        s.re3(p[(s.len + s.len2 + 1):end])(u[1:(end - 2)]) .- [Id, Iq],
     )
 
+    #u here is states only 
     dudt_dyn(u, p, t) = s.re2(p[(s.len + 1):(s.len + s.len2)])((
         u,
-        ex(t, s.re3(p[(s.len + s.len2 + 1):end])(u)),
+        dq_ri * ex(t, s.re3(p[(s.len + s.len2 + 1):end])(u)),
         refs,
     ))
 
     #PREDICTOR 
-    u0_pred = s.re1(p[1:(s.len)])(x)
+    u0_pred = s.re1(p[1:(s.len)])(vcat(Vq, Id, Iq))
 
     #SOLVE PROBLEM TO STEADY STATE 
     ff_ss = OrdinaryDiffEq.ODEFunction{false}(dudt_ss)
@@ -117,8 +125,7 @@ function (s::SteadyStateNeuralODE)(ex, x, tsteps, p = s.p)   #r, ex, refs (order
         OrdinaryDiffEq.ODEProblem{false}(
             ff_ss,
             u0_pred,
-            (zero(u0_pred[1]), one(1.0) * 100),
-            #(zero(u0_pred[1]), zero(u0_pred[1])),  #Possible this is the issue with SS solve? Restricts time to 0?? 
+            (zero(u0_pred[1]), one(u0_pred[1]) * 100),
             p,
         ),
     )
@@ -156,7 +163,7 @@ function (s::SteadyStateNeuralODE)(ex, x, tsteps, p = s.p)   #r, ex, refs (order
             Array(ss_solution.u),
             tsteps,
             Array(sol),
-            s.re3(p[(s.len + s.len2 + 1):end])(Array(sol)),
+            ri_dq * s.re3(p[(s.len + s.len2 + 1):end])(Array(sol)),
             res,
         )
     else
@@ -169,19 +176,6 @@ function (s::SteadyStateNeuralODE)(ex, x, tsteps, p = s.p)   #r, ex, refs (order
             res,
         )
     end
-end
-
-function _PQVθ_to_IrIi(powerflow)
-    P = powerflow[1]
-    Q = powerflow[2]
-    Vm = powerflow[3]
-    θ = powerflow[4]
-    S = P + Q * 1im
-    Vr = Vm * cos(θ)
-    Vi = Vm * sin(θ)
-    V = Vr + Vi * 1im
-    I = conj(S / V)
-    return [real(I), imag(I)]
 end
 
 struct SteadyStateNeuralODE_solution{T}        #TODO - look into making this compatible with SciML ecosystem of solution types 

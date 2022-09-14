@@ -123,7 +123,6 @@ end
 
     #ADD THE SURROGATE COMPONENT 
     for s in get_components(Source, sys_validation)
-        @warn get_number(get_bus(s))
         if get_number(get_bus(s)) == 1
             pvs = PeriodicVariableSource(
                 name = get_name(s),
@@ -154,11 +153,11 @@ end
     Ii = get_imaginary_current_branch_flow(results, "BUS 1-BUS 2-i_1")
     plot!(p3, Vm1, label = "Vm1 - psid")
     plot!(p4, θ1, label = "θ1 - psid")
-    plot!(p1, Ir[1], Ir[2] .* -1, label = "real current -psid")
-    plot!(p2, Ii[1], Ii[2] .* -1, label = "imag current -psid ")
-    display(plot(p1, p2, p3, p4))
+    plot!(p1, Ir[1], Ir[2] .* -1, label = "real current -psid", legend = :bottomright)
+    plot!(p2, Ii[1], Ii[2] .* -1, label = "imag current -psid", legend = :bottomright)
+    display(plot(p1, p2, p3, p4, size = (500, 500)))
 
-    @test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <= 1e-4
+    @test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <= 5e-4
 
     #See the distribution of the parameters
     #= p_params = scatter(θ[(train_surrogate.len + 1):(train_surrogate.len + train_surrogate.len2)], label = "node params")
@@ -352,8 +351,8 @@ end
 
     p1 = plot(θ3_ref1, label = "θdevice - ref bus 1")
     plot!(p1, θ3_ref2, label = "θdevice - ref bus 2")
-    p2 = plot(Im23_ref1, label = "Im_device - ref bus 1")
-    plot!(p2, Im23_ref2, label = "Im_device - ref bus 2")
+    p2 = plot(Im23_ref1, label = "Im_device - ref bus 1", legend = :bottomright)
+    plot!(p2, Im23_ref2, label = "Im_device - ref bus 2", legend = :bottomright)
     display(plot(p1, p2))
 
     @test LinearAlgebra.norm(Vm3_ref1 .- Vm3_ref2, Inf) <= 1e-3
