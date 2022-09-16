@@ -22,7 +22,7 @@ const PSID = PowerSimulationsDynamics
 const PSIDS = PowerSimulationsDynamicsSurrogates
 
 logger = PSY.configure_logging(;
-    console_level = PowerSimulationNODE.NODE_CONSOLE_LEVEL,
+    console_level = PowerSimulationNODE.NODE_CONSOLE_LEVEL, # Logging.Error
     file_level = PowerSimulationNODE.NODE_FILE_LEVEL,
 )
 with_logger(logger) do

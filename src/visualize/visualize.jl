@@ -14,7 +14,8 @@ end
 function plot_overview(surrogate_prediction, fault_index, fault_data, exs)
     if size(surrogate_prediction.r0) != size(surrogate_prediction.r_series)
         tsteps = fault_data[fault_index[1]].tsteps
-        ground_truth_current = fault_data[fault_index[1]].groundtruth_current
+        ground_truth_real_current = fault_data[fault_index[1]].branch_real_current
+        ground_truth_imag_current = fault_data[fault_index[1]].branch_imag_current
         lay = Plots.@layout [a{0.3w} [b c; d e]]
         r0_pred = surrogate_prediction.r0_pred
         t_series = surrogate_prediction.t_series
@@ -35,7 +36,7 @@ function plot_overview(surrogate_prediction, fault_index, fault_data, exs)
             label = false,
             markersize = 1,
         )
-        Plots.plot!(tsteps, ground_truth_current[1, :], label = L"$y_1$")
+        Plots.plot!(tsteps, ground_truth_real_current[1, :], label = L"$y_1$")
 
         p2 = Plots.plot(t_series, i_series[2, :], label = L"$\hat{y}_2$")
         Plots.scatter!(p2, t_series, i_series[2, :], label = false, markersize = 1)
@@ -46,7 +47,7 @@ function plot_overview(surrogate_prediction, fault_index, fault_data, exs)
             label = false,
             markersize = 1,
         )
-        Plots.plot!(tsteps, ground_truth_current[2, :], label = L"$y_2$")
+        Plots.plot!(tsteps, ground_truth_imag_current[1, :], label = L"$y_2$")
         V = apply_to_columns(ex, t_series, i_series)
         V_0 = apply_to_columns(ex, t_series, zero(i_series))
         p3 = Plots.plot(t_series, V[1, :], label = L"$u_1$")

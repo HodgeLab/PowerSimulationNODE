@@ -44,23 +44,37 @@ function _surrogate_perturbation_to_function_of_time(
     @warn typeof(data)
     #@assert length(data.branch_order) == length(perturbation)
     V_funcs = []
-    if train_data_params.system == "full"
+    if train_data_params.system == "full"   #TODO - test generating data from full systems (changes made)
         @warn "Generating train data from full system"
-        for i in 1:size(data.groundtruth_voltage)[1]
-            function V(t)
+        for i in 1:size(data.opposite_real_voltage)[1]
+            function Vr(t)
                 ix_after = findfirst(x -> x > t, data.tsteps)
                 if ix_after === nothing  #correct behavior at end of timespan
                     ix_after = length(data.tsteps)
                 end
                 t_before = data.tsteps[ix_after - 1]
                 t_after = data.tsteps[ix_after]
-                val_before = data.groundtruth_voltage[i, ix_after - 1]
-                val_after = data.groundtruth_voltage[i, ix_after]
+                val_before = data.opposite_real_voltage[i, ix_after - 1]
+                val_after = data.opposite_real_voltage[i, ix_after]
                 frac = (t - t_before) / (t_after - t_before)
                 val = val_before + frac * (val_after - val_before)
                 return val
             end
-            push!(V_funcs, V)
+            function Vi(t)
+                ix_after = findfirst(x -> x > t, data.tsteps)
+                if ix_after === nothing  #correct behavior at end of timespan
+                    ix_after = length(data.tsteps)
+                end
+                t_before = data.tsteps[ix_after - 1]
+                t_after = data.tsteps[ix_after]
+                val_before = data.opposite_imag_voltage[i, ix_after - 1]
+                val_after = data.opposite_imag_voltage[i, ix_after]
+                frac = (t - t_before) / (t_after - t_before)
+                val = val_before + frac * (val_after - val_before)
+                return val
+            end
+            push!(V_funcs, Vr)
+            push!(V_funcs, Vi)
         end
 
     elseif train_data_params.system == "reduced"
@@ -72,8 +86,8 @@ function _surrogate_perturbation_to_function_of_time(
     else
         @error "invalid value"
     end
-    R = data.connecting_impedance[:, 1]
-    X = data.connecting_impedance[:, 2]
+    R = data.connecting_resistance
+    X = data.connecting_reactance
     RX = collect(Iterators.flatten(zip(R, X)))
     return generate_exogenous_input(V_funcs, RX)    #Vfuncs are opposite the surrogate
 end
@@ -91,15 +105,12 @@ function _single_perturbation_to_function_of_time(
     data::PSIDS.SteadyStateNODEData,
     port_ix::Int64,
 )
-    Ir = data.powerflow[(port_ix * 4) - 3]
-    Ii = data.powerflow[(port_ix * 4) - 2]
-    Vr = data.powerflow[(port_ix * 4) - 1]
-    Vi = data.powerflow[port_ix * 4]
-    x = data.connecting_impedance[(port_ix * 2) - 1]
-    r = data.connecting_impedance[(port_ix * 2)]
-    @warn Ir, Ii, Vr, Vi, x, r
-    #NOTE: train dataset has powerflow results at the surrogate, to bias the PVS we need to calculate drop across connecting impedance.
-    V_bias = sqrt((Vr - Ir * r + Ii * x)^2 + (Vi - Ir * x - Ii * r)^2)
+    Vr0_opposite = data.opposite_real_voltage[port_ix, 1]
+    Vi0_opposite = data.opposite_imag_voltage[port_ix, 1]
+    Vm0_opposite = sqrt(Vr0_opposite^2 + Vi0_opposite^2)
+    θ0_opposite = atan(Vi0_opposite / Vr0_opposite)
+
+    V_bias = Vm0_opposite
     V_freqs = single_perturbation.internal_voltage_frequencies
     V_coeffs = single_perturbation.internal_voltage_coefficients
     function V(t)
@@ -110,7 +121,7 @@ function _single_perturbation_to_function_of_time(
         end
         return val
     end
-    θ_bias = atan((Vi - Ir * x - Ii * r) / (Vr - Ir * r + Ii * x))
+    θ_bias = θ0_opposite
     θ_freqs = single_perturbation.internal_angle_frequencies
     θ_coeffs = single_perturbation.internal_angle_coefficients
     function θ(t)
@@ -127,8 +138,6 @@ function _single_perturbation_to_function_of_time(
     function Vi_func(t)
         return V(t) * sin(θ(t))
     end
-    @warn Vr_func(0.0), Vi_func(0.0)
-    @warn θ_freqs, θ_coeffs
     return (Vr_func, Vi_func)
 end
 
@@ -192,6 +201,79 @@ function evaluate_loss(sys, θ, groundtruth_dataset, params, connecting_branches
     display(Plots.plot(p1, p2))
 end
 
+function calculate_scaling_extrema(train_dataset)
+    n_ports = size(train_dataset[1].branch_real_current)[1]
+
+    d_current_min = fill(Inf, n_ports)
+    q_current_min = fill(Inf, n_ports)
+    d_voltage_min = fill(Inf, n_ports)
+    q_voltage_min = fill(Inf, n_ports)
+
+    d_current_max = fill(-Inf, n_ports)
+    q_current_max = fill(-Inf, n_ports)
+    d_voltage_max = fill(-Inf, n_ports)
+    q_voltage_max = fill(-Inf, n_ports)
+
+    for d in train_dataset
+        if d.stable == true
+            θ0 = atan(d.surrogate_imag_voltage[1] / d.surrogate_real_voltage[1])
+            id_iq = PSID.ri_dq(θ0) * vcat(d.branch_real_current, d.branch_imag_current)
+            vd_vq =
+                PSID.ri_dq(θ0) * vcat(d.surrogate_real_voltage, d.surrogate_imag_voltage)
+            id_max = maximum(id_iq[1, :])
+            id_min = minimum(id_iq[1, :])
+            iq_max = maximum(id_iq[2, :])
+            iq_min = minimum(id_iq[2, :])
+            vd_max = maximum(vd_vq[1, :])
+            vd_min = minimum(vd_vq[1, :])
+            vq_max = maximum(vd_vq[2, :])
+            vq_min = minimum(vd_vq[2, :])
+            #display(Plots.plot(Plots.plot(id_iq[1,:]), Plots.plot(id_iq[2,:]), Plots.plot(vd_vq[1,:]), Plots.plot(vd_vq[2,:])  ))
+            for ix in 1:n_ports
+                #D CURRENT 
+                if id_max[ix] > d_current_max[ix]
+                    d_current_max[ix] = id_max[ix]
+                end
+                if id_min[ix] < d_current_min[ix]
+                    d_current_min[ix] = id_min[ix]
+                end
+                #Q CURRENT 
+                if iq_max[ix] > q_current_max[ix]
+                    q_current_max[ix] = iq_max[ix]
+                end
+                if iq_min[ix] < q_current_min[ix]
+                    q_current_min[ix] = iq_min[ix]
+                end
+                #D VOLTAGE 
+                if vd_max[ix] > d_voltage_max[ix]
+                    d_voltage_max[ix] = vd_max[ix]
+                end
+                if vd_min[ix] < d_voltage_min[ix]
+                    d_voltage_min[ix] = vd_min[ix]
+                end
+                #Q VOLTAGE 
+                if vq_max[ix] > q_voltage_max[ix]
+                    q_voltage_max[ix] = vq_max[ix]
+                end
+                if vq_min[ix] < q_voltage_min[ix]
+                    q_voltage_min[ix] = vq_min[ix]
+                end
+            end
+        end
+    end
+    input_min = [d_voltage_min q_voltage_min]'[:]
+    target_min = [d_current_min q_current_min]'[:]
+
+    input_max = [d_voltage_max q_voltage_max]'[:]
+    target_max = [d_current_max q_current_max]'[:]
+    scaling_parameters = Dict{}(
+        "input_min" => input_min,
+        "input_max" => input_max,
+        "target_min" => target_min,
+        "target_max" => target_max,
+    )
+    return scaling_parameters
+end
 """
     train(params::TrainParams)
 
@@ -221,6 +303,8 @@ function train(params::TrainParams)
     n_ports = length(connecting_branches)
     @info "Surrogate contains $n_ports ports"
 
+    scaling_extrema = calculate_scaling_extrema(train_dataset)
+
     #READ VALIDATION SYSTEM AND ADD SURROGATE COMPONENT WITH STRUCTURE BASED ON PARAMS
     sys_validation = node_load_system(params.surrogate_system_path)
     sources = collect(
@@ -228,12 +312,17 @@ function train(params::TrainParams)
     )
     (length(sources) > 1) &&
         @error "Surrogate with multiple input/output ports not yet supported"
-    psid_surrogate = instantiate_surrogate_psid(params, n_ports, PSY.get_name(sources[1]))
+    psid_surrogate = instantiate_surrogate_psid(
+        params,
+        n_ports,
+        scaling_extrema,
+        PSY.get_name(sources[1]),
+    )
     PSY.add_component!(sys_validation, psid_surrogate, sources[1])
     display(sys_validation)
 
     #INSTANTIATE 
-    surrogate = instantiate_surrogate_flux(params, n_ports)
+    surrogate = instantiate_surrogate_flux(params, n_ports, scaling_extrema)
     optimizer = instantiate_optimizer(params)
     !(params.optimizer.adjust == "nothing") &&
         (optimizer_adjust = instantiate_optimizer_adjust(params))

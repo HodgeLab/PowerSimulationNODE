@@ -71,21 +71,26 @@ end
 function instantiate_surrogate_psid(
     params::TrainParams,
     n_ports::Int64,
+    scaling_extrema::Dict{String, Vector{Float64}},
     source_name::String,
 )
-    model_initializer = _instantiate_model_initializer(params, n_ports, flux = false)
-    model_node = _instantiate_model_node(params, n_ports, flux = false)
-    model_observation = _instantiate_model_observation(params, n_ports, flux = false)
+    model_initializer =
+        _instantiate_model_initializer(params, n_ports, scaling_extrema, flux = false)     #scaling_extrema not used in PSID NNs
+    model_node = _instantiate_model_node(params, n_ports, scaling_extrema, flux = false)   #scaling_extrema not used in PSID NNs
+    model_observation =
+        _instantiate_model_observation(params, n_ports, scaling_extrema, flux = false)     #scaling_extrema not used in PSID NNs
 
     surr = PSIDS.SteadyStateNODE(
         name = source_name,
         initializer_structure = model_initializer,
         node_structure = model_node,
         observer_structure = model_observation,
-        x_scale = params.input_normalization.x_scale,
-        x_bias = params.input_normalization.x_bias,
-        exogenous_scale = params.input_normalization.exogenous_scale,
-        exogenous_bias = params.input_normalization.exogenous_bias,
+        input_min = scaling_extrema["input_min"],
+        input_max = scaling_extrema["input_max"],
+        input_lims = params.scaling_limits.input_limits,
+        target_min = scaling_extrema["target_min"],
+        target_max = scaling_extrema["target_max"],
+        target_lims = params.scaling_limits.target_limits,
         base_power = 100.0, #TODO - doublecheck 
         ext = Dict{String, Any}(),
     )
@@ -93,12 +98,18 @@ function instantiate_surrogate_psid(
     return surr
 end
 
-function instantiate_surrogate_flux(params::TrainParams, n_ports::Int64)
+function instantiate_surrogate_flux(
+    params::TrainParams,
+    n_ports::Int64,
+    scaling_extrema::Dict{String, Vector{Float64}},
+)
     steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
     dynamic_solver = instantiate_solver(params.dynamic_solver)
-    model_initializer = _instantiate_model_initializer(params, n_ports, flux = true)
-    model_node = _instantiate_model_node(params, n_ports, flux = true)
-    model_observation = _instantiate_model_observation(params, n_ports, flux = true)
+    model_initializer =
+        _instantiate_model_initializer(params, n_ports, scaling_extrema, flux = true)
+    model_node = _instantiate_model_node(params, n_ports, scaling_extrema, flux = true)
+    model_observation =
+        _instantiate_model_observation(params, n_ports, scaling_extrema, flux = true)
 
     display(model_initializer)
     display(model_node)
@@ -124,12 +135,18 @@ function instantiate_surrogate_flux(params::TrainParams, n_ports::Int64)
     )
 end
 
-function _instantiate_model_initializer(params, n_ports; flux = true)
+function _instantiate_model_initializer(params, n_ports, scaling_extrema; flux = true)
     initializer_params = params.model_initializer
     hidden_states = params.hidden_states
     type = initializer_params.type
     n_layer = initializer_params.n_layer
     width_layers = initializer_params.width_layers
+    input_min = scaling_extrema["input_min"]
+    input_max = scaling_extrema["input_max"]
+    input_lims = params.scaling_limits.input_limits
+    target_min = scaling_extrema["target_min"]
+    target_max = scaling_extrema["target_max"]
+    target_lims = params.scaling_limits.target_limits
     if flux == true
         activation = activation_map(initializer_params.activation)
     else
@@ -138,9 +155,20 @@ function _instantiate_model_initializer(params, n_ports; flux = true)
     vector_layers = []
     if type == "dense"
         if flux == true
-            x_scale = params.input_normalization.x_scale
-            x_bias = params.input_normalization.x_bias
-            push!(vector_layers, (x) -> ((x .+ x_bias) .* x_scale))
+            push!(
+                vector_layers,
+                Parallel(
+                    vcat,
+                    (x) -> (
+                        (x - input_min[2]) / (input_max[2] - input_min[2]) *
+                        (input_lims[2] - input_lims[1]) + input_lims[1]
+                    ),    #Only pass Vq (Vd=0 by definition)
+                    (x) -> (
+                        (x .- target_min) ./ (target_max .- target_min) .*
+                        (target_lims[2] .- target_lims[1]) .+ input_lims[1]
+                    ),        #same as PSIDS.min_max_normalization
+                ),
+            )
         end
         if n_layer == 0
             if flux == true
@@ -202,13 +230,16 @@ function _instantiate_model_initializer(params, n_ports; flux = true)
     end
 end
 
-function _instantiate_model_node(params, n_ports; flux = true)
+function _instantiate_model_node(params, n_ports, scaling_extrema; flux = true)
     node_params = params.model_node
     hidden_states = params.hidden_states
     type = node_params.type
     n_layer = node_params.n_layer
     width_layers = node_params.width_layers
     σ2_initialization = node_params.σ2_initialization
+    input_min = scaling_extrema["input_min"]
+    input_max = scaling_extrema["input_max"]
+    input_lims = params.scaling_limits.input_limits
     if flux == true
         activation = activation_map(node_params.activation)
     else
@@ -221,12 +252,12 @@ function _instantiate_model_node(params, n_ports; flux = true)
                 vector_layers,
                 Parallel(
                     vcat,
-                    (x) -> (x),
+                    (x) -> x,
                     (x) -> (
-                        (x .+ params.input_normalization.exogenous_bias) .*
-                        params.input_normalization.exogenous_scale
+                        (x .- input_min) ./ (input_max .- input_min) .*
+                        (input_lims[2] .- input_lims[1]) .+ input_lims[1]
                     ),
-                    (x) -> (x),
+                    (x) -> x,
                 ),
             )
         end
@@ -348,12 +379,15 @@ function _instantiate_model_node(params, n_ports; flux = true)
     end
 end
 
-function _instantiate_model_observation(params, n_ports; flux = true)
+function _instantiate_model_observation(params, n_ports, scaling_extrema; flux = true)
     observation_params = params.model_observation
     hidden_states = params.hidden_states
     type = observation_params.type
     n_layer = observation_params.n_layer
     width_layers = observation_params.width_layers
+    target_min = scaling_extrema["target_min"]
+    target_max = scaling_extrema["target_max"]
+    target_lims = params.scaling_limits.target_limits
     if flux == true
         activation = activation_map(observation_params.activation)
     else
@@ -366,6 +400,13 @@ function _instantiate_model_observation(params, n_ports; flux = true)
                 push!(
                     vector_layers,
                     Dense(hidden_states, n_ports * SURROGATE_OUTPUT_DIM),  #identity activation for output layer
+                )
+                push!(
+                    vector_layers,
+                    (x) -> (
+                        (x .- target_lims[1]) .* (target_max .- target_min) ./
+                        (target_lims[2] .- target_lims[1]) .+ target_min
+                    ),
                 )
             else
                 push!(
@@ -391,6 +432,13 @@ function _instantiate_model_observation(params, n_ports; flux = true)
                     vector_layers,
                     Dense(width_layers, n_ports * SURROGATE_OUTPUT_DIM),    #identity activation for output layer
                 )
+                push!(
+                    vector_layers,
+                    (x) -> (
+                        (x .- target_lims[1]) .* (target_max .- target_min) ./
+                        (target_lims[2] .- target_lims[1]) .+ target_min
+                    ),
+                )
             else
                 push!(
                     vector_layers,
@@ -410,7 +458,13 @@ function _instantiate_model_observation(params, n_ports; flux = true)
     end
 end
 
-function _inner_loss_function(surrogate_solution, ground_truth_subset, params)
+function _inner_loss_function(
+    surrogate_solution,
+    branch_real_current_subset,
+    branch_imag_current_subset,
+    params,
+)
+    ground_truth_subset = vcat(branch_real_current_subset, branch_imag_current_subset)
     rmse_weight = params.loss_function.type_weights.rmse
     mae_weight = params.loss_function.type_weights.mae
     initialization_weight = params.loss_function.component_weights.initialization_weight
@@ -479,20 +533,32 @@ function _outer_loss_function(
     fault_index = fault_timespan_index[1]
     timespan_index = fault_timespan_index[2]
     ex = exs[fault_index]
-    powerflow = train_dataset[fault_index].powerflow
+    #powerflow = train_dataset[fault_index].powerflow
+    vr0 = train_dataset[fault_index].surrogate_real_voltage[1]
+    vi0 = train_dataset[fault_index].surrogate_imag_voltage[1]
+    ir0 = train_dataset[fault_index].branch_real_current[1]
+    ii0 = train_dataset[fault_index].branch_imag_current[1]
+
     tsteps = train_dataset[fault_index].tsteps
-    groundtruth_current = train_dataset[fault_index].groundtruth_current
+
     index_subset = _find_subset(tsteps, train_details[timespan_index])
+    branch_real_current = train_dataset[fault_index].branch_real_current
+    branch_real_current_subset = branch_real_current[:, index_subset]
+    branch_imag_current = train_dataset[fault_index].branch_imag_current
+    branch_imag_current_subset = branch_imag_current[:, index_subset]
     t_subset = tsteps[index_subset]
-    groundtruth_subset = groundtruth_current[:, index_subset]
-    surrogate_solution = surrogate(ex, powerflow, t_subset, θ)
+    surrogate_solution = surrogate(ex, [vr0, vi0], [ir0, ii0], t_subset, θ)
     #=          p1 = Plots.plot(tsteps, groundtruth_current[1,:])
             Plots.plot!(p1, surrogate_solution.t_series, surrogate_solution.i_series[1,:])
             p2 = Plots.plot(tsteps, groundtruth_current[2,:])
             Plots.plot!(p2, surrogate_solution.t_series, surrogate_solution.i_series[2,:])
             display(Plots.plot(p1,p2)) =#
-    loss_initialization, loss_dynamic =
-        _inner_loss_function(surrogate_solution, groundtruth_subset, params)
+    loss_initialization, loss_dynamic = _inner_loss_function(
+        surrogate_solution,
+        branch_real_current_subset,
+        branch_imag_current_subset,
+        params,
+    )
     return loss_initialization + loss_dynamic,
     loss_initialization,
     loss_dynamic,

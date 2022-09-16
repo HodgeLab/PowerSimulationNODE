@@ -92,12 +92,12 @@ end
 Flux.@functor SteadyStateNeuralODE
 Flux.trainable(m::SteadyStateNeuralODE) = (p = m.p,)
 
-function (s::SteadyStateNeuralODE)(ex, x, tsteps, p = s.p) #x = [Ir, Ii, Vr, Vi]
-    θ = atan(x[4] / x[3])
+function (s::SteadyStateNeuralODE)(ex, v0, i0, tsteps, p = s.p)
+    θ = atan(v0[2], v0[1])
     dq_ri = [sin(θ) -cos(θ); cos(θ) sin(θ)] #   PSID.ri_dq(θ)
     ri_dq = [sin(θ) cos(θ); -cos(θ) sin(θ)]
-    _, Vq = dq_ri * [x[3]; x[4]] #Vd is zero by definition 
-    Id, Iq = dq_ri * [x[1]; x[2]]
+    _, Vq = dq_ri * [v0[1]; v0[2]] #Vd is zero by definition 
+    Id, Iq = dq_ri * [i0[1]; i0[2]]
 
     #u here includes both states and refs 
     dudt_ss(u, p, t) = vcat(
@@ -117,7 +117,7 @@ function (s::SteadyStateNeuralODE)(ex, x, tsteps, p = s.p) #x = [Ir, Ii, Vr, Vi]
     ))
 
     #PREDICTOR 
-    u0_pred = s.re1(p[1:(s.len)])(vcat(Vq, Id, Iq))
+    u0_pred = s.re1(p[1:(s.len)])((Vq, [Id, Iq]))
 
     #SOLVE PROBLEM TO STEADY STATE 
     ff_ss = OrdinaryDiffEq.ODEFunction{false}(dudt_ss)

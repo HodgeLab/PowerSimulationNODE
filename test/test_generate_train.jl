@@ -127,12 +127,7 @@ end
             adjust = "nothing",
             adjust_η = 0.0,
         ),
-        input_normalization = (
-            x_scale = [1.0, 1.0, 1.0],  #TODO - set defaults 
-            x_bias = [0.0, 0.0, 0.0],
-            exogenous_scale = [20.0, 20.0],
-            exogenous_bias = [-1.0, -1.0],
-        ),
+        scaling_limits = (input_limits = (-1.0, 1.0), target_limits = (-1.0, 1.0)),
     )
     #try
     generate_and_train_test(p)
