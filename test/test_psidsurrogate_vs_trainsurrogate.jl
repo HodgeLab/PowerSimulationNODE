@@ -63,7 +63,7 @@ end
     p = TrainParams(
         base_path = joinpath(pwd(), "test"),
         surrogate_buses = [2],
-        model_node = model_node = (
+        model_node = (
             type = "dense",
             n_layer = 1,
             width_layers = 4,
@@ -275,7 +275,15 @@ end
     sys = System(joinpath(TEST_FILES_DIR, "system_data/3bus_nogens.raw"))
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
 
-    p = TrainParams()
+    p = TrainParams(
+        model_node = (
+            type = "dense",
+            n_layer = 1,
+            width_layers = 4,
+            activation = "hardtanh",
+            σ2_initialization = 0.05,
+        ),
+    )
     scaling_extrema = Dict{}(
         "target_max" => [1.0, 1.0],
         "target_min" => [-1.0, -1.0],
@@ -347,6 +355,7 @@ end
     end
     solve_powerflow!(sys)
     sim = Simulation!(MassMatrixModel, sys, pwd(), (0.0, 1.0))
+    show_states_initial_value(sim)
     execute!(sim, Rodas5(), saveat = 0.0:0.01:1.0)
     results = read_results(sim)
     Vm3_ref1 = get_voltage_magnitude_series(results, 3)[2]
