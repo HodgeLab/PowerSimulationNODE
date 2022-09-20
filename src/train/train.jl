@@ -328,7 +328,7 @@ function train(params::TrainParams)
 
     n_ports = length(connecting_branches)
     @info "Surrogate contains $n_ports ports"
-
+    try  
     scaling_extrema = calculate_scaling_extrema(train_dataset)
 
     #READ VALIDATION SYSTEM AND ADD SURROGATE COMPONENT WITH STRUCTURE BASED ON PARAMS
@@ -386,7 +386,7 @@ function train(params::TrainParams)
     else
         θ = params.p_start
     end
-    try # -TODO uncomment 
+        #Where "try" was previously
         total_time = @elapsed begin
             for group in train_groups
                 res, output = _train(
