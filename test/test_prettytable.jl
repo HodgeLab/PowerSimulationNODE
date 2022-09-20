@@ -1,7 +1,3 @@
-#Make a new directory 
-#Create three new TrainParams and save them as JSON (make two of the )
-#pretty print them to check the 
-
 path = (joinpath(pwd(), "test-pretty-print-dir"))
 !isdir(path) && mkdir(path)
 

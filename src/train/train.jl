@@ -25,7 +25,7 @@ function _build_exogenous_input_functions(
                     p,
                     train_data,
                     train_data_params,
-                )   #todo - implement dispatch for each type of perturbation
+                )
                 push!(exs, ex)
             end
         end
@@ -41,11 +41,8 @@ function _surrogate_perturbation_to_function_of_time(
     T <: Vector{Union{PSID.Perturbation, PSIDS.SurrogatePerturbation}},
     D <: PSIDS.SteadyStateNODEData,
 }
-    @warn typeof(data)
-    #@assert length(data.branch_order) == length(perturbation)
     V_funcs = []
-    if train_data_params.system == "full"   #TODO - test generating data from full systems (changes made)
-        @warn "Generating train data from full system"
+    if train_data_params.system == "full"
         for i in 1:size(data.opposite_real_voltage)[1]
             function Vr(t)
                 ix_after = findfirst(x -> x > t, data.tsteps)
@@ -146,27 +143,26 @@ function _single_perturbation_to_function_of_time(
     data::PSIDS.SteadyStateNODEData,
     port_ix::Int64,
 )
-    @warn "TODO - implement for VStep"
+    @warn "function _single_perturbation_to_function_of_time not implemented for VStep"
 end
 
-#TODO - cleaner way to set new parameters so you don't have to pass the Flux surrogate around
-function evaluate_loss(sys, θ, groundtruth_dataset, params, connecting_branches, surrogate)
+function evaluate_loss(
+    sys,
+    θ,
+    groundtruth_dataset,
+    params,
+    connecting_branches,
+    surrogate,
+    θ_ranges,
+)
     for s in PSY.get_components(PSIDS.SteadyStateNODE, sys)
-        PSIDS.set_initializer_parameters!(s, θ[1:(surrogate.len)])
-        PSIDS.set_node_parameters!(
-            s,
-            θ[(surrogate.len + 1):(surrogate.len + surrogate.len2)],
-        )
-        PSIDS.set_observer_parameters!(s, θ[(surrogate.len + surrogate.len2 + 1):end])
-        @warn "Evaluation loss for surrogate:", s
+        PSIDS.set_initializer_parameters!(s, θ[θ_ranges["initializer_range"]])
+        PSIDS.set_node_parameters!(s, θ[θ_ranges["node_range"]])
+        PSIDS.set_observer_parameters!(s, θ[θ_ranges["observation_range"]])
     end
-
     operating_points = params.operating_points
     perturbations = params.perturbations
     generate_data_params = params.params
-    @warn operating_points
-    @warn perturbations
-    @warn generate_data_params
     surrogate_dataset = PSIDS.generate_surrogate_data(
         sys,
         sys,
@@ -176,29 +172,57 @@ function evaluate_loss(sys, θ, groundtruth_dataset, params, connecting_branches
         generate_data_params,
         dataset_aux = groundtruth_dataset,
     )
-    #@warn surrogate_dataset
-    #TODO- calculate the loss metrics by comparing surrogate_dataset and groundtruth_dataset.
-    #Make sure this function can be used for the test system equivalently 
-
-    p1 = Plots.plot(
-        groundtruth_dataset[1].tsteps,
-        groundtruth_dataset[1].groundtruth_current[1, :],
+    @assert length(surrogate_dataset) == length(groundtruth_dataset)
+    mae_ir = Float64[]
+    max_error_ir = Float64[]
+    mae_ii = Float64[]
+    max_error_ii = Float64[]
+    for ix in eachindex(surrogate_dataset, groundtruth_dataset)
+        if groundtruth_dataset[ix].stable == true
+            if surrogate_dataset[ix].stable == false
+                push!(mae_ir, 1.0e15)   #Note: Cannot write Inf in Json spec, so assign large value
+                push!(max_error_ir, 1.0e15)
+                push!(mae_ii, 1.0e15)
+                push!(max_error_ii, 1.0e15)
+            elseif surrogate_dataset[ix].stable == true
+                push!(
+                    mae_ir,
+                    mae(
+                        surrogate_dataset[ix].branch_real_current,
+                        groundtruth_dataset[ix].branch_real_current,
+                    ),
+                )
+                push!(
+                    max_error_ir,
+                    maximum(
+                        surrogate_dataset[ix].branch_real_current .-
+                        groundtruth_dataset[ix].branch_real_current,
+                    ),
+                )
+                push!(
+                    mae_ii,
+                    mae(
+                        surrogate_dataset[ix].branch_imag_current,
+                        groundtruth_dataset[ix].branch_imag_current,
+                    ),
+                )
+                push!(
+                    max_error_ii,
+                    maximum(
+                        surrogate_dataset[ix].branch_imag_current .-
+                        groundtruth_dataset[ix].branch_imag_current,
+                    ),
+                )
+            end
+        end
+    end
+    dataset_loss = Dict{String, Vector{Float64}}(
+        "mae_ir" => mae_ir,
+        "max_error_ir" => max_error_ir,
+        "mae_ii" => mae_ii,
+        "max_error_ii" => max_error_ii,
     )
-    Plots.plot!(
-        p1,
-        surrogate_dataset[1].tsteps,
-        surrogate_dataset[1].groundtruth_current[1, :],
-    )
-    p2 = Plots.plot(
-        groundtruth_dataset[1].tsteps,
-        groundtruth_dataset[1].groundtruth_current[2, :],
-    )
-    Plots.plot!(
-        p2,
-        surrogate_dataset[1].tsteps,
-        surrogate_dataset[1].groundtruth_current[2, :],
-    )
-    display(Plots.plot(p1, p2))
+    return dataset_loss
 end
 
 function calculate_scaling_extrema(train_dataset)
@@ -291,14 +315,16 @@ function train(params::TrainParams)
     connecting_branches = Serialization.deserialize(params.connecting_branch_names_path)
     @info "Length of possible training conditions (number of fault/operating point combinations):",
     length(train_dataset)
-    @info "Length of actual training dataset (stable conditions):", length(train_dataset)   #TODO - filter based on stable == true 
+    @info "Length of actual training dataset (stable conditions):",
+    length(filter(x -> x.stable == true, train_dataset))
     @info "Length of possible validation conditions (number of fault/operating point combinations):",
     length(validation_dataset)
     @info "Length of actual validation dataset (stable conditions):",
-    length(validation_dataset)  #TODO - filter based on stable == true 
+    length(filter(x -> x.stable == true, validation_dataset))
     @info "Length of possible test conditions (number of fault/operating point combinations):",
     length(test_dataset)
-    @info "Length of actual test dataset (stable conditions):", length(test_dataset)  #TODO - filter based on stable == true 
+    @info "Length of actual test dataset (stable conditions):",
+    length(filter(x -> x.stable == true, test_dataset))
 
     n_ports = length(connecting_branches)
     @info "Surrogate contains $n_ports ports"
@@ -329,15 +355,20 @@ function train(params::TrainParams)
 
     p_nn_init, _ = Flux.destructure(surrogate)
     n_parameters = length(p_nn_init)
+    output = _initialize_training_output_dict()
+    θ_ranges = Dict{String, UnitRange{Int64}}(
+        "initializer_range" => 1:(surrogate.len),
+        "node_range" => (surrogate.len + 1):(surrogate.len + surrogate.len2),
+        "observation_range" => (surrogate.len + surrogate.len2 + 1):n_parameters,
+    )
+    output["θ_ranges"] = θ_ranges
     @info "Surrogate has $n_parameters parameters"
     res = nothing
-
-    output = _initialize_training_output_dict()
     output["train_id"] = params.train_id
     output["n_params_surrogate"] = n_parameters
     exs = _build_exogenous_input_functions(params.train_data, train_dataset)    #can build ex from the components in params.train_data or from the dataset values by interpolating...
     #want to test how this impacts the speed of a single train iteration (the interpolation)
-    @warn exs[1](1.0, [1, 1])
+    #@warn exs[1](1.0, [1, 1])      #evaluate exs before going to the training
 
     train_details = params.curriculum_timespans
     fault_indices = collect(1:length(train_dataset))
@@ -345,63 +376,66 @@ function train(params::TrainParams)
     @assert length(train_dataset) == length(exs)
     train_groups =
         _generate_training_groups(fault_indices, timespan_indices, params.curriculum)
-    n_trains = length(train_groups) #TODO - doublecheck 
-    per_solve_maxiters = _calculate_per_solve_maxiters(params, n_trains)
+    n_trains = length(train_groups)
+    n_samples = length(filter(x -> x.stable == true, train_dataset))
+    per_solve_max_epochs = _calculate_per_solve_max_epochs(params, n_trains, n_samples)
     @info "Curriculum pairings (fault_index, timespan_index)", train_groups
-    @info "Based on size of train dataset and curriculum timespans parameter, will have $n_trains trains with a maximum of $per_solve_maxiters iterations per train"
+    @info "\n # of trainings: $n_trains \n # of epochs per training: $per_solve_max_epochs \n # of samples per epoch:  $n_samples"
     if isempty(params.p_start)
         θ = p_nn_init
     else
         θ = params.p_start
     end
-    #try  -TODO uncomment 
-    total_time = @elapsed begin
-        for group in train_groups
-            res, output = _train(
-                θ,
-                surrogate,
-                connecting_branches,
-                train_dataset,
-                validation_dataset,
-                sys_validation,
-                exs,
-                train_details,
-                params,
-                optimizer,
-                group,
-                per_solve_maxiters,
-                output,
-            )
-            θ = res.u
+    try # -TODO uncomment 
+        total_time = @elapsed begin
+            for group in train_groups
+                res, output = _train(
+                    θ,
+                    surrogate,
+                    θ_ranges,
+                    connecting_branches,
+                    train_dataset,
+                    validation_dataset,
+                    sys_validation,
+                    exs,
+                    train_details,
+                    params,
+                    optimizer,
+                    group,
+                    per_solve_max_epochs,
+                    output,
+                )
+                θ = res.u
+            end
         end
-    end
-    output["total_time"] = total_time
+        output["total_time"] = total_time
 
-    #=     output["final_loss"] = evaluate_loss(   
+        output["final_loss"] = evaluate_loss(
             sys_validation,
             θ,
             validation_dataset,
             params.validation_data,
             connecting_branches,
             surrogate,
-        ) =#
-    output["final_loss"] = 0.0  #TODO - calculate an actual final loss on the validation dataset 
+            θ_ranges,
+        )
 
-    if params.force_gc == true
-        GC.gc()     #Run garbage collector manually before file write.
-        @warn "FORCE GC!"
+        if params.force_gc == true
+            GC.gc()     #Run garbage collector manually before file write.
+            @warn "FORCE GC!"
+        end
+        _capture_output(output, params.output_data_path, params.train_id)
+        return true, θ
+    catch e
+        @warn e
+        return false, θ
     end
-    _capture_output(output, params.output_data_path, params.train_id)
-    return true, θ
-    #catch e
-    #    @warn e 
-    #    return false, θ
-    #end
 end
 
 function _train(
     θ::Vector{Float32},
     surrogate::SteadyStateNeuralODE,
+    θ_ranges::Dict{String, UnitRange{Int64}},
     connecting_branches::Vector{Tuple{String, Symbol}},
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     validation_dataset::Vector{PSIDS.SteadyStateNODEData},
@@ -416,7 +450,7 @@ function _train(
     params::TrainParams,
     optimizer::Union{OptimizationOptimisers.Optimisers.Adam, Optim.AbstractOptimizer},
     group::Vector{Tuple{Int64, Int64}},
-    per_solve_maxiters::Int,
+    per_solve_max_epochs::Int,
     output::Dict{String, Any},
 )
     train_loader =
@@ -443,13 +477,14 @@ function _train(
         sys_validation,
         connecting_branches,
         surrogate,
+        θ_ranges,
     )
 
     #Calculate loss before training
     loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index =
         outer_loss_function(θ, (1, 1))
 
-    @warn "Everything instantiated, starting solve with one iteration"
+    @warn "Everything instantiated, starting solve with one epoch"
     timing_stats_compile = @timed Optimization.solve(
         optprob,
         optimizer,
@@ -464,11 +499,11 @@ function _train(
             gc_time = timing_stats_compile.gctime,
         ),
     )
-    @warn "Starting full train.", per_solve_maxiters
+    @warn "Starting full train with $per_solve_max_epochs epochs"
     timing_stats = @timed Optimization.solve(
         optprob,
         optimizer,
-        IterTools.ncycle(train_loader, per_solve_maxiters),
+        IterTools.ncycle(train_loader, per_solve_max_epochs),
         callback = cb,
     )
     push!(
@@ -511,13 +546,20 @@ function _initialize_training_output_dict()
             surrogate_solution = SteadyStateNeuralODE_solution[],
             fault_index = Tuple{Int64, Int64}[],
         ),
+        "validation_loss" => DataFrames.DataFrame(
+            mae_ir = Vector{Float64}[],
+            max_error_ir = Vector{Float64}[],
+            mae_ii = Vector{Float64}[],
+            max_error_ii = Vector{Float64}[],
+        ),
         "total_time" => [],
         "total_iterations" => 0,
         "recorded_iterations" => [],
-        "final_loss" => [],
+        "final_loss" => Dict{String, Vector{Float64}}(),
         "timing_stats_compile" => [],
         "timing_stats" => [],
         "n_params_surrogate" => 0,
+        "θ_ranges" => Dict{String, UnitRange{Int64}},
         "train_id" => "",
     )
 end
@@ -540,11 +582,11 @@ function _capture_output(output_dict, output_directory, id)
     end
 end
 
-function _calculate_per_solve_maxiters(params, n_groups)
+function _calculate_per_solve_max_epochs(params, n_groups, n_samples)
     total_maxiters = params.maxiters
-    per_solve_maxiters = Int(floor(total_maxiters / n_groups))
-    if per_solve_maxiters == 0
-        @error "The calculated maxiters per training group is 0. Adjust maxiters, the curriculum, or the size of the training dataset."
+    per_solve_max_epochs = Int(floor(total_maxiters / n_groups / n_samples))
+    if per_solve_max_epochs == 0
+        @error "The calculated epochs per training group is 0. Adjust maxiters, the curriculum, or the size of the training dataset."
     end
-    return per_solve_maxiters
+    return per_solve_max_epochs
 end

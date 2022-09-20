@@ -142,7 +142,7 @@ function (s::SteadyStateNeuralODE)(ex, v0, i0, tsteps, p = s.p)
 
     res = dudt_ss(ss_solution.u, p, 0.0)
 
-    #TODO - extra call (dummy) to propogate gradients needed after ss_solution is reached? 
+    #TODO - extra call (dummy) to propogate gradients needed after ss_solution is reached? Not sure if needed. 
     #https://github.com/SciML/DeepEquilibriumNetworks.jl/blob/9c2626d6080bbda3c06b81d2463744f5e395003f/src/layers/deq.jl#L41
 
     if NLsolve.converged(ss_solution.original)
@@ -178,7 +178,7 @@ function (s::SteadyStateNeuralODE)(ex, v0, i0, tsteps, p = s.p)
     end
 end
 
-struct SteadyStateNeuralODE_solution{T}        #TODO - look into making this compatible with SciML ecosystem of solution types 
+struct SteadyStateNeuralODE_solution{T}
     r0_pred::AbstractArray{T}
     r0::AbstractArray{T}
     t_series::AbstractArray{T}

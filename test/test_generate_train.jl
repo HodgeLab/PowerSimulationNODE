@@ -54,15 +54,16 @@ end
                 generation_scale = 1.0,
                 load_scale = 1.0,
             )],
-            perturbations = [[
-                PSIDS.RandomLoadChange(time = 0.5, load_multiplier_range = (0.9, 1.1)),
-            ]],
+            perturbations = [
+                [PSIDS.RandomLoadChange(time = 0.5, load_multiplier_range = (0.9, 1.1))],
+                [PSIDS.RandomLoadChange(time = 0.5, load_multiplier_range = (0.9, 1.1))],
+            ],
             params = PSIDS.GenerateDataParams(
                 solver = "Rodas4",
                 formulation = "MassMatrix",
                 solver_tols = (1e-4, 1e-4),
             ),
-            system = "full",     #generate from the reduced system with sources to perturb or the full system
+            system = "full",
         ),
         validation_data = (
             id = "1",
@@ -71,12 +72,12 @@ end
                 load_scale = 1.0,
             )],
             perturbations = [[
-                PSIDS.RandomLoadChange(time = 1.0, load_multiplier_range = (0.9, 1.1)),
+                PSIDS.RandomLoadChange(time = 0.5, load_multiplier_range = (0.9, 1.1)),
             ]],
             params = PSIDS.GenerateDataParams(
                 solver = "Rodas4",
                 formulation = "MassMatrix",
-                solver_tols = (1e-2, 1e-2),
+                solver_tols = (1e-4, 1e-4),
             ),
         ),
         test_data = (
@@ -94,7 +95,7 @@ end
                 solver_tols = (1e-4, 1e-4),
             ),
         ),
-        validation_loss_every_n = 200,
+        validation_loss_every_n = 10,
         steady_state_solver = (
             solver = "SSRootfind", #"SSRootfind",
             abstol = 1e-8,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
@@ -123,23 +124,20 @@ end
         optimizer = (
             sensealg = "Zygote",
             primary = "Adam",
-            primary_η = 0.001,
+            primary_η = 1e-10, #0.001,
             adjust = "nothing",
             adjust_η = 0.0,
         ),
         scaling_limits = (input_limits = (-1.0, 1.0), target_limits = (-1.0, 1.0)),
     )
-    #try
-    generate_and_train_test(p)
-    # finally
-    @info("removing test files")
-    rm(
-        joinpath(path, "output_data", "train_instance_1", "predictions"),
-        force = true,
-        recursive = true,
-    )
-    rm(path, force = true, recursive = true)
-    #end
+    try
+        generate_and_train_test(p)
+        @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
+              7.5 #should pass even without precompilation
+    finally
+        @info("removing test files")
+        rm(path, force = true, recursive = true)
+    end
 end
 
 #= @testset "2 bus system, train-data from reduced system" begin

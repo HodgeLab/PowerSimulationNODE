@@ -174,7 +174,7 @@ end
     plot!(p4, θ1, label = "θ1 - psid")
     plot!(p1, Ir[1], Ir[2] .* -1, label = "real current -psid", legend = :topright)
     plot!(p2, Ii[1], Ii[2] .* -1, label = "imag current -psid", legend = :topright)
-    display(plot(p1, p2, p3, p4, size = (1000, 1000)))
+    #display(plot(p1, p2, p3, p4, size = (1000, 1000)))
 
     @test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <= 5e-4
 
@@ -261,7 +261,7 @@ end
     plot!(p1, θ3_ref2, label = "θdevice - ref bus 2")
     p2 = plot(Im23_ref1, label = "Im_device - ref bus 1")
     plot!(p2, Im23_ref2, label = "Im_device - ref bus 2")
-    display(plot(p1, p2))
+    #display(plot(p1, p2))
 
     @test LinearAlgebra.norm(Vm3_ref1 .- Vm3_ref2, Inf) <= 1e-3
     @test LinearAlgebra.norm(θ3_ref1 .- θ3_ref2, Inf) >= 1e-2
@@ -379,7 +379,7 @@ end
     plot!(p1, θ3_ref2, label = "θdevice - ref bus 2")
     p2 = plot(Im23_ref1, label = "Im_device - ref bus 1", legend = :bottomright)
     plot!(p2, Im23_ref2, label = "Im_device - ref bus 2", legend = :bottomright)
-    display(plot(p1, p2))
+    #display(plot(p1, p2))
 
     @test LinearAlgebra.norm(Vm3_ref1 .- Vm3_ref2, Inf) <= 1e-3
     @test LinearAlgebra.norm(θ3_ref1 .- θ3_ref2, Inf) >= 1e-2

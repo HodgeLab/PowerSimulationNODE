@@ -95,7 +95,7 @@
 - `rng_seed::Int64`: Seed for the random number generator used for initializing the NN for reproducibility across training runs.
 - `output_mode_skip::Int`: Record and save output data every `output_mode_skip` iterations. Meant to ease memory constraints on HPC. 
 - `train_time_limit_seconds::Int64`:  
-- `base_path:String`: TODO: Directory for training where input data is found and output data is written.
+- `base_path:String`: Directory for training where input data is found and output data is written.
 - `system_path::String`: Location of the full `System`. Training/validation/test systems are dervied based on `surrogate_buses`.  
 - `surrogate_system_path`: Path to validation system (surrogate is added to this system during training).
 - `train_system_path`: Path to train system (system with only the surrogate represented in detail with sources surrounding).

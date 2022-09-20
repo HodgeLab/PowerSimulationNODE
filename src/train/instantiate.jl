@@ -91,7 +91,7 @@ function instantiate_surrogate_psid(
         target_min = scaling_extrema["target_min"],
         target_max = scaling_extrema["target_max"],
         target_lims = params.scaling_limits.target_limits,
-        base_power = 100.0, #TODO - doublecheck 
+        base_power = 100.0,
         ext = Dict{String, Any}(),
     )
     display(surr)
@@ -583,6 +583,7 @@ function instantiate_cb!(
     sys_validation,
     connecting_branches,
     surrogate,
+    θ_ranges,
 )
     if Sys.iswindows() || Sys.isapple()
         print_loss = true
@@ -604,6 +605,7 @@ function instantiate_cb!(
         sys_validation,
         connecting_branches,
         surrogate,
+        θ_ranges,
     )
 end
 
@@ -621,6 +623,7 @@ function _cb!(
     sys_validation,
     connecting_branches,
     surrogate,
+    θ_ranges,
 )
     lb_loss = params.lb_loss
     exportmode_skip = params.output_mode_skip
@@ -649,16 +652,34 @@ function _cb!(
         )
     end
     if mod(output["total_iterations"], validation_loss_every_n) == 0
-        validation_loss = evaluate_loss(    #TODO - test this part
+        validation_loss = evaluate_loss(
             sys_validation,
             p,
             validation_dataset,
             params.validation_data,
             connecting_branches,
             surrogate,
+            θ_ranges,
         )
+
+        push!(
+            output["validation_loss"],
+            (
+                validation_loss["mae_ir"],
+                validation_loss["max_error_ir"],
+                validation_loss["mae_ii"],
+                validation_loss["max_error_ii"],
+            ),
+        )
+        ir_mean = Statistics.mean(validation_loss["mae_ir"])
+        ii_mean = Statistics.mean(validation_loss["mae_ii"])
+        if ((ir_mean + ii_mean) / 2 < lb_loss)
+            @warn "Training stopping condition met: loss validation set is below defined limit"
+            return true
+        end
     end
-    if (l < lb_loss) || (time() > train_time_limit_seconds) #TODO - stopping condition should be based on validation_loss
+    if (time() > train_time_limit_seconds)
+        @warn "Training stopping condition met: time limit is up"
         return true
     else
         return false

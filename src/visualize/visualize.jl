@@ -272,9 +272,12 @@ function visualize_summary(high_level_outputs_dict)
     p2 = Plots.scatter()
     p = Plots.plot()
     for (key, value) in high_level_outputs_dict
+        ir_mean = Statistics.mean(value["final_loss"]["mae_ir"])
+        ii_mean = Statistics.mean(value["final_loss"]["mae_ii"])
+        l = (ir_mean + ii_mean) / 2
         Plots.scatter!(
             p1,
-            (value["total_time"], value["final_loss"][1]),
+            (value["total_time"], l),
             label = value["train_id"],
             xlabel = "total time (s)",
             ylabel = "final loss",
@@ -282,12 +285,7 @@ function visualize_summary(high_level_outputs_dict)
             markersize = 1,
             markerstrokewidth = 0,
         )
-        Plots.annotate!(
-            p1,
-            value["total_time"],
-            value["final_loss"][1],
-            Plots.text(value["train_id"], :red, 3),
-        )
+        Plots.annotate!(p1, value["total_time"], l, Plots.text(value["train_id"], :red, 3))
         Plots.scatter!(
             p2,
             (value["total_time"], value["n_params_surrogate"]),
@@ -318,7 +316,6 @@ Prints tables with both constant and changing parameters for a collection of tra
 print_train_parameter_overview("input_data")
 ````
 """
-#TODO - add to test and update parameters 
 function print_train_parameter_overview(train_params_folder)
     Matrix = Any[]
     header = Symbol[]

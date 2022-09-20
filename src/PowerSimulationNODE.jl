@@ -48,6 +48,7 @@ import Serialization
 import StatsBase
 import SciMLBase
 import SciMLSensitivity
+import Statistics
 import StructTypes
 import YAML
 import PrettyTables
