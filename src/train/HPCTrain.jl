@@ -373,5 +373,6 @@ function run_parallel_train(train::HPCTrain)
     generate_data_bash_file = train.generate_data_bash_file
     train_bash_file = train.train_bash_file
     generate_data_job_id = run(`sbatch $generate_data_bash_file --parsable`)
-    return run(`sbatch $train_bash_file --dependency=$generate_data_job_id`)
+    display(generate_data_job_id)
+    return run(`sbatch --dependency=afterok:$generate_data_job_id $train_bash_file`)
 end
