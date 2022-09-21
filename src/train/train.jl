@@ -328,64 +328,68 @@ function train(params::TrainParams)
 
     n_ports = length(connecting_branches)
     @info "Surrogate contains $n_ports ports"
-    try  
-    scaling_extrema = calculate_scaling_extrema(train_dataset)
+    try
+        scaling_extrema = calculate_scaling_extrema(train_dataset)
 
-    #READ VALIDATION SYSTEM AND ADD SURROGATE COMPONENT WITH STRUCTURE BASED ON PARAMS
-    sys_validation = node_load_system(params.surrogate_system_path)
-    sources = collect(
-        PSY.get_components(PSY.Source, sys_validation, x -> PSY.get_name(x) !== "InfBus"),
-    )
-    (length(sources) > 1) &&
-        @error "Surrogate with multiple input/output ports not yet supported"
-    psid_surrogate = instantiate_surrogate_psid(
-        params,
-        n_ports,
-        scaling_extrema,
-        PSY.get_name(sources[1]),
-    )
-    PSY.add_component!(sys_validation, psid_surrogate, sources[1])
-    display(sys_validation)
+        #READ VALIDATION SYSTEM AND ADD SURROGATE COMPONENT WITH STRUCTURE BASED ON PARAMS
+        sys_validation = node_load_system(params.surrogate_system_path)
+        sources = collect(
+            PSY.get_components(
+                PSY.Source,
+                sys_validation,
+                x -> PSY.get_name(x) !== "InfBus",
+            ),
+        )
+        (length(sources) > 1) &&
+            @error "Surrogate with multiple input/output ports not yet supported"
+        psid_surrogate = instantiate_surrogate_psid(
+            params,
+            n_ports,
+            scaling_extrema,
+            PSY.get_name(sources[1]),
+        )
+        PSY.add_component!(sys_validation, psid_surrogate, sources[1])
+        display(sys_validation)
 
-    #INSTANTIATE 
-    surrogate = instantiate_surrogate_flux(params, n_ports, scaling_extrema)
-    optimizer = instantiate_optimizer(params)
-    !(params.optimizer.adjust == "nothing") &&
-        (optimizer_adjust = instantiate_optimizer_adjust(params))
+        #INSTANTIATE 
+        surrogate = instantiate_surrogate_flux(params, n_ports, scaling_extrema)
+        optimizer = instantiate_optimizer(params)
+        !(params.optimizer.adjust == "nothing") &&
+            (optimizer_adjust = instantiate_optimizer_adjust(params))
 
-    p_nn_init, _ = Flux.destructure(surrogate)
-    n_parameters = length(p_nn_init)
-    output = _initialize_training_output_dict()
-    θ_ranges = Dict{String, UnitRange{Int64}}(
-        "initializer_range" => 1:(surrogate.len),
-        "node_range" => (surrogate.len + 1):(surrogate.len + surrogate.len2),
-        "observation_range" => (surrogate.len + surrogate.len2 + 1):n_parameters,
-    )
-    output["θ_ranges"] = θ_ranges
-    @info "Surrogate has $n_parameters parameters"
-    res = nothing
-    output["train_id"] = params.train_id
-    output["n_params_surrogate"] = n_parameters
-    exs = _build_exogenous_input_functions(params.train_data, train_dataset)    #can build ex from the components in params.train_data or from the dataset values by interpolating...
-    #want to test how this impacts the speed of a single train iteration (the interpolation)
-    #@warn exs[1](1.0, [1, 1])      #evaluate exs before going to the training
+        p_nn_init, _ = Flux.destructure(surrogate)
+        n_parameters = length(p_nn_init)
+        output = _initialize_training_output_dict()
+        θ_ranges = Dict{String, UnitRange{Int64}}(
+            "initializer_range" => 1:(surrogate.len),
+            "node_range" => (surrogate.len + 1):(surrogate.len + surrogate.len2),
+            "observation_range" => (surrogate.len + surrogate.len2 + 1):n_parameters,
+        )
+        output["θ_ranges"] = θ_ranges
+        @info "Surrogate has $n_parameters parameters"
+        res = nothing
+        output["train_id"] = params.train_id
+        output["n_params_surrogate"] = n_parameters
+        exs = _build_exogenous_input_functions(params.train_data, train_dataset)    #can build ex from the components in params.train_data or from the dataset values by interpolating...
+        #want to test how this impacts the speed of a single train iteration (the interpolation)
+        #@warn exs[1](1.0, [1, 1])      #evaluate exs before going to the training
 
-    train_details = params.curriculum_timespans
-    fault_indices = collect(1:length(train_dataset))
-    timespan_indices = collect(1:length(params.curriculum_timespans))
-    @assert length(train_dataset) == length(exs)
-    train_groups =
-        _generate_training_groups(fault_indices, timespan_indices, params.curriculum)
-    n_trains = length(train_groups)
-    n_samples = length(filter(x -> x.stable == true, train_dataset))
-    per_solve_max_epochs = _calculate_per_solve_max_epochs(params, n_trains, n_samples)
-    @info "Curriculum pairings (fault_index, timespan_index)", train_groups
-    @info "\n # of trainings: $n_trains \n # of epochs per training: $per_solve_max_epochs \n # of samples per epoch:  $n_samples"
-    if isempty(params.p_start)
-        θ = p_nn_init
-    else
-        θ = params.p_start
-    end
+        train_details = params.curriculum_timespans
+        fault_indices = collect(1:length(train_dataset))
+        timespan_indices = collect(1:length(params.curriculum_timespans))
+        @assert length(train_dataset) == length(exs)
+        train_groups =
+            _generate_training_groups(fault_indices, timespan_indices, params.curriculum)
+        n_trains = length(train_groups)
+        n_samples = length(filter(x -> x.stable == true, train_dataset))
+        per_solve_max_epochs = _calculate_per_solve_max_epochs(params, n_trains, n_samples)
+        @info "Curriculum pairings (fault_index, timespan_index)", train_groups
+        @info "\n # of trainings: $n_trains \n # of epochs per training: $per_solve_max_epochs \n # of samples per epoch:  $n_samples"
+        if isempty(params.p_start)
+            θ = p_nn_init
+        else
+            θ = params.p_start
+        end
         #Where "try" was previously
         total_time = @elapsed begin
             for group in train_groups
@@ -427,7 +431,7 @@ function train(params::TrainParams)
         _capture_output(output, params.output_data_path, params.train_id)
         return true, θ
     catch e
-        @warn e
+        @error "Error in try block of train(): " exception = (e, catch_backtrace())
         return false, θ
     end
 end
