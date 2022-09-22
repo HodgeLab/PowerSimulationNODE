@@ -305,7 +305,7 @@ Executes training according to params. Assumes the existence of the necessary in
 
 """
 function train(params::TrainParams)
-    params.train_time_limit_seconds += floor(time())
+    params.train_time_limit_seconds += (floor(time()) - TIME_LIMIT_BUFFER_SECONDS)
     Random.seed!(params.rng_seed)
 
     #READ DATASETS 
