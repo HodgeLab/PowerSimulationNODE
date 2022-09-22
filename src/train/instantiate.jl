@@ -678,7 +678,7 @@ function _cb!(
             return true
         end
     end
-    if (time() > train_time_limit_seconds)
+    if (floor(time()) > train_time_limit_seconds)
         @warn "Training stopping condition met: time limit is up"
         return true
     else

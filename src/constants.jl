@@ -16,7 +16,7 @@ const SURROGATE_SS_INPUT_DIM = 3    #[P, Q, V, θ]  --> changed to [Vq, Id, Iq] 
 const SURROGATE_OUTPUT_DIM = 2 #[Ir, Ii]
 const SURROGATE_N_REFS = 2
 
-const TIME_LIMIT_BUFFER_SECONDS = 300 #5 minutes to capture output data before hpc process is killed externally 
+const TIME_LIMIT_BUFFER_SECONDS = 900 #15 minutes to capture output data before hpc process is killed externally 
 
 if Sys.iswindows() || Sys.isapple()
     const NODE_CONSOLE_LEVEL = Logging.Info
