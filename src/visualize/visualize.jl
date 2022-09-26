@@ -91,8 +91,11 @@ Visualize a single training by generating plots. Every `skip` recorded training 
 visualize_training("train_1.json")
 ````
 """
-function visualize_training(input_params_file::String; skip = 1)
+function visualize_training(input_params_file::String; skip = 1, new_base_path = nothing)
     params = TrainParams(input_params_file)
+    if new_base_path !== nothing
+        _rebase_path!(params, new_base_path)
+    end
     path_to_output = joinpath(input_params_file, "..", "..", "output_data", params.train_id)
     output_dict =
         JSON3.read(read(joinpath(path_to_output, "high_level_outputs")), Dict{String, Any})
@@ -141,6 +144,47 @@ function _visualize_predictions(params, path_to_output, skip)
     return plots_pred
 end
 
+function _rebase_path!(params, new_base_path)
+    params.base_path = new_base_path
+    params.system_path = joinpath(
+        new_base_path,
+        PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
+        splitpath(params.system_path)[end],
+    )
+    params.surrogate_system_path = joinpath(
+        new_base_path,
+        PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
+        splitpath(params.surrogate_system_path)[end],
+    )
+    params.train_system_path = joinpath(
+        new_base_path,
+        PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
+        splitpath(params.train_system_path)[end],
+    )
+    params.connecting_branch_names_path = joinpath(
+        new_base_path,
+        PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
+        splitpath(params.connecting_branch_names_path)[end],
+    )
+    params.train_data_path = joinpath(
+        new_base_path,
+        PowerSimulationNODE.INPUT_FOLDER_NAME,
+        splitpath(params.train_data_path)[end],
+    )
+    params.validation_data_path = joinpath(
+        new_base_path,
+        PowerSimulationNODE.INPUT_FOLDER_NAME,
+        splitpath(params.validation_data_path)[end],
+    )
+    params.test_data_path = joinpath(
+        new_base_path,
+        PowerSimulationNODE.INPUT_FOLDER_NAME,
+        splitpath(params.test_data_path)[end],
+    )
+    params.output_data_path =
+        joinpath(new_base_path, splitpath(params.output_data_path)[end])
+end
+
 function read_arrow_file_to_dataframe(file::AbstractString)
     return open(file, "r") do io
         DataFrames.DataFrame(Arrow.Table(io))
@@ -159,13 +203,26 @@ Visualize a single training by generating animation of the training process. Sav
 animate_training("train_1.json", skip=10, fps = 10)
 ````
 """
-function animate_training(input_params_file::String; skip = 10, fps = 10)
-    _animate_training(input_params_file, skip = skip, fps = fps)
+function animate_training(
+    input_params_file::String;
+    skip = 10,
+    fps = 10,
+    new_base_path = nothing,
+)
+    _animate_training(input_params_file, skip = skip, fps = fps, new_base_path = nothing)
     GC.gc()
 end
 
-function _animate_training(input_params_file::String; skip = 10, fps = 10)
+function _animate_training(
+    input_params_file::String;
+    skip = 10,
+    fps = 10,
+    new_base_path = nothing,
+)
     params = TrainParams(input_params_file)
+    if new_base_path !== nothing
+        _rebase_path!(params, new_base_path)
+    end
     path_to_output = joinpath(input_params_file, "..", "..", "output_data", params.train_id)
     output_dict =
         JSON3.read(read(joinpath(path_to_output, "high_level_outputs")), Dict{String, Any})
