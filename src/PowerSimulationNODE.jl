@@ -4,7 +4,7 @@ export train
 export TrainParams
 export serialize
 export node_load_system
-export SummitHPCTrain
+export AlpineHPCTrain
 export SavioHPCTrain
 export generate_train_files
 export run_parallel_train

@@ -23,7 +23,7 @@ try
     @test occursin("--slf hostfile", file)
     @test !occursin("SLURM_NPROCS", file)
 
-    hpc_params = SummitHPCTrain(;
+    hpc_params = AlpineHPCTrain(;
         username = "test_user",
         params_data = test,
         project_folder = "test2",
