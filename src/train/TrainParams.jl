@@ -58,13 +58,13 @@
     Tuple{Tuple{Float64, Float64}, Tuple{Float64, Float64}},
     }`: Determines the input and target minimum and maximum values to be used with min-max normalization. The minimum and maximum values for each input and target come from the train dataset. 
 - `steady_state_solver::NamedTuple{
-    (:solver, :tols),
-    Tuple{String, Tuple{Float64, Float64}},
-    }`: The solver used for initializing surrogate to steady state. `solver` is the solver name from DifferentialEquations.jl, `tols` is a tuple `(abstol, reltol)`
+    (:solver, :abstol, :maxiters),
+    Tuple{String, Float64, Int64}},
+    }`: The solver used for initializing surrogate to steady state.
 - `dynamic_solver::NamedTuple{
     (:solver, :tols),
     Tuple{String, Tuple{Float64, Float64}},
-    }`: The solver used for solving the neural ODE dynamics. `solver` is the solver name from DifferentialEquations.jl, `tols` is a tuple `(abstol, reltol)`
+    }`: The solver used for solving the neural ODE dynamics. `solver` is the solver name from DifferentialEquations.jl, `tols` is a tuple `(reltol, abstol)`
 - `optimizer::NamedTuple{
     (:sensealg, :primary, :primary_η, :adjust, :adjust_η),
     Tuple{String, String, Float64, String, Float64},
