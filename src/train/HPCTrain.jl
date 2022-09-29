@@ -127,7 +127,7 @@ end
         n_nodes = nothing, # Use with caution in Savio, it can lead to over subscription of nodes
         mb_per_cpu = 4000,
     )
-- Function for generating default `HPCTrain` parameters suitable for Summit HPC at CU Boulder.
+- Function for generating default `HPCTrain` parameters suitable for Savio HPC at Berkeley.
 """
 function SavioHPCTrain(;
     username,
@@ -171,31 +171,31 @@ end
 
 # Populated with info from: https://curc.readthedocs.io/en/latest/
 """
-    function SummitHPCTrain(;
+    function AlpineHPCTrain(;
         username,
         params_data,
         project_folder = "PowerSystemNODEs",
         train_folder = "train1",
-        scratch_path = "/scratch/summit/",
+        scratch_path = "/scratch/alpine/",
         time_limit_train = "24:00:00",
         n_tasks = 1,  #default to parallelize across all tasks 
         QoS = "normal",
-        partition = "shas",
+        partition = "amilan",
         force_generate_inputs = false,
         mb_per_cpu = 4800,
     )
-- Function for generating default `HPCTrain` parameters suitable for Summit HPC at CU Boulder.
+- Function for generating default `HPCTrain` parameters suitable for Alpine HPC at CU Boulder.
 """
-function SummitHPCTrain(;
+function AlpineHPCTrain(;
     username,
     params_data,
     project_folder = "PowerSystemNODEs",
     train_folder = "train1",
-    scratch_path = "/scratch/summit/",
+    scratch_path = "/scratch/alpine/",
     time_limit_train = "23:59:59",
     time_limit_generate_data = "00:30:00",
     QoS = "normal",
-    partition = "shas",
+    partition = "amilan",
     force_generate_inputs = false,
     mb_per_cpu = 4800,
 )
@@ -219,7 +219,7 @@ function SummitHPCTrain(;
         "gnu_parallel",
         1,  #updated during file generation
         1,  #updated during file generation
-        nothing, # Default to nothing on Summit since it doesn't dispatch on ssh login
+        nothing, # Default to nothing on Alpine since it doesn't dispatch on ssh login(?)
         n_cpus_per_task,
         mb_per_cpu,
         params_data,
