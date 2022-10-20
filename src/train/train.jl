@@ -12,7 +12,7 @@ function _build_exogenous_input_functions(
     },
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
 )
-    exs = []
+    exogenous_input_functions = []
     n_perturbations = length(train_data_params.perturbations)
     n_operating_points = length(train_data_params.operating_points)
     @assert n_perturbations * n_operating_points == length(train_dataset)
@@ -21,16 +21,16 @@ function _build_exogenous_input_functions(
             ix = (ix_o - 1) * n_perturbations + ix_p
             train_data = train_dataset[ix]
             if train_data.stable == true    #only build exogenous inputs for the stable trajectories
-                ex = _surrogate_perturbation_to_function_of_time(
+                V = _surrogate_perturbation_to_function_of_time(
                     p,
                     train_data,
                     train_data_params,
                 )
-                push!(exs, ex)
+                push!(exogenous_input_functions, V)
             end
         end
     end
-    return exs
+    return exogenous_input_functions
 end
 
 function _surrogate_perturbation_to_function_of_time(
@@ -83,10 +83,8 @@ function _surrogate_perturbation_to_function_of_time(
     else
         @error "invalid value"
     end
-    R = data.connecting_resistance
-    X = data.connecting_reactance
-    RX = collect(Iterators.flatten(zip(R, X)))
-    return generate_exogenous_input(V_funcs, RX)    #Vfuncs are opposite the surrogate
+
+    return (t) -> [V_funcs[i](t) for i in eachindex(V_funcs)]
 end
 
 function _single_perturbation_to_function_of_time(
@@ -143,7 +141,28 @@ function _single_perturbation_to_function_of_time(
     data::PSIDS.SteadyStateNODEData,
     port_ix::Int64,
 )
-    @warn "function _single_perturbation_to_function_of_time not implemented for VStep"
+    Vr0_opposite = data.opposite_real_voltage[port_ix, 1]
+    Vi0_opposite = data.opposite_imag_voltage[port_ix, 1]
+    Vm0_opposite = sqrt(Vr0_opposite^2 + Vi0_opposite^2)
+    θ0_opposite = atan(Vi0_opposite / Vr0_opposite)
+    function V(t)
+        if t < single_perturbation.t_step
+            return Vm0_opposite
+        else
+            return single_perturbation.V_step
+        end
+    end
+    function θ(t)
+        return θ0_opposite
+    end
+
+    function Vr_func(t)
+        return V(t) * cos(θ(t))
+    end
+    function Vi_func(t)
+        return V(t) * sin(θ(t))
+    end
+    return (Vr_func, Vi_func)
 end
 
 function evaluate_loss(
@@ -333,6 +352,7 @@ function train(params::TrainParams)
 
         #READ VALIDATION SYSTEM AND ADD SURROGATE COMPONENT WITH STRUCTURE BASED ON PARAMS
         sys_validation = node_load_system(params.surrogate_system_path)
+        sys_train = node_load_system(params.train_system_path)
         sources = collect(
             PSY.get_components(
                 PSY.Source,
@@ -352,7 +372,13 @@ function train(params::TrainParams)
         display(sys_validation)
 
         #INSTANTIATE 
-        surrogate = instantiate_surrogate_flux(params, n_ports, scaling_extrema)
+        surrogate = instantiate_surrogate_flux(
+            params,
+            n_ports,
+            scaling_extrema,
+            connecting_branches,
+            sys_train,
+        )
         optimizer = instantiate_optimizer(params)
         !(params.optimizer.adjust == "nothing") &&
             (optimizer_adjust = instantiate_optimizer_adjust(params))
@@ -370,14 +396,15 @@ function train(params::TrainParams)
         res = nothing
         output["train_id"] = params.train_id
         output["n_params_surrogate"] = n_parameters
-        exs = _build_exogenous_input_functions(params.train_data, train_dataset)    #can build ex from the components in params.train_data or from the dataset values by interpolating...
+        exogenous_input_functions =
+            _build_exogenous_input_functions(params.train_data, train_dataset)    #can build ex from the components in params.train_data or from the dataset values by interpolating...
         #want to test how this impacts the speed of a single train iteration (the interpolation)
-        #@warn exs[1](1.0, [1, 1])      #evaluate exs before going to the training
+        #@warn exogenous_input_functions[1](1.0, [1, 1])      #evaluate exogenous_input_functions before going to the training
 
         train_details = params.curriculum_timespans
         fault_indices = collect(1:length(train_dataset))
         timespan_indices = collect(1:length(params.curriculum_timespans))
-        @assert length(train_dataset) == length(exs)
+        @assert length(train_dataset) == length(exogenous_input_functions)
         train_groups =
             _generate_training_groups(fault_indices, timespan_indices, params.curriculum)
         n_trains = length(train_groups)
@@ -401,7 +428,7 @@ function train(params::TrainParams)
                     train_dataset,
                     validation_dataset,
                     sys_validation,
-                    exs,
+                    exogenous_input_functions,
                     train_details,
                     params,
                     optimizer,
@@ -444,7 +471,7 @@ function _train(
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     validation_dataset::Vector{PSIDS.SteadyStateNODEData},
     sys_validation::PSY.System,
-    exs,
+    exogenous_input_functions,
     train_details::Vector{
         NamedTuple{
             (:tspan, :batching_sample_factor),
@@ -462,7 +489,7 @@ function _train(
     outer_loss_function = instantiate_outer_loss_function(
         surrogate,
         train_dataset,
-        exs,
+        exogenous_input_functions,
         train_details,
         params,
     )
