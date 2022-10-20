@@ -97,10 +97,11 @@ end
         ),
         validation_loss_every_n = 10,
         steady_state_solver = (
-            solver = "SSRootfind", #"SSRootfind",
-            abstol = 1e-8,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
-            maxiters = 1e3,   #don't think this has any impact - not implemented correctly 
+            solver = "SSRootfind", 
+            abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+            maxiters = 1e3,   #TODO - don't think this has any impact - not implemented correctly? check  
         ),
+        dynamic_solver = (solver = "Rodas4", tols = (1e-6, 1e-6), maxiters = 1e5),
         maxiters = 5,
         model_initializer = (
             type = "dense",     #OutputParams (train initial conditions)

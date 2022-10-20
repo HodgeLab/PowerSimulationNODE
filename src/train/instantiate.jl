@@ -102,6 +102,8 @@ function instantiate_surrogate_flux(
     params::TrainParams,
     n_ports::Int64,
     scaling_extrema::Dict{String, Vector{Float64}},
+    connecting_branches_names::Vector{Tuple{String, Symbol}},
+    sys::PSY.System,
 )
     steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
     dynamic_solver = instantiate_solver(params.dynamic_solver)
@@ -114,7 +116,9 @@ function instantiate_surrogate_flux(
     display(model_initializer)
     display(model_node)
     display(model_observation)
-
+    connecting_branches =
+        [PSY.get_component(PSY.ACBranch, sys, n[1]) for n in connecting_branches_names]
+    branch_polarity = [n[2] for n in connecting_branches_names]
     dynamic_reltol = params.dynamic_solver.tols[1]
     dynamic_abstol = params.dynamic_solver.tols[2]
     dynamic_maxiters = params.dynamic_solver.maxiters
@@ -125,6 +129,8 @@ function instantiate_surrogate_flux(
         model_initializer,
         model_node,
         model_observation,
+        connecting_branches,
+        branch_polarity,
         steadystate_solver,
         dynamic_solver,
         steadystate_maxiters,
@@ -496,7 +502,7 @@ end
 function instantiate_outer_loss_function(
     surrogate::SteadyStateNeuralODE,
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
-    exs,
+    exogenous_input_functions,
     train_details::Vector{
         NamedTuple{
             (:tspan, :batching_sample_factor),
@@ -510,7 +516,7 @@ function instantiate_outer_loss_function(
         fault_timespan_index,
         surrogate,
         train_dataset,
-        exs,
+        exogenous_input_functions,
         train_details,
         params,
     )
@@ -521,7 +527,7 @@ function _outer_loss_function(
     fault_timespan_index::Tuple{Int64, Int64},
     surrogate::SteadyStateNeuralODE,
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
-    exs,
+    exogenous_input_functions,
     train_details::Vector{
         NamedTuple{
             (:tspan, :batching_sample_factor),
@@ -532,7 +538,7 @@ function _outer_loss_function(
 )
     fault_index = fault_timespan_index[1]
     timespan_index = fault_timespan_index[2]
-    ex = exs[fault_index]
+    V = exogenous_input_functions[fault_index]
     #powerflow = train_dataset[fault_index].powerflow
     vr0 = train_dataset[fault_index].surrogate_real_voltage[1]
     vi0 = train_dataset[fault_index].surrogate_imag_voltage[1]
@@ -540,14 +546,16 @@ function _outer_loss_function(
     ii0 = train_dataset[fault_index].branch_imag_current[1]
 
     tsteps = train_dataset[fault_index].tsteps
+    tstops = train_dataset[fault_index].tstops
 
-    index_subset = _find_subset(tsteps, train_details[timespan_index])
+    index_subset = _find_subset_batching(tsteps, train_details[timespan_index])
     branch_real_current = train_dataset[fault_index].branch_real_current
     branch_real_current_subset = branch_real_current[:, index_subset]
     branch_imag_current = train_dataset[fault_index].branch_imag_current
     branch_imag_current_subset = branch_imag_current[:, index_subset]
-    t_subset = tsteps[index_subset]
-    surrogate_solution = surrogate(ex, [vr0, vi0], [ir0, ii0], t_subset, θ)
+    tsteps_subset = tsteps[index_subset]
+    #tstops_subset = tstops[index_subset]
+    surrogate_solution = surrogate(V, [vr0, vi0], [ir0, ii0], tsteps_subset, tstops, θ)
     #=          p1 = Plots.plot(tsteps, groundtruth_current[1,:])
             Plots.plot!(p1, surrogate_solution.t_series, surrogate_solution.i_series[1,:])
             p2 = Plots.plot(tsteps, groundtruth_current[2,:])
@@ -566,7 +574,7 @@ function _outer_loss_function(
     fault_timespan_index
 end
 
-function _find_subset(tsteps, train_details)
+function _find_subset_batching(tsteps, train_details)
     tspan = train_details.tspan
     batching_sample_factor = train_details.batching_sample_factor
     subset = BitArray([

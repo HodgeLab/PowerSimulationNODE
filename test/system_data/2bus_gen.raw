@@ -6,8 +6,9 @@
 0 / END OF BUS DATA, BEGIN LOAD DATA
 0 / END OF LOAD DATA, BEGIN FIXED SHUNT DATA
 0 / END OF FIXED SHUNT DATA, BEGIN GENERATOR DATA
+     2,  2,       0,         0,       100,      -100,   1.04, 0,     100, 0, 1, 0, 0, 1, 1, 100,       230,         0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1
 0 / END OF GENERATOR DATA, BEGIN BRANCH DATA
-     1,      2, 1,    0.01,     0.05,   0.05,     100,     100,     100, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1
+     1,  2, 1,    0.01,     0.02,   0.05,     100,     100,     100, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1
 0 / END OF BRANCH DATA, BEGIN TRANSFORMER DATA
 0 / END OF TRANSFORMER DATA, BEGIN AREA DATA
 0 / END OF AREA DATA, BEGIN TWO-TERMINAL DC DATA
