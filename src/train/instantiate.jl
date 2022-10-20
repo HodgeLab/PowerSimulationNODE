@@ -102,8 +102,8 @@ function instantiate_surrogate_flux(
     params::TrainParams,
     n_ports::Int64,
     scaling_extrema::Dict{String, Vector{Float64}},
-    connecting_branches_names::Vector{Tuple{String, Symbol}},
-    sys::PSY.System,
+#=     connecting_branches_names::Vector{Tuple{String, Symbol}},
+    sys::PSY.System, =#
 )
     steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
     dynamic_solver = instantiate_solver(params.dynamic_solver)
@@ -116,9 +116,9 @@ function instantiate_surrogate_flux(
     display(model_initializer)
     display(model_node)
     display(model_observation)
-    connecting_branches =
-        [PSY.get_component(PSY.ACBranch, sys, n[1]) for n in connecting_branches_names]
-    branch_polarity = [n[2] for n in connecting_branches_names]
+   # connecting_branches =
+   #     [PSY.get_component(PSY.ACBranch, sys, n[1]) for n in connecting_branches_names]
+   # branch_polarity = [n[2] for n in connecting_branches_names]
     dynamic_reltol = params.dynamic_solver.tols[1]
     dynamic_abstol = params.dynamic_solver.tols[2]
     dynamic_maxiters = params.dynamic_solver.maxiters
@@ -129,8 +129,8 @@ function instantiate_surrogate_flux(
         model_initializer,
         model_node,
         model_observation,
-        connecting_branches,
-        branch_polarity,
+       # connecting_branches,
+       # branch_polarity,
         steadystate_solver,
         dynamic_solver,
         steadystate_maxiters,
