@@ -1,12 +1,12 @@
 
-function apply_to_columns(function_for_column, tsteps, y)
+function apply_to_columns(function_for_column, tsteps)#, y)
     output = Array{Float64}(
         undef,
-        size(function_for_column(tsteps[1], y[:, 1]))[1],
+        size(function_for_column(tsteps[1]))[1],
         length(tsteps),
     )
     for i in 1:length(tsteps)
-        output[:, i] = function_for_column(tsteps[i], y[:, i])
+        output[:, i] = function_for_column(tsteps[i])
     end
     return output
 end
@@ -48,8 +48,8 @@ function plot_overview(surrogate_prediction, fault_index, fault_data, exs)
             markersize = 1,
         )
         Plots.plot!(tsteps, ground_truth_imag_current[1, :], label = L"$y_2$")
-        V = apply_to_columns(ex, t_series, i_series)
-        V_0 = apply_to_columns(ex, t_series, zero(i_series))
+        V = apply_to_columns(ex, t_series)#, i_series)
+        V_0 = apply_to_columns(ex, t_series)#, zero(i_series))
         p3 = Plots.plot(t_series, V[1, :], label = L"$u_1$")
         Plots.plot!(t_series, V_0[1, :], label = L"$u_1^0$")
         p4 = Plots.plot(t_series, V[2, :], label = L"$u_2$")
