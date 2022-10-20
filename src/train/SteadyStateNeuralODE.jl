@@ -27,7 +27,7 @@ Arguments:
   [Common Solver Arguments](https://diffeq.sciml.ai/dev/basics/common_solver_opts/)
   documentation for more details.
 """
-struct SteadyStateNeuralODE{P, M, RE, M2, RE2, M3, RE3, CB, BP, SS, DS, A, K} <:
+struct SteadyStateNeuralODE{P, M, RE, M2, RE2, M3, RE3, SS, DS, A, K} <:
        SteadyStateNeuralODELayer
     p::P
     len::Int        #length of p1 
@@ -38,8 +38,6 @@ struct SteadyStateNeuralODE{P, M, RE, M2, RE2, M3, RE3, CB, BP, SS, DS, A, K} <:
     re2::RE2
     model3::M3      #Observation model 
     re3::RE3
-    connecting_branches::CB
-    branch_polarity::BP
     ss_solver::SS
     dyn_solver::DS
     args::A
@@ -49,8 +47,6 @@ struct SteadyStateNeuralODE{P, M, RE, M2, RE2, M3, RE3, CB, BP, SS, DS, A, K} <:
         model1,
         model2,
         model3,
-        connecting_branches,
-        branch_polarity,
         ss_solver,
         dyn_solver,
         args...;
@@ -71,8 +67,6 @@ struct SteadyStateNeuralODE{P, M, RE, M2, RE2, M3, RE3, CB, BP, SS, DS, A, K} <:
             typeof(re2),
             typeof(model3),
             typeof(re3),      #The type of len and len2 (Int) is automatically derived: https://docs.julialang.org/en/v1/manual/constructors/
-            typeof(connecting_branches),
-            typeof(branch_polarity),
             typeof(ss_solver),
             typeof(dyn_solver),
             typeof(args),
@@ -87,8 +81,6 @@ struct SteadyStateNeuralODE{P, M, RE, M2, RE2, M3, RE3, CB, BP, SS, DS, A, K} <:
             re2,
             model3,
             re3,
-            connecting_branches,
-            branch_polarity,
             ss_solver,
             dyn_solver,
             args,
@@ -101,59 +93,37 @@ Flux.@functor SteadyStateNeuralODE
 Flux.trainable(m::SteadyStateNeuralODE) = (p = m.p,)
 
 function (s::SteadyStateNeuralODE)(V, v0, i0, tsteps, tstops, p = s.p)
-    R = PSY.get_r(s.connecting_branches[1])  #note: hardcoded for single connecting branch
-    L = PSY.get_x(s.connecting_branches[1])
-    if s.branch_polarity == :to
-        C = PSY.get_b(s.connecting_branches[1])[:to]
-    else
-        C = PSY.get_b(s.connecting_branches[1])[:from]
-    end
-
     θ = atan(v0[2], v0[1])
     dq_ri = [sin(θ) -cos(θ); cos(θ) sin(θ)]     #note: equivalent to PSID.dq_ri(θ)
     ri_dq = [sin(θ) cos(θ); -cos(θ) sin(θ)]     #note: equivalent to PSID.dq_ri(θ)
-    Vd0, Vq0 = dq_ri * [v0[1]; v0[2]]             #note: Vd0 is zero by definition 
+    _, Vq0 = dq_ri * [v0[1]; v0[2]]             #note: Vd0 is zero by definition 
     Id0, Iq0 = dq_ri * [i0[1]; i0[2]]
 
-    #u[1:4] = [Ir, Ii, Vr, Vi]
-    #u[5:(end-2)] = surrogate states 
+    #u[1:(end-2)] = surrogate states 
     #u[end-1:end] = refs 
     function dudt_ss(u, p, t)
         Vd, Vq = dq_ri * V(0.0)
         return vcat(
-            ((2 * pi * 60) / L) * ((u[3] - Vd) - (R * u[1] - L * u[2])),                                        #dIr/dt
-            ((2 * pi * 60) / L) * ((u[4] - Vq) - (R * u[2] + L * u[1])),                                        #dIi/dt
-            ((2 * pi * 60) / C) *
-            ((s.re3(p[(s.len + s.len2 + 1):end])(u[5:(end - 2)])[1] - u[1]) + C * u[4]),  #dVr/dt 
-            ((2 * pi * 60) / C) *
-            ((s.re3(p[(s.len + s.len2 + 1):end])(u[5:(end - 2)])[2] - u[2]) - C * u[3]),  #dVi/dt 
             s.re2(p[(s.len + 1):(s.len + s.len2)])((
-                u[5:(end - 2)],
-                u[3:4],
+                u[1:(end - 2)],
+                [Vd, Vq], #u[3:4],
                 u[(end - 1):end],
             )),
-            u[1] .- Id0,
-            u[2] .- Iq0,
+            s.re3(p[(s.len + s.len2 + 1):end])(u[1:(end - 2)])[1] .- Id0,
+            s.re3(p[(s.len + s.len2 + 1):end])(u[1:(end - 2)])[2] .- Iq0,
         )
     end
 
-    #u[1:4] = [Id, Iq, Vd, Vq]
-    #u[5:end] = surrogate states 
+    #u[1:end] = surrogate states 
     function dudt_dyn(u, p, t)
         Vd, Vq = dq_ri * V(t)
         return vcat(
-            ((2 * pi * 60) / L) * ((u[3] - Vd) - (R * u[1] - L * u[2])),                                        #dIr/dt
-            ((2 * pi * 60) / L) * ((u[4] - Vq) - (R * u[2] + L * u[1])),                                        #dIi/dt
-            ((2 * pi * 60) / C) *
-            ((s.re3(p[(s.len + s.len2 + 1):end])(u[5:end])[1] - u[1]) + C * u[4]),        #dVr/dt 
-            ((2 * pi * 60) / C) *
-            ((s.re3(p[(s.len + s.len2 + 1):end])(u[5:end])[2] - u[2]) - C * u[3]),        #dVi/dt 
-            s.re2(p[(s.len + 1):(s.len + s.len2)])((u[5:end], u[3:4], refs)),
+            s.re2(p[(s.len + 1):(s.len + s.len2)])((u[1:end],  [Vd, Vq], refs)),
         )
     end
     #PREDICTOR 
-    u0_pred = vcat(Id0, Iq0, Vd0, Vq0, s.re1(p[1:(s.len)])((Vq0, [Id0, Iq0])))
-    #@error u0_pred
+    u0_pred = s.re1(p[1:(s.len)])((Vq0, [Id0, Iq0]))
+
     #SOLVE PROBLEM TO STEADY STATE 
     ff_ss = OrdinaryDiffEq.ODEFunction{false}(dudt_ss)
     prob_ss = SteadyStateDiffEq.SteadyStateProblem(
@@ -198,18 +168,16 @@ function (s::SteadyStateNeuralODE)(V, v0, i0, tsteps, tstops, p = s.p)
             u0_pred,
             Array(ss_solution.u),
             tsteps,
-            Array(sol[5:end, :]),
-            ri_dq * Array(sol[3:4, :]),
-            ri_dq * Array(sol[1:2, :]),
+            Array(sol[1:end, :]),
+            ri_dq * s.re3(p[(s.len + s.len2 + 1):end])(sol[1:end, :]), 
             res,
         )
     else
-        return SteadyStateNeuralODE_solution(
+        return SteadyStateNeuralODE_solution(      
             u0_pred,
             Array(ss_solution.u),
             tsteps,
             Array(ss_solution.u),
-            s.re3(p[(s.len + s.len2 + 1):end])(ss_solution.u[1:(end - 2)]),
             s.re3(p[(s.len + s.len2 + 1):end])(ss_solution.u[1:(end - 2)]),
             res,
         )
@@ -221,7 +189,7 @@ struct SteadyStateNeuralODE_solution{T}
     r0::AbstractArray{T}
     t_series::AbstractArray{T}
     r_series::AbstractArray{T}
-    v_series::AbstractArray{T}
+   # v_series::AbstractArray{T}
     i_series::AbstractArray{T}
     res::AbstractArray{T}
 end
