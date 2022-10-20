@@ -100,7 +100,7 @@ end
 Flux.@functor SteadyStateNeuralODE
 Flux.trainable(m::SteadyStateNeuralODE) = (p = m.p,)
 
-function (s::SteadyStateNeuralODE)(V, v0, i0, tsteps, tstops, p = s.p)     
+function (s::SteadyStateNeuralODE)(V, v0, i0, tsteps, tstops, p = s.p)
     R = PSY.get_r(s.connecting_branches[1])  #note: hardcoded for single connecting branch
     L = PSY.get_x(s.connecting_branches[1])
     if s.branch_polarity == :to

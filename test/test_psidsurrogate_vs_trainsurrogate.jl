@@ -14,180 +14,182 @@ function pvs_simple(source)
 end
 
 @testset "Compare PSID and Training Surrogate - PVS" begin
-#READ SYSTEM WITHOUT GENS 
-sys = System(joinpath(TEST_FILES_DIR, "system_data/2bus_nogens.raw"))
-include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
+    #READ SYSTEM WITHOUT GENS 
+    sys = System(joinpath(TEST_FILES_DIR, "system_data/2bus_nogens.raw"))
+    include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
 
-#ADD TWO SOURCES 
-for b in get_components(Bus, sys)
-    if get_number(b) == 1
-        source = Source(
-            name = "source_$(get_name(b))",
-            active_power = 1.0,
-            available = true,
-            reactive_power = 0.0,
-            bus = b,
-            R_th = 0.0,
-            X_th = 5e-6,
-        )
-        add_component!(sys, source)
+    #ADD TWO SOURCES 
+    for b in get_components(Bus, sys)
+        if get_number(b) == 1
+            source = Source(
+                name = "source_$(get_name(b))",
+                active_power = 1.0,
+                available = true,
+                reactive_power = 0.0,
+                bus = b,
+                R_th = 0.0,
+                X_th = 5e-6,
+            )
+            add_component!(sys, source)
+        end
+        if get_number(b) == 2
+            l = PowerLoad(              #Can't have a source because we don't get any ΔV at the surrogate bus m
+                name = "Load_2",
+                available = true,
+                base_power = 100.0,
+                model = LoadModels.ConstantImpedance,
+                bus = b,
+                active_power = 1.0,
+                reactive_power = 0.1,
+                max_active_power = 2.0,
+                max_reactive_power = 2.0,
+            )
+            add_component!(sys, l)
+        end
     end
-    if get_number(b) == 2
-        l = PowerLoad(              #Can't have a source because we don't get any ΔV at the surrogate bus m
-            name = "Load_2",
-            available = true,
-            base_power = 100.0,
-            model = LoadModels.ConstantImpedance,
-            bus = b,
-            active_power = 1.0,
-            reactive_power = 0.1,
-            max_active_power = 2.0,
-            max_reactive_power = 2.0,
-        )
-        add_component!(sys, l)
-    end
-end
-solve_powerflow(sys)["flow_results"]
-#SERIALIZE TO SYSTEM
-to_json(sys, joinpath(pwd(), "test", "system_data", "test.json"), force = true)
+    solve_powerflow(sys)["flow_results"]
+    #SERIALIZE TO SYSTEM
+    to_json(sys, joinpath(pwd(), "test", "system_data", "test.json"), force = true)
 
-#DEFAULT PARAMETERS FOR THAT SYSTEM
-p = TrainParams(
-    base_path = joinpath(pwd(), "test"),
-    surrogate_buses = [2],
-    model_node = (
-        type = "dense",
-        n_layer = 1,
-        width_layers = 4,
-        activation = "hardtanh",
-        σ2_initialization = 0.0,
-    ),
-    train_data = (
-        id = "1",
-        operating_points = PSIDS.SurrogateOperatingPoint[PSIDS.GenerationLoadScale()],
-        perturbations = [[
-            PSIDS.PVS(
-                source_name = "source_1",
+    #DEFAULT PARAMETERS FOR THAT SYSTEM
+    p = TrainParams(
+        base_path = joinpath(pwd(), "test"),
+        surrogate_buses = [2],
+        model_node = (
+            type = "dense",
+            n_layer = 1,
+            width_layers = 4,
+            activation = "hardtanh",
+            σ2_initialization = 0.0,
+        ),
+        train_data = (
+            id = "1",
+            operating_points = PSIDS.SurrogateOperatingPoint[PSIDS.GenerationLoadScale()],
+            perturbations = [[
+                PSIDS.PVS(
+                    source_name = "source_1",
+                    internal_voltage_frequencies = [2 * pi],
+                    internal_voltage_coefficients = [(0.05, 0.0)],  #if you make this too large you get distortion in the sine wave from large currents? 
+                    internal_angle_frequencies = [2 * pi],
+                    internal_angle_coefficients = [(0.05, 0.0)],
+                ),
+            ]],
+            params = PSIDS.GenerateDataParams(
+                solver = "Rodas4",
+                formulation = "MassMatrix",
+                solver_tols = (1e-6, 1e-6),
+                all_lines_dynamic = true,
+            ),
+            system = "reduced",
+        ),
+        system_path = joinpath(pwd(), "test", "system_data", "test.json"),
+        rng_seed = 2,
+        dynamic_solver = (solver = "Rodas4", tols = (1e-6, 1e-6), maxiters = 1e5),
+    )
+
+    build_subsystems(p)
+    mkpath(joinpath(p.base_path, PowerSimulationNODE.INPUT_FOLDER_NAME))
+    generate_train_data(p)
+    Random.seed!(p.rng_seed) #Seed call usually happens at start of train()
+    train_dataset = Serialization.deserialize(p.train_data_path)
+    scaling_extrema = PowerSimulationNODE.calculate_scaling_extrema(train_dataset)
+    sys_validation = System(p.surrogate_system_path)
+    sys_train = System(p.train_system_path)
+    exs = PowerSimulationNODE._build_exogenous_input_functions(p.train_data, train_dataset)
+    v0 = [
+        train_dataset[1].surrogate_real_voltage[1],
+        train_dataset[1].surrogate_imag_voltage[1],
+    ]
+    i0 = [train_dataset[1].branch_real_current[1], train_dataset[1].branch_imag_current[1]]
+
+    tsteps = train_dataset[1].tsteps
+    tstops = train_dataset[1].tstops
+    Vr1_flux = [exs[1](t)[1] for t in tsteps] #The output of ex() is Vr,Vi 
+    Vi1_flux = [exs[1](t)[2] for t in tsteps]
+    Vm1_flux = sqrt.(Vr1_flux .^ 2 .+ Vi1_flux .^ 2)
+    θ1_flux = atan.(Vi1_flux ./ Vr1_flux)
+    p3 = plot(tsteps, Vm1_flux, label = "Vm1 - flux")
+    p4 = plot(tsteps, θ1_flux, label = "θ1 - flux")
+    connecting_branches = Serialization.deserialize(p.connecting_branch_names_path)
+    #INSTANTIATE BOTH TYPES OF SURROGATES 
+    train_surrogate = PowerSimulationNODE.instantiate_surrogate_flux(
+        p,
+        1,
+        scaling_extrema,
+        connecting_branches,
+        sys_train,
+    ) #Add connecting branches 
+    psid_surrogate =
+        PowerSimulationNODE.instantiate_surrogate_psid(p, 1, scaling_extrema, "test-source")
+    surrogate_sol = train_surrogate(exs[1], v0, i0, tsteps, tstops)
+    p1 = plot(
+        surrogate_sol.t_series,
+        surrogate_sol.i_series[1, :],
+        label = "real current - flux",
+    )
+    p2 = plot(
+        surrogate_sol.t_series,
+        surrogate_sol.i_series[2, :],
+        label = "imag current - flux",
+    )
+
+    #SET THE PARAMETERS OF THE PSID SURROGATE FROM THE FLUX ONE 
+    θ, _ = Flux.destructure(train_surrogate)
+    PSIDS.set_initializer_parameters!(psid_surrogate, θ[1:(train_surrogate.len)])
+    PSIDS.set_node_parameters!(
+        psid_surrogate,
+        θ[(train_surrogate.len + 1):(train_surrogate.len + train_surrogate.len2)],
+    )
+    PSIDS.set_observer_parameters!(
+        psid_surrogate,
+        θ[(train_surrogate.len + train_surrogate.len2 + 1):end],
+    )
+
+    #ADD THE SURROGATE COMPONENT 
+    for s in get_components(Source, sys_validation)
+        if get_number(get_bus(s)) == 1
+            pvs = PeriodicVariableSource(
+                name = get_name(s),
+                R_th = get_R_th(s),
+                X_th = get_X_th(s),
+                internal_voltage_bias = 1.0,
                 internal_voltage_frequencies = [2 * pi],
-                internal_voltage_coefficients = [(0.05, 0.0)],  #if you make this too large you get distortion in the sine wave from large currents? 
+                internal_voltage_coefficients = [(0.05, 0.0)],
+                internal_angle_bias = 0.0,
                 internal_angle_frequencies = [2 * pi],
                 internal_angle_coefficients = [(0.05, 0.0)],
-            ),
-        ]],
-        params = PSIDS.GenerateDataParams(
-            solver = "Rodas4",
-            formulation = "MassMatrix",
-            solver_tols = (1e-6, 1e-6),
-            all_lines_dynamic = true, 
-        ),    
-        system = "reduced",
-    ),
-    system_path = joinpath(pwd(), "test", "system_data", "test.json"),
-    rng_seed = 2,
-    dynamic_solver = (solver = "Rodas4", tols = (1e-6, 1e-6), maxiters = 1e5),
-)
-
-build_subsystems(p)
-mkpath(joinpath(p.base_path, PowerSimulationNODE.INPUT_FOLDER_NAME))
-generate_train_data(p)
-Random.seed!(p.rng_seed) #Seed call usually happens at start of train()
-train_dataset = Serialization.deserialize(p.train_data_path)
-scaling_extrema = PowerSimulationNODE.calculate_scaling_extrema(train_dataset)
-sys_validation = System(p.surrogate_system_path)
-sys_train = System(p.train_system_path)
-exs = PowerSimulationNODE._build_exogenous_input_functions(p.train_data, train_dataset)
-v0 =
-    [train_dataset[1].surrogate_real_voltage[1], train_dataset[1].surrogate_imag_voltage[1]]
-i0 = [train_dataset[1].branch_real_current[1], train_dataset[1].branch_imag_current[1]]
-
-tsteps = train_dataset[1].tsteps
-tstops = train_dataset[1].tstops
-Vr1_flux = [exs[1](t)[1] for t in tsteps] #The output of ex() is Vr,Vi 
-Vi1_flux = [exs[1](t)[2] for t in tsteps]
-Vm1_flux = sqrt.(Vr1_flux .^ 2 .+ Vi1_flux .^ 2)
-θ1_flux = atan.(Vi1_flux ./ Vr1_flux)
-p3 = plot(tsteps, Vm1_flux, label = "Vm1 - flux")
-p4 = plot(tsteps, θ1_flux, label = "θ1 - flux")
-connecting_branches = Serialization.deserialize(p.connecting_branch_names_path)
-#INSTANTIATE BOTH TYPES OF SURROGATES 
-train_surrogate = PowerSimulationNODE.instantiate_surrogate_flux(
-    p,
-    1,
-    scaling_extrema,
-    connecting_branches,
-    sys_train,
-) #Add connecting branches 
-psid_surrogate =
-    PowerSimulationNODE.instantiate_surrogate_psid(p, 1, scaling_extrema, "test-source")
-surrogate_sol = train_surrogate(exs[1], v0, i0, tsteps, tstops)
-p1 = plot(
-    surrogate_sol.t_series,
-    surrogate_sol.i_series[1, :],
-    label = "real current - flux",
-)
-p2 = plot(
-    surrogate_sol.t_series,
-    surrogate_sol.i_series[2, :],
-    label = "imag current - flux",
-)
-
-#SET THE PARAMETERS OF THE PSID SURROGATE FROM THE FLUX ONE 
-θ, _ = Flux.destructure(train_surrogate)
-PSIDS.set_initializer_parameters!(psid_surrogate, θ[1:(train_surrogate.len)])
-PSIDS.set_node_parameters!(
-    psid_surrogate,
-    θ[(train_surrogate.len + 1):(train_surrogate.len + train_surrogate.len2)],
-)
-PSIDS.set_observer_parameters!(
-    psid_surrogate,
-    θ[(train_surrogate.len + train_surrogate.len2 + 1):end],
-)
-
-#ADD THE SURROGATE COMPONENT 
-for s in get_components(Source, sys_validation)
-    if get_number(get_bus(s)) == 1
-        pvs = PeriodicVariableSource(
-            name = get_name(s),
-            R_th = get_R_th(s),
-            X_th = get_X_th(s),
-            internal_voltage_bias = 1.0,
-            internal_voltage_frequencies = [2 * pi],
-            internal_voltage_coefficients = [(0.05, 0.0)],
-            internal_angle_bias = 0.0,
-            internal_angle_frequencies = [2 * pi],
-            internal_angle_coefficients = [(0.05, 0.0)],
-        )
-        add_component!(sys_validation, pvs, s)
+            )
+            add_component!(sys_validation, pvs, s)
+        end
+        if get_number(get_bus(s)) == 2
+            set_name!(psid_surrogate, get_name(s))
+            add_component!(sys_validation, psid_surrogate, s)
+        end
     end
-    if get_number(get_bus(s)) == 2
-        set_name!(psid_surrogate, get_name(s))
-        add_component!(sys_validation, psid_surrogate, s)
-    end
+
+    #SIMULATE AND PLOT
+    sim = Simulation!(MassMatrixModel, sys_validation, pwd(), (0.0, 1.0))
+    show_states_initial_value(sim)
+    execute!(sim, Rodas4(), abstol = 1e-9, reltol = 1e-9)
+    results = read_results(sim)
+    Vm1 = get_voltage_magnitude_series(results, 1)
+    θ1 = get_voltage_angle_series(results, 1)
+    Ir = get_real_current_branch_flow(results, "BUS 1-BUS 2-i_1")
+    Ii = get_imaginary_current_branch_flow(results, "BUS 1-BUS 2-i_1")
+    plot!(p3, Vm1, label = "Vm1 - psid")
+    plot!(p4, θ1, label = "θ1 - psid")
+    plot!(p1, Ir[1], Ir[2] .* -1, label = "real current -psid", legend = :topright)
+    plot!(p2, Ii[1], Ii[2] .* -1, label = "imag current -psid", legend = :topright)
+    display(plot(p1, p2, p3, p4, size = (1000, 1000)))
+
+    #@test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <= 5e-4
+
+    #See the distribution of the parameters
+    #= p_params = scatter(θ[(train_surrogate.len + 1):(train_surrogate.len + train_surrogate.len2)], label = "node params")
+    scatter!(p_params, θ[1:(train_surrogate.len)], label = "init params")
+    scatter!(p_params, θ[(train_surrogate.len + train_surrogate.len2 + 1):end], label = "observe params")
+    display(p_params) =#
 end
-
-#SIMULATE AND PLOT
-sim = Simulation!(MassMatrixModel, sys_validation, pwd(), (0.0, 1.0))
-show_states_initial_value(sim)
-execute!(sim, Rodas4(), abstol = 1e-9, reltol = 1e-9)
-results = read_results(sim)
-Vm1 = get_voltage_magnitude_series(results, 1)
-θ1 = get_voltage_angle_series(results, 1)
-Ir = get_real_current_branch_flow(results, "BUS 1-BUS 2-i_1")
-Ii = get_imaginary_current_branch_flow(results, "BUS 1-BUS 2-i_1")
-plot!(p3, Vm1, label = "Vm1 - psid")
-plot!(p4, θ1, label = "θ1 - psid")
-plot!(p1, Ir[1], Ir[2] .* -1, label = "real current -psid", legend = :topright)
-plot!(p2, Ii[1], Ii[2] .* -1, label = "imag current -psid", legend = :topright)
-display(plot(p1, p2, p3, p4, size = (1000, 1000)))
-
-#@test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <= 5e-4
-
-#See the distribution of the parameters
-#= p_params = scatter(θ[(train_surrogate.len + 1):(train_surrogate.len + train_surrogate.len2)], label = "node params")
-scatter!(p_params, θ[1:(train_surrogate.len)], label = "init params")
-scatter!(p_params, θ[(train_surrogate.len + train_surrogate.len2 + 1):end], label = "observe params")
-display(p_params) =#
-end  
 
 @testset "Compare PSID and Training Surrogate - VStep" begin
     sys = System(joinpath(TEST_FILES_DIR, "system_data/2bus_gen.raw"))
@@ -361,7 +363,7 @@ end
     plot!(p5, Vm2, label = "surrogate voltage mag - psid")
     plot!(p6, θ2, label = "surrogate voltage angle - psid")
     display(plot(p1, p2, p3, p4, p5, p6, size = (1000, 1000)))
-    @test true 
+    @test true
     #@test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <= 5e-4  #TODO - get these at same points
 
     #See the distribution of the parameters

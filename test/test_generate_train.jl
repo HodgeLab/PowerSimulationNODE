@@ -97,7 +97,7 @@ end
         ),
         validation_loss_every_n = 10,
         steady_state_solver = (
-            solver = "SSRootfind", 
+            solver = "SSRootfind",
             abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
             maxiters = 1e3,   #TODO - don't think this has any impact - not implemented correctly? check  
         ),

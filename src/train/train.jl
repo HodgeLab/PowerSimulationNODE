@@ -83,7 +83,7 @@ function _surrogate_perturbation_to_function_of_time(
     else
         @error "invalid value"
     end
-    
+
     return (t) -> [V_funcs[i](t) for i in eachindex(V_funcs)]
 end
 

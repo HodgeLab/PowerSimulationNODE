@@ -1,5 +1,4 @@
 
-
 """
     node_load_system(inputs...)
 
