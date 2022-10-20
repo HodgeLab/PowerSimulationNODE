@@ -43,7 +43,7 @@ function _surrogate_perturbation_to_function_of_time(
 }
     V_funcs = []
     if train_data_params.system == "full"
-        for i in 1:size(data.opposite_real_voltage)[1]
+        for i in 1:size(data.surrogate_real_voltage)[1]
             function Vr(t)
                 ix_after = findfirst(x -> x > t, data.tsteps)
                 if ix_after === nothing  #correct behavior at end of timespan
@@ -51,8 +51,8 @@ function _surrogate_perturbation_to_function_of_time(
                 end
                 t_before = data.tsteps[ix_after - 1]
                 t_after = data.tsteps[ix_after]
-                val_before = data.opposite_real_voltage[i, ix_after - 1]
-                val_after = data.opposite_real_voltage[i, ix_after]
+                val_before = data.surrogate_real_voltage[i, ix_after - 1]
+                val_after = data.surrogate_real_voltage[i, ix_after]
                 frac = (t - t_before) / (t_after - t_before)
                 val = val_before + frac * (val_after - val_before)
                 return val
@@ -64,8 +64,8 @@ function _surrogate_perturbation_to_function_of_time(
                 end
                 t_before = data.tsteps[ix_after - 1]
                 t_after = data.tsteps[ix_after]
-                val_before = data.opposite_imag_voltage[i, ix_after - 1]
-                val_after = data.opposite_imag_voltage[i, ix_after]
+                val_before = data.surrogate_imag_voltage[i, ix_after - 1]
+                val_after = data.surrogate_imag_voltage[i, ix_after]
                 frac = (t - t_before) / (t_after - t_before)
                 val = val_before + frac * (val_after - val_before)
                 return val
@@ -100,12 +100,12 @@ function _single_perturbation_to_function_of_time(
     data::PSIDS.SteadyStateNODEData,
     port_ix::Int64,
 )
-    Vr0_opposite = data.opposite_real_voltage[port_ix, 1]
-    Vi0_opposite = data.opposite_imag_voltage[port_ix, 1]
-    Vm0_opposite = sqrt(Vr0_opposite^2 + Vi0_opposite^2)
-    θ0_opposite = atan(Vi0_opposite / Vr0_opposite)
+    Vr0_surrogate = data.surrogate_real_voltage[port_ix, 1]
+    Vi0_surrogate = data.surrogate_imag_voltage[port_ix, 1]
+    Vm0_surrogate = sqrt(Vr0_surrogate^2 + Vi0_surrogate^2)
+    θ0_surrogate = atan(Vi0_surrogate / Vr0_surrogate)
 
-    V_bias = Vm0_opposite
+    V_bias = Vm0_surrogate
     V_freqs = single_perturbation.internal_voltage_frequencies
     V_coeffs = single_perturbation.internal_voltage_coefficients
     function V(t)
@@ -116,7 +116,7 @@ function _single_perturbation_to_function_of_time(
         end
         return val
     end
-    θ_bias = θ0_opposite
+    θ_bias = θ0_surrogate
     θ_freqs = single_perturbation.internal_angle_frequencies
     θ_coeffs = single_perturbation.internal_angle_coefficients
     function θ(t)
@@ -141,19 +141,19 @@ function _single_perturbation_to_function_of_time(
     data::PSIDS.SteadyStateNODEData,
     port_ix::Int64,
 )
-    Vr0_opposite = data.opposite_real_voltage[port_ix, 1]
-    Vi0_opposite = data.opposite_imag_voltage[port_ix, 1]
-    Vm0_opposite = sqrt(Vr0_opposite^2 + Vi0_opposite^2)
-    θ0_opposite = atan(Vi0_opposite / Vr0_opposite)
+    Vr0_surrogate = data.surrogate_real_voltage[port_ix, 1]
+    Vi0_surrogate = data.surrogate_imag_voltage[port_ix, 1]
+    Vm0_surrogate = sqrt(Vr0_surrogate^2 + Vi0_surrogate^2)
+    θ0_surrogate = atan(Vi0_surrogate / Vr0_surrogate)
     function V(t)
         if t < single_perturbation.t_step
-            return Vm0_opposite
+            return Vm0_surrogate
         else
             return single_perturbation.V_step
         end
     end
     function θ(t)
-        return θ0_opposite
+        return θ0_surrogate
     end
 
     function Vr_func(t)
@@ -352,7 +352,7 @@ function train(params::TrainParams)
 
         #READ VALIDATION SYSTEM AND ADD SURROGATE COMPONENT WITH STRUCTURE BASED ON PARAMS
         sys_validation = node_load_system(params.surrogate_system_path)
-        sys_train = node_load_system(params.train_system_path)
+       # sys_train = node_load_system(params.train_system_path)
         sources = collect(
             PSY.get_components(
                 PSY.Source,
@@ -376,8 +376,8 @@ function train(params::TrainParams)
             params,
             n_ports,
             scaling_extrema,
-            connecting_branches,
-            sys_train,
+         #   connecting_branches,
+        #    sys_train,
         )
         optimizer = instantiate_optimizer(params)
         !(params.optimizer.adjust == "nothing") &&
