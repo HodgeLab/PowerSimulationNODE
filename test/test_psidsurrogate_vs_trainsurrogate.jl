@@ -75,16 +75,16 @@ end
                 ),
             ]],
             params = PSIDS.GenerateDataParams(
-                solver = "Rodas4",
+                solver = "Rodas5",
                 formulation = "MassMatrix",
-                solver_tols = (1e-6, 1e-6),
+                solver_tols = (reltol = 1e-6, abstol = 1e-6),
                 all_lines_dynamic = true,
             ),
             system = "reduced",
         ),
         system_path = joinpath(pwd(), "test", "system_data", "test.json"),
         rng_seed = 2,
-        dynamic_solver = (solver = "Rodas4", tols = (1e-6, 1e-6), maxiters = 1e5),
+        dynamic_solver = (solver = "Rodas5", reltol = 1e-6, abstol = 1e-6, maxiters = 1e5),
     )
 
     build_subsystems(p)
@@ -170,7 +170,7 @@ end
     #SIMULATE AND PLOT
     sim = Simulation!(MassMatrixModel, sys_validation, pwd(), (0.0, 1.0))
     show_states_initial_value(sim)
-    execute!(sim, Rodas4(), abstol = 1e-9, reltol = 1e-9)
+    execute!(sim, Rodas5(), abstol = 1e-9, reltol = 1e-9)
     results = read_results(sim)
     Vm1 = get_voltage_magnitude_series(results, 1)
     θ1 = get_voltage_angle_series(results, 1)
@@ -238,15 +238,15 @@ end
                 PSIDS.VStep(source_name = "source_1", t_step = TFAULT, V_step = 1.2),
             ]],
             params = PSIDS.GenerateDataParams(
-                solver = "Rodas4",
+                solver = "Rodas5",
                 tspan = TSPAN,
                 formulation = "MassMatrix",
-                solver_tols = (1e-6, 1e-6),
+                solver_tols = (reltol = 1e-6, abstol = 1e-6),
                 all_lines_dynamic = true,
             ),
             system = "reduced",
         ),
-        dynamic_solver = (solver = "Rodas4", tols = (1e-6, 1e-6), maxiters = 1e5),
+        dynamic_solver = (solver = "Rodas5", reltol = 1e-6, abstol = 1e-6, maxiters = 1e5),
         system_path = joinpath(pwd(), "test", "system_data", "test.json"),
         rng_seed = 3,
     )
@@ -347,7 +347,7 @@ end
         all_lines_dynamic = true,
     )
     show_states_initial_value(sim)
-    execute!(sim, Rodas4(), abstol = 1e-6, reltol = 1e-6)
+    execute!(sim, Rodas5(), abstol = 1e-6, reltol = 1e-6)
     results = read_results(sim)
     Vm1 = get_voltage_magnitude_series(results, 1)
     Vm2 = get_voltage_magnitude_series(results, 2)

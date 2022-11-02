@@ -59,9 +59,15 @@ end
                 [PSIDS.RandomLoadChange(time = 0.5, load_multiplier_range = (0.9, 1.1))],
             ],
             params = PSIDS.GenerateDataParams(
-                solver = "Rodas4",
+                solver = "Rodas5",
                 formulation = "MassMatrix",
-                solver_tols = (1e-4, 1e-4),
+                solver_tols = (reltol = 1e-4, abstol = 1e-4),
+                tspan = (0.0, 1.0),
+                tstops = [0.0, 0.5, 1.0], #[0.0, 0.5, 1.0],  #issue with tstop at 0.0 with dynamic lines? 
+                tsave = [], #[0.0,0.5,1.0],#0:0.01:1.0,# [], # 0:0.01:1.0,
+                all_lines_dynamic = false,
+                all_branches_dynamic = false,   #Can't do dynamic transformers? 
+                seed = 1,
             ),
             system = "full",
         ),
@@ -75,9 +81,9 @@ end
                 PSIDS.RandomLoadChange(time = 0.5, load_multiplier_range = (0.9, 1.1)),
             ]],
             params = PSIDS.GenerateDataParams(
-                solver = "Rodas4",
+                solver = "Rodas5",
                 formulation = "MassMatrix",
-                solver_tols = (1e-4, 1e-4),
+                solver_tols = (reltol = 1e-4, abstol = 1e-4),
             ),
         ),
         test_data = (
@@ -90,9 +96,9 @@ end
                 PSIDS.RandomLoadChange(time = 0.5, load_multiplier_range = (0.9, 1.1)),
             ]],
             params = PSIDS.GenerateDataParams(
-                solver = "Rodas4",
+                solver = "Rodas5",
                 formulation = "MassMatrix",
-                solver_tols = (1e-4, 1e-4),
+                solver_tols = (reltol = 1e-4, abstol = 1e-4),
             ),
         ),
         validation_loss_every_n = 10,
@@ -101,7 +107,7 @@ end
             abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
             maxiters = 1e3,   #TODO - don't think this has any impact - not implemented correctly? check  
         ),
-        dynamic_solver = (solver = "Rodas4", tols = (1e-6, 1e-6), maxiters = 1e5),
+        dynamic_solver = (solver = "Rodas5", reltol = 1e-6, abstol = 1e-6, maxiters = 1e5),
         maxiters = 5,
         model_initializer = (
             type = "dense",     #OutputParams (train initial conditions)
@@ -134,7 +140,7 @@ end
     try
         generate_and_train_test(p)
         @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
-              7.5 #should pass even without precompilation
+              11.0 #should pass even without precompilation
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
