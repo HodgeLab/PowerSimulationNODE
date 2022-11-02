@@ -10,6 +10,7 @@ end
 function steadystate_solver_map(solver, tols)
     d = Dict(
         "Rodas4" => SteadyStateDiffEq.DynamicSS(OrdinaryDiffEq.Rodas4()),
+        "Rodas5" => SteadyStateDiffEq.DynamicSS(OrdinaryDiffEq.Rodas5()),
         #"TRBDF2" => OrdinaryDiffEq.TRBDF2,
         "Tsit5" => SteadyStateDiffEq.DynamicSS(OrdinaryDiffEq.Tsit5()),
         "SSRootfind" => SteadyStateDiffEq.SSRootfind(),
@@ -102,8 +103,8 @@ function instantiate_surrogate_flux(
     params::TrainParams,
     n_ports::Int64,
     scaling_extrema::Dict{String, Vector{Float64}},
-#=     connecting_branches_names::Vector{Tuple{String, Symbol}},
-    sys::PSY.System, =#
+    #=     connecting_branches_names::Vector{Tuple{String, Symbol}},
+        sys::PSY.System, =#
 )
     steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
     dynamic_solver = instantiate_solver(params.dynamic_solver)
@@ -116,11 +117,11 @@ function instantiate_surrogate_flux(
     display(model_initializer)
     display(model_node)
     display(model_observation)
-   # connecting_branches =
-   #     [PSY.get_component(PSY.ACBranch, sys, n[1]) for n in connecting_branches_names]
-   # branch_polarity = [n[2] for n in connecting_branches_names]
-    dynamic_reltol = params.dynamic_solver.tols[1]
-    dynamic_abstol = params.dynamic_solver.tols[2]
+    # connecting_branches =
+    #     [PSY.get_component(PSY.ACBranch, sys, n[1]) for n in connecting_branches_names]
+    # branch_polarity = [n[2] for n in connecting_branches_names]
+    dynamic_reltol = params.dynamic_solver.reltol
+    dynamic_abstol = params.dynamic_solver.abstol
     dynamic_maxiters = params.dynamic_solver.maxiters
     steadystate_maxiters = params.steady_state_solver.maxiters
     steadystate_abstol = params.steady_state_solver.abstol
@@ -129,8 +130,8 @@ function instantiate_surrogate_flux(
         model_initializer,
         model_node,
         model_observation,
-       # connecting_branches,
-       # branch_polarity,
+        # connecting_branches,
+        # branch_polarity,
         steadystate_solver,
         dynamic_solver,
         steadystate_maxiters,
@@ -554,7 +555,7 @@ function _outer_loss_function(
     branch_imag_current = train_dataset[fault_index].branch_imag_current
     branch_imag_current_subset = branch_imag_current[:, index_subset]
     tsteps_subset = tsteps[index_subset]
-    #tstops_subset = tstops[index_subset]
+    #tstops_subset = tstops[index_subset]   #TODO - does it matter if we pass the entire tstops (outside of the range?)
     surrogate_solution = surrogate(V, [vr0, vi0], [ir0, ii0], tsteps_subset, tstops, θ)
     #=          p1 = Plots.plot(tsteps, groundtruth_current[1,:])
             Plots.plot!(p1, surrogate_solution.t_series, surrogate_solution.i_series[1,:])

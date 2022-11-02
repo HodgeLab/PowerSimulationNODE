@@ -158,8 +158,8 @@ mutable struct TrainParams
         Tuple{String, Float64, Int},
     }
     dynamic_solver::NamedTuple{
-        (:solver, :tols, :maxiters),
-        Tuple{String, Tuple{Float64, Float64}, Int},
+        (:solver, :reltol, :abstol, :maxiters),
+        Tuple{String, Float64, Float64, Int},
     }
     optimizer::NamedTuple{
         (:sensealg, :primary, :primary_η, :adjust, :adjust_η),
@@ -272,7 +272,7 @@ function TrainParams(;
         abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
         maxiters = 5,
     ),
-    dynamic_solver = (solver = "Rodas4", tols = (1e-6, 1e-6), maxiters = 1e3),
+    dynamic_solver = (solver = "Rodas5", reltol = 1e-6, abstol = 1e-6, maxiters = 1000),
     optimizer = (
         sensealg = "Zygote",
         primary = "Adam",

@@ -98,7 +98,6 @@ function (s::SteadyStateNeuralODE)(V, v0, i0, tsteps, tstops, p = s.p)
     ri_dq = [sin(θ) cos(θ); -cos(θ) sin(θ)]     #note: equivalent to PSID.dq_ri(θ)
     _, Vq0 = dq_ri * [v0[1]; v0[2]]             #note: Vd0 is zero by definition 
     Id0, Iq0 = dq_ri * [i0[1]; i0[2]]
-
     #u[1:(end-2)] = surrogate states 
     #u[end-1:end] = refs 
     function dudt_ss(u, p, t)
@@ -117,9 +116,7 @@ function (s::SteadyStateNeuralODE)(V, v0, i0, tsteps, tstops, p = s.p)
     #u[1:end] = surrogate states 
     function dudt_dyn(u, p, t)
         Vd, Vq = dq_ri * V(t)
-        return vcat(
-            s.re2(p[(s.len + 1):(s.len + s.len2)])((u[1:end],  [Vd, Vq], refs)),
-        )
+        return vcat(s.re2(p[(s.len + 1):(s.len + s.len2)])((u[1:end], [Vd, Vq], refs)))
     end
     #PREDICTOR 
     u0_pred = s.re1(p[1:(s.len)])((Vq0, [Id0, Iq0]))
@@ -169,11 +166,11 @@ function (s::SteadyStateNeuralODE)(V, v0, i0, tsteps, tstops, p = s.p)
             Array(ss_solution.u),
             tsteps,
             Array(sol[1:end, :]),
-            ri_dq * s.re3(p[(s.len + s.len2 + 1):end])(sol[1:end, :]), 
+            ri_dq * s.re3(p[(s.len + s.len2 + 1):end])(sol[1:end, :]),
             res,
         )
     else
-        return SteadyStateNeuralODE_solution(      
+        return SteadyStateNeuralODE_solution(
             u0_pred,
             Array(ss_solution.u),
             tsteps,
@@ -189,7 +186,7 @@ struct SteadyStateNeuralODE_solution{T}
     r0::AbstractArray{T}
     t_series::AbstractArray{T}
     r_series::AbstractArray{T}
-   # v_series::AbstractArray{T}
+    # v_series::AbstractArray{T}
     i_series::AbstractArray{T}
     res::AbstractArray{T}
 end

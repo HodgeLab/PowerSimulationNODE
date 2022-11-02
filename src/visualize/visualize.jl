@@ -1,10 +1,6 @@
 
 function apply_to_columns(function_for_column, tsteps)#, y)
-    output = Array{Float64}(
-        undef,
-        size(function_for_column(tsteps[1]))[1],
-        length(tsteps),
-    )
+    output = Array{Float64}(undef, size(function_for_column(tsteps[1]))[1], length(tsteps))
     for i in 1:length(tsteps)
         output[:, i] = function_for_column(tsteps[i])
     end

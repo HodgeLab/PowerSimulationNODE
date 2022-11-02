@@ -352,7 +352,6 @@ function train(params::TrainParams)
 
         #READ VALIDATION SYSTEM AND ADD SURROGATE COMPONENT WITH STRUCTURE BASED ON PARAMS
         sys_validation = node_load_system(params.surrogate_system_path)
-       # sys_train = node_load_system(params.train_system_path)
         sources = collect(
             PSY.get_components(
                 PSY.Source,
@@ -372,13 +371,7 @@ function train(params::TrainParams)
         display(sys_validation)
 
         #INSTANTIATE 
-        surrogate = instantiate_surrogate_flux(
-            params,
-            n_ports,
-            scaling_extrema,
-         #   connecting_branches,
-        #    sys_train,
-        )
+        surrogate = instantiate_surrogate_flux(params, n_ports, scaling_extrema)
         optimizer = instantiate_optimizer(params)
         !(params.optimizer.adjust == "nothing") &&
             (optimizer_adjust = instantiate_optimizer_adjust(params))
