@@ -111,6 +111,9 @@ function visualize_training(input_params_file::String; skip = 1, new_base_path =
     p = _visualize_loss(path_to_output)
     Plots.png(p, joinpath(path_to_output, "loss"))
 
+    p = _visualize_validation_loss(path_to_output)
+    Plots.png(p, joinpath(path_to_output, "validation_loss"))
+
     plots_pred = _visualize_predictions(params, path_to_output, skip)
     for (i, p) in enumerate(plots_pred)
         Plots.png(p, joinpath(path_to_output, string("_pred_", i)))
@@ -133,6 +136,30 @@ function _visualize_loss(path_to_output)
     p2 =
         Plots.plot(df_loss.reached_ss, title = "Steady state/boundary condition converged?")
     return Plots.plot(p1, p2, layout = (2, 1))
+end
+
+function _visualize_validation_loss(path_to_output)
+    df_validation_loss =
+        read_arrow_file_to_dataframe(joinpath(path_to_output, "validation_loss"))
+    n_faults = length(df_validation_loss[1, :mae_ir])
+    n_evaluations_validation_loss = length(df_validation_loss[!, :mae_ir])
+    ir_mean_over_faults = [Statistics.mean(x) for x in df_validation_loss[!, :mae_ir]]
+    p1 = Plots.plot(ir_mean_over_faults, label = "mae for ir (across all faults)")
+    ir_max_over_faults = [maximum(x) for x in df_validation_loss[!, :max_error_ir]]
+    p2 = Plots.plot(ir_max_over_faults, label = "max error for ir (across all faults)")
+    ii_mean_over_faults = [Statistics.mean(x) for x in df_validation_loss[!, :mae_ii]]
+    p3 = Plots.plot(ii_mean_over_faults, label = "mae for ii (across all faults)")
+    ii_max_over_faults = [maximum(x) for x in df_validation_loss[!, :max_error_ii]]
+    p4 = Plots.plot(ii_max_over_faults, label = "max error for ii (across all faults)")
+
+    return Plots.plot(
+        p1,
+        p2,
+        p3,
+        p4,
+        layout = (2, 2),
+        title = "number of faults: $(n_faults)",
+    )
 end
 
 function _visualize_predictions(params, path_to_output, skip)

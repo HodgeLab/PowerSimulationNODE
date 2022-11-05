@@ -84,6 +84,12 @@ end
                 solver = "Rodas5",
                 formulation = "MassMatrix",
                 solver_tols = (reltol = 1e-4, abstol = 1e-4),
+                tspan = (0.0, 1.0),
+                tstops = [0.0, 0.5, 1.0], #[0.0, 0.5, 1.0],  #issue with tstop at 0.0 with dynamic lines? 
+                tsave = [0.0, 0.5, 1.0],  #must have tstops with validation data 
+                all_lines_dynamic = false,
+                all_branches_dynamic = false,   #Can't do dynamic transformers? 
+                seed = 1,
             ),
         ),
         test_data = (
@@ -101,7 +107,7 @@ end
                 solver_tols = (reltol = 1e-4, abstol = 1e-4),
             ),
         ),
-        validation_loss_every_n = 10,
+        validation_loss_every_n = 2,
         output_mode_skip = 1,
         steady_state_solver = (
             solver = "SSRootfind",

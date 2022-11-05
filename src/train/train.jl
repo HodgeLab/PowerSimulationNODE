@@ -199,11 +199,13 @@ function evaluate_loss(
     for ix in eachindex(surrogate_dataset, groundtruth_dataset)
         if groundtruth_dataset[ix].stable == true
             if surrogate_dataset[ix].stable == false
-                push!(mae_ir, 1.0e15)   #Note: Cannot write Inf in Json spec, so assign large value
-                push!(max_error_ir, 1.0e15)
-                push!(mae_ii, 1.0e15)
-                push!(max_error_ii, 1.0e15)
+                push!(mae_ir, 0.0)   #Note: Cannot write Inf in Json spec, so assign 0 value if not stable (better for plotting too)
+                push!(max_error_ir, 0.0)
+                push!(mae_ii, 0.0)
+                push!(max_error_ii, 0.0)
             elseif surrogate_dataset[ix].stable == true
+                @warn surrogate_dataset[ix].branch_imag_current
+                @warn groundtruth_dataset[ix].branch_imag_current
                 push!(
                     mae_ir,
                     mae(
@@ -214,8 +216,10 @@ function evaluate_loss(
                 push!(
                     max_error_ir,
                     maximum(
-                        surrogate_dataset[ix].branch_real_current .-
-                        groundtruth_dataset[ix].branch_real_current,
+                        abs.(
+                            surrogate_dataset[ix].branch_real_current .-
+                            groundtruth_dataset[ix].branch_real_current,
+                        ),
                     ),
                 )
                 push!(
@@ -228,8 +232,10 @@ function evaluate_loss(
                 push!(
                     max_error_ii,
                     maximum(
-                        surrogate_dataset[ix].branch_imag_current .-
-                        groundtruth_dataset[ix].branch_imag_current,
+                        abs.(
+                            surrogate_dataset[ix].branch_imag_current .-
+                            groundtruth_dataset[ix].branch_imag_current,
+                        ),
                     ),
                 )
             end

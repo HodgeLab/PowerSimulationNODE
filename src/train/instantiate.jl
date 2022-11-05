@@ -683,7 +683,7 @@ function _cb!(
         )
         ir_mean = Statistics.mean(validation_loss["mae_ir"])
         ii_mean = Statistics.mean(validation_loss["mae_ii"])
-        if ((ir_mean + ii_mean) / 2 < lb_loss)
+        if (0.0 < ((ir_mean + ii_mean) / 2) < lb_loss)  # validation loss assigned 0.0 when not stable
             @warn "Training stopping condition met: loss validation set is below defined limit"
             return true
         end
