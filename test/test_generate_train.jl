@@ -102,6 +102,7 @@ end
             ),
         ),
         validation_loss_every_n = 10,
+        output_mode_skip = 1,
         steady_state_solver = (
             solver = "SSRootfind",
             abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
@@ -131,7 +132,7 @@ end
         optimizer = (
             sensealg = "Zygote",
             primary = "Adam",
-            primary_η = 1e-10, #0.001,
+            primary_η = 0.1,
             adjust = "nothing",
             adjust_η = 0.0,
         ),

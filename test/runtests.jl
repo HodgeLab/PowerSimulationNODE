@@ -26,6 +26,7 @@ logger = PSY.configure_logging(;
     file_level = PowerSimulationNODE.NODE_FILE_LEVEL,
 )
 with_logger(logger) do
+    #include("test_NLsolve.jl")           
     include("test_generate_train.jl")
     include("test_hpc.jl")
     include("test_serialize.jl")

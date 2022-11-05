@@ -410,7 +410,6 @@ function train(params::TrainParams)
         else
             θ = params.p_start
         end
-        #Where "try" was previously
         total_time = @elapsed begin
             for group in train_groups
                 res, output = _train(
@@ -507,6 +506,7 @@ function _train(
     #Calculate loss before training
     loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index =
         outer_loss_function(θ, (1, 1))
+    #cb(θ, loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index)
 
     @warn "Everything instantiated, starting solve with one epoch"
     timing_stats_compile = @timed Optimization.solve(
@@ -564,6 +564,7 @@ function _initialize_training_output_dict()
             Loss_initialization = Float64[],
             Loss_dynamic = Float64[],
             Loss = Float64[],
+            reached_ss = Bool[],
         ),
         "predictions" => DataFrames.DataFrame(
             parameters = Vector{Any}[],

@@ -168,6 +168,7 @@ function (s::SteadyStateNeuralODE)(V, v0, i0, tsteps, tstops, p = s.p)
             Array(sol[1:end, :]),
             ri_dq * s.re3(p[(s.len + s.len2 + 1):end])(sol[1:end, :]),
             res,
+            true,
         )
     else
         return SteadyStateNeuralODE_solution(
@@ -177,6 +178,7 @@ function (s::SteadyStateNeuralODE)(V, v0, i0, tsteps, tstops, p = s.p)
             Array(ss_solution.u),
             s.re3(p[(s.len + s.len2 + 1):end])(ss_solution.u[1:(end - 2)]),
             res,
+            false,
         )
     end
 end
@@ -189,6 +191,7 @@ struct SteadyStateNeuralODE_solution{T}
     # v_series::AbstractArray{T}
     i_series::AbstractArray{T}
     res::AbstractArray{T}
+    converged::Bool
 end
 
 #This was for comparing the initializer network with learning the initial conditions directly.

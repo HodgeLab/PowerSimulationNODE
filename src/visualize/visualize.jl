@@ -73,7 +73,14 @@ function plot_overview(surrogate_prediction, fault_index, fault_data, exs)
             title = string("f:", fault_index[1], ", t:", fault_index[2]),
         )
     else
-        return Plots.plot()
+        p1 = Plots.scatter(surrogate_prediction.r0_pred, label = "predicted initial values")
+        Plots.scatter!(p1, surrogate_prediction.r0, label = "ending initial values")
+        p2 = Plots.scatter(
+            surrogate_prediction.res,
+            label = "residual of SS/Boundary conditions",
+            title = string("f:", fault_index[1], ", t:", fault_index[2]),
+        )
+        return Plots.plot(p1, p2, layout = (2, 1))
     end
 end
 
@@ -115,10 +122,17 @@ end
 
 function _visualize_loss(path_to_output)
     df_loss = read_arrow_file_to_dataframe(joinpath(path_to_output, "loss"))
-    p1 = Plots.plot(df_loss.Loss_initialization, label = "Loss Init", yaxis = :log)
+    p1 = Plots.plot(
+        df_loss.Loss_initialization,
+        label = "Loss Init",
+        yaxis = :log,
+        title = "Loss",
+    )
     Plots.plot!(p1, df_loss.Loss_dynamic, label = "Loss Dynamic")
     Plots.plot!(p1, df_loss.Loss, label = "Total Loss")
-    return p1
+    p2 =
+        Plots.plot(df_loss.reached_ss, title = "Steady state/boundary condition converged?")
+    return Plots.plot(p1, p2, layout = (2, 1))
 end
 
 function _visualize_predictions(params, path_to_output, skip)
