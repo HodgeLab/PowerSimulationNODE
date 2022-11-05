@@ -639,12 +639,13 @@ function _cb!(
     train_time_limit_seconds = params.train_time_limit_seconds
     validation_loss_every_n = params.validation_loss_every_n
 
-    push!(output["loss"], (l_initialization, l_dynamic, l))
-    output["total_iterations"] += 1
-    if mod(output["total_iterations"], exportmode_skip) == 0
+    push!(output["loss"], (l_initialization, l_dynamic, l, surrogate_solution.converged))
+    if mod(output["total_iterations"], exportmode_skip) == 0 ||
+       output["total_iterations"] == 1
         push!(output["predictions"], ([p], surrogate_solution, fault_index))
         push!(output["recorded_iterations"], output["total_iterations"])
     end
+    output["total_iterations"] += 1
     #=     p1 = Plots.plot(surrogate_solution.t_series, surrogate_solution.i_series[1, :])
         p2 = Plots.plot(surrogate_solution.t_series, surrogate_solution.i_series[2, :])
         display(Plots.plot(p1, p2)) =#
