@@ -204,8 +204,6 @@ function evaluate_loss(
                 push!(mae_ii, 0.0)
                 push!(max_error_ii, 0.0)
             elseif surrogate_dataset[ix].stable == true
-                @warn surrogate_dataset[ix].branch_imag_current
-                @warn groundtruth_dataset[ix].branch_imag_current
                 push!(
                     mae_ir,
                     mae(
@@ -353,6 +351,8 @@ function train(params::TrainParams)
 
     n_ports = length(connecting_branches)
     @info "Surrogate contains $n_ports ports"
+    output = _initialize_training_output_dict()
+    θ = Float32[]
     try
         scaling_extrema = calculate_scaling_extrema(train_dataset)
 
@@ -384,7 +384,6 @@ function train(params::TrainParams)
 
         p_nn_init, _ = Flux.destructure(surrogate)
         n_parameters = length(p_nn_init)
-        output = _initialize_training_output_dict()
         θ_ranges = Dict{String, UnitRange{Int64}}(
             "initializer_range" => 1:(surrogate.len),
             "node_range" => (surrogate.len + 1):(surrogate.len + surrogate.len2),
@@ -448,7 +447,6 @@ function train(params::TrainParams)
             surrogate,
             θ_ranges,
         )
-
         if params.force_gc == true
             GC.gc()     #Run garbage collector manually before file write.
             @warn "FORCE GC!"
