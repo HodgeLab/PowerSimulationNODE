@@ -197,7 +197,7 @@ function AlpineHPCTrain(;
     QoS = "normal",
     partition = "amilan",
     force_generate_inputs = false,
-    mb_per_cpu = 4800,
+    mb_per_cpu = 9600,
 )
     time_format = Dates.DateFormat("H:M:S")
     for p in params_data

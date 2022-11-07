@@ -137,7 +137,7 @@ end
         ),
         optimizer = (
             sensealg = "Zygote",
-            primary = "Adam",
+            primary = "Adam", #Bfgs
             primary_η = 0.1,
             adjust = "nothing",
             adjust_η = 0.0,
