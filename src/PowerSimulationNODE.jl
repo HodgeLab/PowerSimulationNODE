@@ -4,6 +4,7 @@ export train
 export TrainParams
 export serialize
 export node_load_system
+export node_run_powerflow!
 export AlpineHPCTrain
 export SavioHPCTrain
 export generate_train_files
@@ -36,6 +37,7 @@ import NLsolve
 import Optim
 import Optimization
 import OptimizationOptimisers
+import OptimizationOptimJL
 import OrdinaryDiffEq
 import SteadyStateDiffEq
 import Plots

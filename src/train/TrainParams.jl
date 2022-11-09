@@ -71,8 +71,6 @@
     }`: The optimizer(s) used during training. `sensealg="AutoZygote"`. The primary optimizer is used throughout the training according to the data provided and the `curriculum`/`curriculum_timespans` parameter.
     WARNING: The adjust optimizer is not yet implemented (TODO)
 - `p_start::Vector{Float32}`: Starting parameters (for initializer, node, and observation together). By default is empty which starts with randomly initialized parameters (see `rng_seed`). 
-- `maxiters::Int64`: The maximum possible iterations for the entire training instance. If `lb_loss = 0` and `optimizer = "Adam"` the training should never exit early and maxiters will be hit.
-    Note that the number of saved data points can exceed maxiters because there is an additional callback at the end of each individual optimization.
 - `lb_loss::Float64`: If the value of the loss function moves below lb_loss during training, the current optimization ends (current range).
 - `curriculum::String`: A curriculum for ordering the training data. `none` will train on all of the data simultaneously.  `progressive` will train on a single fault before moving to the next fault. 
 - `curriculum_timespans::Array{
@@ -162,11 +160,18 @@ mutable struct TrainParams
         Tuple{String, Float64, Float64, Int},
     }
     optimizer::NamedTuple{
-        (:sensealg, :primary, :primary_η, :adjust, :adjust_η),
-        Tuple{String, String, Float64, String, Float64},
+        (
+            :sensealg,
+            :primary,
+            :primary_η,
+            :primary_maxiters,
+            :adjust,
+            :adjust_η,
+            :adjust_maxiters,
+        ),
+        Tuple{String, String, Float64, Int64, String, Float64, Int64},
     }
     p_start::Vector{Float32}
-    maxiters::Int64
     lb_loss::Float64
     curriculum::String
     curriculum_timespans::Vector{
@@ -277,11 +282,12 @@ function TrainParams(;
         sensealg = "Zygote",
         primary = "Adam",
         primary_η = 0.000001,
+        primary_maxiters = 15,
         adjust = "nothing",
         adjust_η = 0.0,
+        adjust_maxiters = 0,
     ),
     p_start = [],
-    maxiters = 15,
     lb_loss = 0.0,
     curriculum = "none",
     curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
@@ -290,7 +296,7 @@ function TrainParams(;
         component_weights = (
             initialization_weight = 1.0,
             dynamic_weight = 1.0,
-            residual_penalty = 1.0,
+            residual_penalty = 1.0e9,
         ),
         type_weights = (rmse = 1.0, mae = 0.0),
     ),
@@ -351,7 +357,6 @@ function TrainParams(;
         dynamic_solver,
         optimizer,
         p_start,
-        maxiters,
         lb_loss,
         curriculum,
         curriculum_timespans,

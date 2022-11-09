@@ -11,8 +11,7 @@ for g in get_components(Generator, sys)
     case_gen = dyn_gen_classic(g)
     add_component!(sys, case_gen, g)
 end
-display(sys)
-PSY.solve_powerflow!(sys)
+node_run_powerflow!(sys)
 to_json(sys, base_system_path, force = true)
 
 #Display useful info about the system 

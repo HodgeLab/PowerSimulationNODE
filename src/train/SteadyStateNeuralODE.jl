@@ -142,7 +142,7 @@ function (s::SteadyStateNeuralODE)(V, v0, i0, tsteps, tstops, p = s.p)
         display(dudt_ss(u0_pred, p, 0.0))
         display(ss_solution.u) =#
 
-    res = dudt_ss(ss_solution.u, p, 0.0)
+    res = dudt_ss(u0_pred, p, 0.0)
 
     #TODO - extra call (dummy) to propogate gradients needed after ss_solution is reached? Not sure if needed. 
     #https://github.com/SciML/DeepEquilibriumNetworks.jl/blob/9c2626d6080bbda3c06b81d2463744f5e395003f/src/layers/deq.jl#L41

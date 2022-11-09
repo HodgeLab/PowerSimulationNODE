@@ -115,7 +115,6 @@ end
             maxiters = 1e3,   #TODO - don't think this has any impact - not implemented correctly? check  
         ),
         dynamic_solver = (solver = "Rodas5", reltol = 1e-6, abstol = 1e-6, maxiters = 1e5),
-        maxiters = 5,
         model_initializer = (
             type = "dense",     #OutputParams (train initial conditions)
             n_layer = 0,
@@ -137,10 +136,12 @@ end
         ),
         optimizer = (
             sensealg = "Zygote",
-            primary = "Adam", #Bfgs
-            primary_η = 0.1,
-            adjust = "nothing",
+            primary = "Adam", #"Bfgs", "Adam"
+            primary_η = 0.000001,
+            primary_maxiters = 5,
+            adjust = "Bfgs",
             adjust_η = 0.0,
+            adjust_maxiters = 50,
         ),
         scaling_limits = (input_limits = (-1.0, 1.0), target_limits = (-1.0, 1.0)),
     )

@@ -141,25 +141,29 @@ end
 function _visualize_validation_loss(path_to_output)
     df_validation_loss =
         read_arrow_file_to_dataframe(joinpath(path_to_output, "validation_loss"))
-    n_faults = length(df_validation_loss[1, :mae_ir])
-    n_evaluations_validation_loss = length(df_validation_loss[!, :mae_ir])
-    ir_mean_over_faults = [Statistics.mean(x) for x in df_validation_loss[!, :mae_ir]]
-    p1 = Plots.plot(ir_mean_over_faults, label = "mae for ir (across all faults)")
-    ir_max_over_faults = [maximum(x) for x in df_validation_loss[!, :max_error_ir]]
-    p2 = Plots.plot(ir_max_over_faults, label = "max error for ir (across all faults)")
-    ii_mean_over_faults = [Statistics.mean(x) for x in df_validation_loss[!, :mae_ii]]
-    p3 = Plots.plot(ii_mean_over_faults, label = "mae for ii (across all faults)")
-    ii_max_over_faults = [maximum(x) for x in df_validation_loss[!, :max_error_ii]]
-    p4 = Plots.plot(ii_max_over_faults, label = "max error for ii (across all faults)")
+    if DataFrames.nrow(df_validation_loss) == 0
+        return Plots.plot(title = "no validation data recorded")
+    else
+        n_faults = length(df_validation_loss[1, :mae_ir])
+        n_evaluations_validation_loss = length(df_validation_loss[!, :mae_ir])
+        ir_mean_over_faults = [Statistics.mean(x) for x in df_validation_loss[!, :mae_ir]]
+        p1 = Plots.plot(ir_mean_over_faults, label = "mae for ir (across all faults)")
+        ir_max_over_faults = [maximum(x) for x in df_validation_loss[!, :max_error_ir]]
+        p2 = Plots.plot(ir_max_over_faults, label = "max error for ir (across all faults)")
+        ii_mean_over_faults = [Statistics.mean(x) for x in df_validation_loss[!, :mae_ii]]
+        p3 = Plots.plot(ii_mean_over_faults, label = "mae for ii (across all faults)")
+        ii_max_over_faults = [maximum(x) for x in df_validation_loss[!, :max_error_ii]]
+        p4 = Plots.plot(ii_max_over_faults, label = "max error for ii (across all faults)")
 
-    return Plots.plot(
-        p1,
-        p2,
-        p3,
-        p4,
-        layout = (2, 2),
-        title = "number of faults: $(n_faults)",
-    )
+        return Plots.plot(
+            p1,
+            p2,
+            p3,
+            p4,
+            layout = (2, 2),
+            title = "number of faults: $(n_faults)",
+        )
+    end
 end
 
 function _visualize_predictions(params, path_to_output, skip)

@@ -1,5 +1,8 @@
 function optimizer_map(key)
-    d = Dict("Adam" => OptimizationOptimisers.Optimisers.ADAM, "Bfgs" => Optim.BFGS)
+    d = Dict(
+        "Adam" => OptimizationOptimisers.Optimisers.ADAM,
+        "Bfgs" => OptimizationOptimJL.Optim.BFGS,
+    )
     return d[key]
 end
 
@@ -96,6 +99,7 @@ function instantiate_surrogate_psid(
         ext = Dict{String, Any}(),
     )
     display(surr)
+    @info "SteadyStateNODE: $(surr)\n"
     return surr
 end
 
@@ -117,6 +121,12 @@ function instantiate_surrogate_flux(
     display(model_initializer)
     display(model_node)
     display(model_observation)
+    @info "Iniitalizer structure: $(model_initializer)\n"
+    @info "number of parameters: $(length(Flux.destructure(model_initializer)[1]))\n"
+    @info "NODE structure: $(model_node)\n"
+    @info "number of parameters: $(length(Flux.destructure(model_node)[1]))\n"
+    @info "Observation structure: $(model_observation)\n"
+    @info "number of parameters: $(length(Flux.destructure(model_observation)[1]))\n"
     # connecting_branches =
     #     [PSY.get_component(PSY.ACBranch, sys, n[1]) for n in connecting_branches_names]
     # branch_polarity = [n[2] for n in connecting_branches_names]
@@ -484,6 +494,11 @@ function _inner_loss_function(
     loss_initialization =
         initialization_weight *
         (mae_weight * mae(r0_pred, r0) + rmse_weight * sqrt(mse(r0_pred, r0)))
+    #Note: A loss of 0.0 makes the NLsolve equations non-finite during training. Instead, set the loss to the tolerance of the NLsolve. 
+    #if loss_initialization < params.steady_state_solver.abstol
+    if loss_initialization == 0.0
+        loss_initialization = params.steady_state_solver.abstol
+    end
     if size(ground_truth_subset) == size(i_series)
         loss_dynamic =
             dynamic_weight * (
