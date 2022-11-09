@@ -20,8 +20,7 @@ try
     generate_train_files(hpc_params)
     file = read(hpc_params.train_bash_file, String)
 
-    @test occursin("--slf hostfile", file)
-    @test !occursin("SLURM_NPROCS", file)
+    @test occursin("SLURM_ARRAY_TASK_ID", file)
 
     hpc_params = AlpineHPCTrain(;
         username = "test_user",
@@ -34,8 +33,7 @@ try
 
     generate_train_files(hpc_params)
     file = read(hpc_params.train_bash_file, String)
-    @test !occursin("--slf hostfile", file)
-    @test occursin("SLURM_NPROCS", file)
+    @test occursin("SLURM_ARRAY_TASK_ID", file)
 
 finally
     @info("removing test files")

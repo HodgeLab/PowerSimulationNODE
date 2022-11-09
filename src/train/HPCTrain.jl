@@ -13,7 +13,7 @@ const train_bash_file_template = """
 #SBATCH --partition={{partition}}
 #
 # Number of MPI tasks requested:
-#SBATCH --ntasks={{n_tasks}} \n{{#n_nodes}}#\n#SBATCH --nodes={{n_nodes}} \n {{/n_nodes}}
+#SBATCH --ntasks=1
 #
 # Memory per cpu
 #SBATCH --mem-per-cpu={{mb_per_cpu}}M
@@ -22,26 +22,16 @@ const train_bash_file_template = """
 #SBATCH --cpus-per-task={{n_cpus_per_task}}
 #
 #SBATCH --time={{time_limit}}
-#SBATCH --output={{{train_path}}}/job_output_%j.o
-#SBATCH --error={{{train_path}}}/job_output_%j.e
+#SBATCH --output={{{train_path}}}/job_output_%A_%a.o
+#SBATCH --error={{{train_path}}}/job_output_%A_%a.e
 
 export TMPDIR={{{train_path}}}/tmp/
 # Check Dependencies
 julia --project={{{project_path}}} -e 'using Pkg; Pkg.instantiate()'
 
-# Load Parallel
-module load {{gnu_parallel_name}}
+INFILE=\$(sed -n "\${SLURM_ARRAY_TASK_ID}p" {{{train_set_file}}})
 
-{{#n_nodes}}
-# --slf is needed to parallelize across all the cores on multiple nodes
-dataecho \$SLURM_JOB_NODELIST |sed s/\\,/\\\\n/g > hostfile
-{{/n_nodes}}
-
-{{#n_nodes}}parallel --jobs \$SLURM_CPUS_ON_NODE --slf hostfile \\ {{/n_nodes}}{{^n_nodes}}parallel --jobs \$SLURM_NPROCS \\{{/n_nodes}}
-    --wd {{{train_path}}} \\
-    -a {{{train_set_file}}}\\
-    --joblog {{{train_path}}}/hpc_train.log \\
-    srun --export=all --exclusive -n1 -N1 --mem-per-cpu={{mb_per_cpu}}M --cpus-per-task=1 --cpu-bind=cores julia --project={{{project_path}}} {{{project_path}}}/scripts/hpc_train/train_node.jl {}
+julia --project={{{project_path}}} {{{project_path}}}/scripts/hpc_train/train_node.jl \$INFILE 
 """
 
 const generate_data_bash_file_template = """
@@ -59,7 +49,7 @@ const generate_data_bash_file_template = """
 #SBATCH --partition={{partition}}
 #
 # Number of MPI tasks requested:
-#SBATCH --ntasks={{n_tasks}} \n{{#n_nodes}}#\n#SBATCH --nodes={{n_nodes}} \n {{/n_nodes}}
+#SBATCH --ntasks=1 
 #
 # Memory per cpu
 #SBATCH --mem-per-cpu={{mb_per_cpu}}M
@@ -68,27 +58,17 @@ const generate_data_bash_file_template = """
 #SBATCH --cpus-per-task={{n_cpus_per_task}}
 #
 #SBATCH --time={{time_limit}}
-#SBATCH --output={{{train_path}}}/job_output_%j.o
-#SBATCH --error={{{train_path}}}/job_output_%j.e
+#SBATCH --output={{{train_path}}}/job_output_%A_%a.o
+#SBATCH --error={{{train_path}}}/job_output_%A_%a.e
 
 export TMPDIR={{{train_path}}}/tmp/
 # Check Dependencies
 julia --project={{{project_path}}} -e 'using Pkg; Pkg.instantiate()'
 julia --project={{{project_path}}} {{{project_path}}}/scripts/hpc_train/build_subsystems.jl {{{first_parameter_path}}}
 
-# Load Parallel
-module load {{gnu_parallel_name}}
+INFILE=\$(sed -n "\${SLURM_ARRAY_TASK_ID}p" {{{generate_data_set_file}}})
 
-{{#n_nodes}}
-# --slf is needed to parallelize across all the cores on multiple nodes
-dataecho \$SLURM_JOB_NODELIST |sed s/\\,/\\\\n/g > hostfile
-{{/n_nodes}}
-
-{{#n_nodes}}parallel --jobs \$SLURM_CPUS_ON_NODE --slf hostfile \\ {{/n_nodes}}{{^n_nodes}}parallel --jobs \$SLURM_NPROCS \\{{/n_nodes}}
-    --wd {{{train_path}}} \\
-    -a {{{generate_data_set_file}}}\\
-    --joblog {{{train_path}}}/hpc_generate_data.log \\
-    srun --export=all --exclusive -n1 -N1 --mem-per-cpu={{mb_per_cpu}}M --cpus-per-task=1 --cpu-bind=cores julia --project={{{project_path}}} {{{project_path}}}/scripts/hpc_train/generate_data.jl {}
+julia --project={{{project_path}}} {{{project_path}}}/scripts/hpc_train/generate_data.jl \$INFILE 
 """
 
 struct HPCTrain
@@ -99,7 +79,6 @@ struct HPCTrain
     project_folder::String
     train_folder::String
     scratch_path::String
-    gnu_parallel_name::String
     n_tasks_train::Int
     n_tasks_generate_data::Int
     n_nodes::Union{Int, Nothing}
@@ -154,7 +133,6 @@ function SavioHPCTrain(;
         project_folder,
         train_folder,
         scratch_path,
-        "gnu-parallel",
         1,   #updated during file generation
         1,     #updated during file generation
         n_nodes,
@@ -216,7 +194,6 @@ function AlpineHPCTrain(;
         project_folder,
         train_folder,
         scratch_path,
-        "gnu_parallel",
         1,  #updated during file generation
         1,  #updated during file generation
         nothing, # Default to nothing on Alpine since it doesn't dispatch on ssh login(?)
@@ -254,7 +231,6 @@ function generate_train_files(train::HPCTrain)
     data_train_template["QoS"] = train.QoS
     data_train_template["time_limit"] = train.time_limit_train
     data_train_template["partition"] = train.partition
-    data_train_template["gnu_parallel_name"] = train.gnu_parallel_name
     data_train_template["project_path"] = path_to_project_folder
     data_train_template["train_path"] = path_to_train_folder
     data_train_template["n_cpus_per_task"] = train.n_cpus_per_task
@@ -293,7 +269,6 @@ function generate_train_files(train::HPCTrain)
     data_generate_template["QoS"] = train.QoS
     data_generate_template["time_limit"] = train.time_limit_generate_data
     data_generate_template["partition"] = train.partition
-    data_generate_template["gnu_parallel_name"] = train.gnu_parallel_name
     data_generate_template["project_path"] = path_to_project_folder
     data_generate_template["train_path"] = path_to_train_folder
     data_generate_template["n_cpus_per_task"] = train.n_cpus_per_task
