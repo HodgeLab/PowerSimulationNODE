@@ -96,6 +96,7 @@ function instantiate_surrogate_psid(
         ext = Dict{String, Any}(),
     )
     display(surr)
+    @info "SteadyStateNODE: $(surr)\n"
     return surr
 end
 
@@ -117,6 +118,12 @@ function instantiate_surrogate_flux(
     display(model_initializer)
     display(model_node)
     display(model_observation)
+    @info "Iniitalizer structure: $(model_initializer)\n"
+    @info "number of parameters: $(length(Flux.destructure(model_initializer)[1]))\n"
+    @info "NODE structure: $(model_node)\n"
+    @info "number of parameters: $(length(Flux.destructure(model_node)[1]))\n"
+    @info "Observation structure: $(model_observation)\n"
+    @info "number of parameters: $(length(Flux.destructure(model_observation)[1]))\n"
     # connecting_branches =
     #     [PSY.get_component(PSY.ACBranch, sys, n[1]) for n in connecting_branches_names]
     # branch_polarity = [n[2] for n in connecting_branches_names]

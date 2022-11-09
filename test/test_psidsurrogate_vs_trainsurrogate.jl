@@ -415,7 +415,7 @@ end
             add_component!(sys, gfl, gen)
         end
     end
-    solve_powerflow!(sys)
+    node_run_powerflow!(sys)
     sim = Simulation!(MassMatrixModel, sys, pwd(), (0.0, 1.0))
     execute!(sim, Rodas5(), saveat = 0.0:0.01:1.0)
     results = read_results(sim)
@@ -435,7 +435,7 @@ end
         end
     end
 
-    solve_powerflow!(sys)
+    node_run_powerflow!(sys)
     sim = Simulation!(MassMatrixModel, sys, pwd(), (0.0, 1.0))
     execute!(sim, Rodas5(), saveat = 0.0:0.01:1.0)
     results = read_results(sim)
@@ -541,7 +541,7 @@ end
             #add_component!(sys, gfl, gen)
         end
     end
-    solve_powerflow!(sys)
+    node_run_powerflow!(sys)
     sim = Simulation!(MassMatrixModel, sys, pwd(), (0.0, 1.0))
     show_states_initial_value(sim)
     execute!(sim, Rodas5(), saveat = 0.0:0.01:1.0)
@@ -562,7 +562,7 @@ end
         end
     end
 
-    solve_powerflow!(sys)
+    node_run_powerflow!(sys)
     sim = Simulation!(MassMatrixModel, sys, pwd(), (0.0, 1.0))
     execute!(sim, Rodas5(), saveat = 0.0:0.01:1.0)
     results = read_results(sim)

@@ -5,8 +5,8 @@ Build `training_system` and `surrogate_system` based on `p.system_path` and `p.s
 """
 function build_subsystems(p::TrainParams)
     sys_full = node_load_system(p.system_path)
-    PSY.solve_powerflow!(sys_full)
-
+    node_run_powerflow!(sys_full)
+    @warn "creating train subsystem"
     sys_train, connecting_branches =
         PSIDS.create_subsystem_from_buses(sys_full, p.surrogate_buses)
     non_surrogate_buses =
@@ -17,8 +17,8 @@ function build_subsystems(p::TrainParams)
                 x -> PSY.get_number(x) ∉ p.surrogate_buses,
             ),
         )
+    @warn "creating validation subsystem"
     sys_validation, _ = PSIDS.create_subsystem_from_buses(sys_full, non_surrogate_buses)
-
     #Serialize surrogate system
     PSY.to_json(sys_validation, p.surrogate_system_path, force = true)
     #Serialize train system 

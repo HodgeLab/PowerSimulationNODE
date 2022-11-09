@@ -23,6 +23,25 @@ function node_load_system(inputs...)
     end
 end
 
+function node_run_powerflow!(inputs...)
+    logger = PSY.configure_logging(
+        console_level = PSY_CONSOLE_LEVEL,
+        file_level = PSY_FILE_LEVEL,
+    )
+    try
+        Logging.with_logger(logger) do
+            PowerFlows.run_powerflow!(inputs...)
+            return
+        end
+    finally
+        close(logger)
+        PSY.configure_logging(
+            console_level = NODE_CONSOLE_LEVEL,
+            file_level = NODE_FILE_LEVEL,
+        )
+    end
+end
+
 """
     function build_params_list!(params_data, no_change_params, change_params)
 
