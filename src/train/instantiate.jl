@@ -494,6 +494,11 @@ function _inner_loss_function(
     loss_initialization =
         initialization_weight *
         (mae_weight * mae(r0_pred, r0) + rmse_weight * sqrt(mse(r0_pred, r0)))
+    #Note: A loss of 0.0 makes the NLsolve equations non-finite during training. Instead, set the loss to the tolerance of the NLsolve. 
+    #if loss_initialization < params.steady_state_solver.abstol
+    if loss_initialization == 0.0
+        loss_initialization = params.steady_state_solver.abstol
+    end
     if size(ground_truth_subset) == size(i_series)
         loss_dynamic =
             dynamic_weight * (
