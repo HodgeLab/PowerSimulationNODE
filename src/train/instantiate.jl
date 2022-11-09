@@ -1,5 +1,8 @@
 function optimizer_map(key)
-    d = Dict("Adam" => OptimizationOptimisers.Optimisers.ADAM, "Bfgs" => Optim.BFGS)
+    d = Dict(
+        "Adam" => OptimizationOptimisers.Optimisers.ADAM,
+        "Bfgs" => OptimizationOptimJL.Optim.BFGS,
+    )
     return d[key]
 end
 

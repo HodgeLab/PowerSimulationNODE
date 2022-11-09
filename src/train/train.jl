@@ -199,7 +199,7 @@ function evaluate_loss(
     for ix in eachindex(surrogate_dataset, groundtruth_dataset)
         if groundtruth_dataset[ix].stable == true
             if surrogate_dataset[ix].stable == false
-                push!(mae_ir, 0.0)   #Note: Cannot write Inf in Json spec, so assign 0 value if not stable (better for plotting too)
+                push!(mae_ir, 0.0)   #Note: Cannot write Inf in Json spec, so assign 0 value if not stable (better for plotting too). Could lead to confusion if averaging over multiple plots. 
                 push!(max_error_ir, 0.0)
                 push!(mae_ii, 0.0)
                 push!(max_error_ii, 0.0)
@@ -407,7 +407,13 @@ function train(params::TrainParams)
             _generate_training_groups(fault_indices, timespan_indices, params.curriculum)
         n_trains = length(train_groups)
         n_samples = length(filter(x -> x.stable == true, train_dataset))
-        per_solve_max_epochs = _calculate_per_solve_max_epochs(params, n_trains, n_samples)
+        per_solve_max_epochs = _calculate_per_solve_max_epochs(
+            params.optimizer.primary_maxiters,
+            n_trains,
+            n_samples,
+        )
+        adjust_max_epochs =
+            _calculate_per_solve_max_epochs(params.optimizer.adjust_maxiters, 1, n_samples)
         @info "Curriculum pairings (fault_index, timespan_index)", train_groups
         @info "\n # of trainings: $n_trains \n # of epochs per training: $per_solve_max_epochs \n # of samples per epoch:  $n_samples"
         if isempty(params.p_start)
@@ -416,6 +422,7 @@ function train(params::TrainParams)
             θ = params.p_start
         end
         total_time = @elapsed begin
+            #PRIMARY OPTIMIZATION (usually ADAM)
             for group in train_groups
                 res, output = _train(
                     θ,
@@ -435,6 +442,24 @@ function train(params::TrainParams)
                 )
                 θ = res.u
             end
+
+            #ADJUST OPTIMIZATION (usually BFGS)
+            res, output = _train(
+                θ,
+                surrogate,
+                θ_ranges,
+                connecting_branches,
+                train_dataset,
+                validation_dataset,
+                sys_validation,
+                exogenous_input_functions,
+                train_details,
+                params,
+                optimizer_adjust,
+                train_groups[end],
+                adjust_max_epochs,
+                output,
+            )
         end
         output["total_time"] = total_time
 
@@ -480,11 +505,15 @@ function _train(
         },
     },
     params::TrainParams,
-    optimizer::Union{OptimizationOptimisers.Optimisers.Adam, Optim.AbstractOptimizer},
+    optimizer::Union{
+        OptimizationOptimisers.Optimisers.Adam,
+        OptimizationOptimJL.Optim.AbstractOptimizer,
+    },
     group::Vector{Tuple{Int64, Int64}},
     per_solve_max_epochs::Int,
     output::Dict{String, Any},
 )
+    @warn "Starting value of parameters: $θ"
     train_loader =
         Flux.Data.DataLoader(group; batchsize = 1, shuffle = true, partial = true)
     outer_loss_function = instantiate_outer_loss_function(
@@ -517,27 +546,13 @@ function _train(
         outer_loss_function(θ, (1, 1))
     #cb(θ, loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index)
 
-    @warn "Everything instantiated, starting solve with one epoch"
-    timing_stats_compile = @timed Optimization.solve(
-        optprob,
-        optimizer,
-        IterTools.ncycle(train_loader, 1),
-        callback = cb,
-    )
-    push!(
-        output["timing_stats_compile"],
-        (
-            time = timing_stats_compile.time,
-            bytes = timing_stats_compile.bytes,
-            gc_time = timing_stats_compile.gctime,
-        ),
-    )
     @warn "Starting full train with $per_solve_max_epochs epochs"
     timing_stats = @timed Optimization.solve(
         optprob,
         optimizer,
         IterTools.ncycle(train_loader, per_solve_max_epochs),
         callback = cb,
+        allow_f_increases = true,
     )
     push!(
         output["timing_stats"],
@@ -548,6 +563,11 @@ function _train(
         ),
     )
     res = timing_stats.value
+    @warn "Residual of Optimization.solve(): $(res)"
+    #=if res.original !== nothing 
+        @warn "The result from BFGS: $(res.original)"
+        @warn res.original.stopped_by
+    end  =#
     return res, output
 end
 
@@ -590,7 +610,6 @@ function _initialize_training_output_dict()
         "total_iterations" => 0,
         "recorded_iterations" => [],
         "final_loss" => Dict{String, Vector{Float64}}(),
-        "timing_stats_compile" => [],
         "timing_stats" => [],
         "n_params_surrogate" => 0,
         "θ_ranges" => Dict{String, UnitRange{Int64}},
@@ -616,8 +635,7 @@ function _capture_output(output_dict, output_directory, id)
     end
 end
 
-function _calculate_per_solve_max_epochs(params, n_groups, n_samples)
-    total_maxiters = params.maxiters
+function _calculate_per_solve_max_epochs(total_maxiters, n_groups, n_samples)
     per_solve_max_epochs = Int(floor(total_maxiters / n_groups / n_samples))
     if per_solve_max_epochs == 0
         @error "The calculated epochs per training group is 0. Adjust maxiters, the curriculum, or the size of the training dataset."
