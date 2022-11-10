@@ -24,6 +24,7 @@ const train_bash_file_template = """
 #SBATCH --time={{time_limit}}
 #SBATCH --output={{{train_path}}}/job_output_%A_%a.o
 #SBATCH --error={{{train_path}}}/job_output_%A_%a.e
+#SBATCH --array=1-{{n_tasks}}
 
 export TMPDIR={{{train_path}}}/tmp/
 # Check Dependencies
@@ -60,6 +61,7 @@ const generate_data_bash_file_template = """
 #SBATCH --time={{time_limit}}
 #SBATCH --output={{{train_path}}}/job_output_%A_%a.o
 #SBATCH --error={{{train_path}}}/job_output_%A_%a.e
+#SBATCH --array=1-{{n_tasks}}
 
 export TMPDIR={{{train_path}}}/tmp/
 # Check Dependencies
