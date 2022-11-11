@@ -424,8 +424,6 @@ function print_train_parameter_overview(train_params_folder)
         params = TrainParams(f)
         for fieldname in fieldnames(TrainParams)
             exclude_fields = [
-                :optimizer_adjust,
-                :optimizer_adjust_η,
                 :base_path,
                 :input_data_path,
                 :output_data_path,

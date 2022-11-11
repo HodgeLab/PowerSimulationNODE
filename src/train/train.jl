@@ -423,6 +423,7 @@ function train(params::TrainParams)
         end
         total_time = @elapsed begin
             #PRIMARY OPTIMIZATION (usually ADAM)
+            @warn "primary optimizer $optimizer"
             for group in train_groups
                 res, output = _train(
                     θ,
@@ -442,6 +443,7 @@ function train(params::TrainParams)
                 )
                 θ = res.u
             end
+            @warn "adjust optimizer $optimizer_adjust"
 
             #ADJUST OPTIMIZATION (usually BFGS)
             res, output = _train(

@@ -140,7 +140,7 @@ end
             primary_η = 0.000001,
             primary_maxiters = 5,
             adjust = "Bfgs",
-            adjust_η = 0.0,
+            adjust_initial_stepnorm = 0.001,  #ignored for LBfgs
             adjust_maxiters = 50,
         ),
         scaling_limits = (input_limits = (-1.0, 1.0), target_limits = (-1.0, 1.0)),

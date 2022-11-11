@@ -66,7 +66,7 @@
     Tuple{String, Tuple{Float64, Float64}},
     }`: The solver used for solving the neural ODE dynamics. `solver` is the solver name from DifferentialEquations.jl, `tols` is a tuple `(reltol, abstol)`
 - `optimizer::NamedTuple{
-    (:sensealg, :primary, :primary_η, :adjust, :adjust_η),
+    (:sensealg, :primary, :primary_η, :adjust, :adjust_initial_stepnorm),
     Tuple{String, String, Float64, String, Float64},
     }`: The optimizer(s) used during training. `sensealg="AutoZygote"`. The primary optimizer is used throughout the training according to the data provided and the `curriculum`/`curriculum_timespans` parameter.
     WARNING: The adjust optimizer is not yet implemented (TODO)
@@ -166,7 +166,7 @@ mutable struct TrainParams
             :primary_η,
             :primary_maxiters,
             :adjust,
-            :adjust_η,
+            :adjust_initial_stepnorm,
             :adjust_maxiters,
         ),
         Tuple{String, String, Float64, Int64, String, Float64, Int64},
@@ -284,7 +284,7 @@ function TrainParams(;
         primary_η = 0.000001,
         primary_maxiters = 15,
         adjust = "nothing",
-        adjust_η = 0.0,
+        adjust_initial_stepnorm = 0.01,
         adjust_maxiters = 0,
     ),
     p_start = [],

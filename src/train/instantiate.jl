@@ -2,6 +2,7 @@ function optimizer_map(key)
     d = Dict(
         "Adam" => OptimizationOptimisers.Optimisers.ADAM,
         "Bfgs" => OptimizationOptimJL.Optim.BFGS,
+        "LBfgs" => OptimizationOptimJL.Optim.LBFGS,
     )
     return d[key]
 end
@@ -59,15 +60,13 @@ end
 function instantiate_optimizer(inputs)
     if inputs.optimizer.primary == "Adam"
         return optimizer_map(inputs.optimizer.primary)(inputs.optimizer.primary_η)
-    elseif inputs.optimizer.primary == "Bfgs"
-        return optimizer_map(inputs.optimizer.primary)()
     end
 end
 
 function instantiate_optimizer_adjust(inputs)
-    if inputs.optimizer.adjust == "Adam"
-        return optimizer_map(inputs.optimizer.adjust)(inputs.optimizer_adjust_η)
-    elseif inputs.optimizer.adjust == "Bfgs"
+    if inputs.optimizer.adjust == "Bfgs"
+        return optimizer_map(inputs.optimizer.adjust)(initial_stepnorm = inputs.optimizer.adjust_initial_stepnorm)
+    elseif inputs.optimizer.adjust == "LBfgs"
         return optimizer_map(inputs.optimizer.adjust)()
     end
 end
