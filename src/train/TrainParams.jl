@@ -1,9 +1,9 @@
 """
-    mutable struct TrainParams
+    mutable struct TrainParams  
 
 # Fields
 - `train_id::String`: id for the training instance, used for naming output data folder.
-- `surrogate_buses::Vector{Int64}`: The buses which make up the portion of the system to be replaced with a surrogate.
+- `surrogate_buses::Vector{Int64}`: The numbers of the buses which make up the portion of the system to be replaced with a surrogate.
 - `train_data::NamedTuple{
     (:id, :operating_points, :perturbations, :params, :system),
     Tuple{
@@ -50,7 +50,7 @@
     }`: Parameters which determine the structure of the neural ODE. `type="dense"`. `n_layer` is the number of hidden layers. `width_layers` is the width of hidden layers. `activation=["tanh", "relu"]` in the activation function. 
     `σ2_initialization` is the variance of the initial params for the node model. Set `σ2_initialization = 0.0` to use the default flux initialization.
 - `model_observation::NamedTuple{
-    (:type, :n_layer, :width_layers, :activation, :normalization),
+    (:type, :n_layer, :width_layers, :activation),
     Tuple{String, Int64, Int64, String, String},
     }`: Parameters which determine the structure of the observer NN. `type="dense"`. `n_layer` is the number of hidden layers. `width_layers` is the width of hidden layers. `activation=["tanh", "relu"]` in the activation function. 
 - `scaling_limits::NamedTuple{
@@ -62,18 +62,25 @@
     Tuple{String, Float64, Int64}},
     }`: The solver used for initializing surrogate to steady state.
 - `dynamic_solver::NamedTuple{
-    (:solver, :tols),
-    Tuple{String, Tuple{Float64, Float64}},
+    (:solver, :reltol, :abstol, :maxiters),
+    Tuple{String, Float64, Float64, Int},
     }`: The solver used for solving the neural ODE dynamics. `solver` is the solver name from DifferentialEquations.jl, `tols` is a tuple `(reltol, abstol)`
 - `optimizer::NamedTuple{
-    (:sensealg, :primary, :primary_η, :adjust, :adjust_initial_stepnorm),
-    Tuple{String, String, Float64, String, Float64},
-    }`: The optimizer(s) used during training. `sensealg="AutoZygote"`. The primary optimizer is used throughout the training according to the data provided and the `curriculum`/`curriculum_timespans` parameter.
+    (:sensealg, :primary, :primary_η, :adjust, :adjust_initial_stepnorm, adjust_maxiters),
+    Tuple{String, String, Float64, Int64, String, Float64, Int64},
+    }`: The optimizer(s) used during training. `sensealg="Zygote"` or `sensealg="ForwardDiff"` . The primary optimizer is used throughout the training according to the data provided and the `curriculum`/`curriculum_timespans` parameter.
     WARNING: The adjust optimizer is not yet implemented (TODO)
 - `p_start::Vector{Float32}`: Starting parameters (for initializer, node, and observation together). By default is empty which starts with randomly initialized parameters (see `rng_seed`). 
-- `lb_loss::Float64`: If the value of the loss function moves below lb_loss during training, the current optimization ends (current range).
-- `curriculum::String`: A curriculum for ordering the training data. `none` will train on all of the data simultaneously.  `progressive` will train on a single fault before moving to the next fault. 
-- `curriculum_timespans::Array{
+- `lb_loss::Float64`: If the value of the loss on the validation set moves below lb_loss during training, the current optimization ends (current range).
+- `primary_curriculum::String`: A curriculum for ordering the training data. `"simultaneous"` will train on all of the data for each iteration of the optimizer.  `"individual faults"` will cycle through the train dataset faults with one fault per iteration.  `"individual faults x2"` will run two distinct solves with the same dataset (in other words, restart the optimizer half way through)
+- `primary_curriculum_timespans::Array{
+    NamedTuple{
+        (:tspan, :batching_sample_factor),
+        Tuple{Tuple{Float64, Float64}, Float64},
+    },
+    }`: Indicates the timespan to train on and the sampling factor for batching. If more than one entry in `curriculum_timespans`, each fault from the input data is paired with each value of `curriculum_timespans`
+- `adjust_curriculum::String`: A curriculum for ordering the training data. `"simultaneous"` will train on all of the data for each iteration of the optimizer.  `"individual faults"` will cycle through the train dataset faults with one fault per iteration. 
+- `adjust_curriculum_timespans::Array{
     NamedTuple{
         (:tspan, :batching_sample_factor),
         Tuple{Tuple{Float64, Float64}, Float64},
@@ -173,8 +180,15 @@ mutable struct TrainParams
     }
     p_start::Vector{Float32}
     lb_loss::Float64
-    curriculum::String
-    curriculum_timespans::Vector{
+    primary_curriculum::String
+    primary_curriculum_timespans::Vector{
+        NamedTuple{
+            (:tspan, :batching_sample_factor),
+            Tuple{Tuple{Float64, Float64}, Float64},
+        },
+    }
+    adjust_curriculum::String
+    adjust_curriculum_timespans::Vector{
         NamedTuple{
             (:tspan, :batching_sample_factor),
             Tuple{Tuple{Float64, Float64}, Float64},
@@ -289,8 +303,10 @@ function TrainParams(;
     ),
     p_start = [],
     lb_loss = 0.0,
-    curriculum = "none",
-    curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
+    primary_curriculum = "individual faults",
+    primary_curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
+    adjust_curriculum = "simultaneous",
+    adjust_curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
     validation_loss_every_n = 100,
     loss_function = (
         component_weights = (
@@ -358,8 +374,10 @@ function TrainParams(;
         optimizer,
         p_start,
         lb_loss,
-        curriculum,
-        curriculum_timespans,
+        primary_curriculum,
+        primary_curriculum_timespans,
+        adjust_curriculum,
+        adjust_curriculum_timespans,
         validation_loss_every_n,
         loss_function,
         rng_seed,
