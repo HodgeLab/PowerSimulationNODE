@@ -426,19 +426,8 @@ function print_train_parameter_overview(train_params_folder)
             exclude_fields =
                 [:base_path, :input_data_path, :output_data_path, :verify_psid_node_off]
             if !(fieldname in exclude_fields)
-                if fieldname == :training_groups    #Special case for compact printing 
-                    push!(
-                        Matrix_row,
-                        [[
-                            length(getfield(params, fieldname)),
-                            getfield(params, fieldname)[1][:tspan],
-                            getfield(params, fieldname)[1][:shoot_times],
-                            getfield(params, fieldname)[1][:multiple_shoot_continuity_term],
-                            getfield(params, fieldname)[1][:batching_sample_factor],
-                        ]],
-                    )
-                elseif fieldname == :node_state_inputs  #Special case for compact printing 
-                    push!(Matrix_row, length(getfield(params, fieldname)))
+                if fieldname in [:train_data, :validation_data, :test_data]    #Special case for compact printing 
+                    push!(Matrix_row, getfield(params, fieldname)[:id])
                 else
                     push!(Matrix_row, getfield(params, fieldname))
                 end
@@ -455,7 +444,7 @@ function print_train_parameter_overview(train_params_folder)
             Matrix = vcat(Matrix, Matrix_row)
         end
     end
-
+    @warn Matrix
     common_params_indices = [all(x -> x == col[1], col) for col in eachcol(Matrix)]
     changing_params_indices = [!(all(x -> x == col[1], col)) for col in eachcol(Matrix)]
 
