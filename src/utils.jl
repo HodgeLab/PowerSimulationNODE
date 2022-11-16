@@ -60,7 +60,7 @@ function build_params_list!(params_data, no_change_params, change_params)
         for (j, (key, value)) in enumerate(change_params)
             starting_dict[key] = value[i[j]]
         end
-        starting_dict[:train_id] = string(train_id)
+        starting_dict[:train_id] = lpad(train_id, 3, "0")
         push!(params_data, TrainParams(; starting_dict...))
         starting_dict = no_change_params
         train_id += 1
