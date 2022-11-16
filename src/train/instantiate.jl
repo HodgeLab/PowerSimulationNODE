@@ -65,7 +65,9 @@ end
 
 function instantiate_optimizer_adjust(inputs)
     if inputs.optimizer.adjust == "Bfgs"
-        return optimizer_map(inputs.optimizer.adjust)(initial_stepnorm = inputs.optimizer.adjust_initial_stepnorm)
+        return optimizer_map(inputs.optimizer.adjust)(
+            initial_stepnorm = inputs.optimizer.adjust_initial_stepnorm,
+        )
     elseif inputs.optimizer.adjust == "LBfgs"
         return optimizer_map(inputs.optimizer.adjust)()
     end
@@ -526,9 +528,9 @@ function instantiate_outer_loss_function(
     },
     params::TrainParams,
 )
-    return (θ, fault_timespan_index) -> _outer_loss_function(
+    return (θ, vector_fault_timespan_index) -> _outer_loss_function(
         θ,
-        fault_timespan_index,
+        vector_fault_timespan_index,
         surrogate,
         train_dataset,
         exogenous_input_functions,
@@ -539,7 +541,7 @@ end
 
 function _outer_loss_function(
     θ,
-    fault_timespan_index::Tuple{Int64, Int64},
+    vector_fault_timespan_index::Vector{Tuple{Int64, Int64}},
     surrogate::SteadyStateNeuralODE,
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     exogenous_input_functions,
@@ -551,42 +553,45 @@ function _outer_loss_function(
     },
     params::TrainParams,
 )
-    fault_index = fault_timespan_index[1]
-    timespan_index = fault_timespan_index[2]
-    V = exogenous_input_functions[fault_index]
-    #powerflow = train_dataset[fault_index].powerflow
-    vr0 = train_dataset[fault_index].surrogate_real_voltage[1]
-    vi0 = train_dataset[fault_index].surrogate_imag_voltage[1]
-    ir0 = train_dataset[fault_index].branch_real_current[1]
-    ii0 = train_dataset[fault_index].branch_imag_current[1]
+    vector_fault_timespan_index
+    surrogate_solution = 0.0    #Only return the surrogate_solution from the last fault of the iteration (cannot mutate arrays with Zygote)
+    loss_initialization = 0.0
+    loss_dynamic = 0.0
+    for (ix, fault_timespan_index) in enumerate(vector_fault_timespan_index)
+        fault_index = fault_timespan_index[1]
+        timespan_index = fault_timespan_index[2]
+        V = exogenous_input_functions[fault_index]
+        #powerflow = train_dataset[fault_index].powerflow
+        vr0 = train_dataset[fault_index].surrogate_real_voltage[1]
+        vi0 = train_dataset[fault_index].surrogate_imag_voltage[1]
+        ir0 = train_dataset[fault_index].branch_real_current[1]
+        ii0 = train_dataset[fault_index].branch_imag_current[1]
 
-    tsteps = train_dataset[fault_index].tsteps
-    tstops = train_dataset[fault_index].tstops
+        tsteps = train_dataset[fault_index].tsteps
+        tstops = train_dataset[fault_index].tstops
 
-    index_subset = _find_subset_batching(tsteps, train_details[timespan_index])
-    branch_real_current = train_dataset[fault_index].branch_real_current
-    branch_real_current_subset = branch_real_current[:, index_subset]
-    branch_imag_current = train_dataset[fault_index].branch_imag_current
-    branch_imag_current_subset = branch_imag_current[:, index_subset]
-    tsteps_subset = tsteps[index_subset]
-    #tstops_subset = tstops[index_subset]   #TODO - does it matter if we pass the entire tstops (outside of the range?)
-    surrogate_solution = surrogate(V, [vr0, vi0], [ir0, ii0], tsteps_subset, tstops, θ)
-    #=          p1 = Plots.plot(tsteps, groundtruth_current[1,:])
-            Plots.plot!(p1, surrogate_solution.t_series, surrogate_solution.i_series[1,:])
-            p2 = Plots.plot(tsteps, groundtruth_current[2,:])
-            Plots.plot!(p2, surrogate_solution.t_series, surrogate_solution.i_series[2,:])
-            display(Plots.plot(p1,p2)) =#
-    loss_initialization, loss_dynamic = _inner_loss_function(
-        surrogate_solution,
-        branch_real_current_subset,
-        branch_imag_current_subset,
-        params,
-    )
+        index_subset = _find_subset_batching(tsteps, train_details[timespan_index])
+        branch_real_current = train_dataset[fault_index].branch_real_current
+        branch_real_current_subset = branch_real_current[:, index_subset]
+        branch_imag_current = train_dataset[fault_index].branch_imag_current
+        branch_imag_current_subset = branch_imag_current[:, index_subset]
+        tsteps_subset = tsteps[index_subset]
+        #tstops_subset = tstops[index_subset]   #TODO - does it matter if we pass the entire tstops (outside of the range?)
+        surrogate_solution = surrogate(V, [vr0, vi0], [ir0, ii0], tsteps_subset, tstops, θ)
+        loss_i, loss_d = _inner_loss_function(
+            surrogate_solution,
+            branch_real_current_subset,
+            branch_imag_current_subset,
+            params,
+        )
+        loss_initialization += loss_i
+        loss_dynamic += loss_d
+    end
     return loss_initialization + loss_dynamic,
     loss_initialization,
     loss_dynamic,
-    surrogate_solution,
-    fault_timespan_index
+    surrogate_solution,    #Note- this is the last surrogate_solution only (if there were multiple)
+    vector_fault_timespan_index
 end
 
 function _find_subset_batching(tsteps, train_details)

@@ -9,9 +9,9 @@ end
 
 function plot_overview(surrogate_prediction, fault_index, fault_data, exs)
     if size(surrogate_prediction.r0) != size(surrogate_prediction.r_series)
-        tsteps = fault_data[fault_index[1]].tsteps
-        ground_truth_real_current = fault_data[fault_index[1]].branch_real_current
-        ground_truth_imag_current = fault_data[fault_index[1]].branch_imag_current
+        tsteps = fault_data[fault_index[end][1]].tsteps
+        ground_truth_real_current = fault_data[fault_index[end][1]].branch_real_current
+        ground_truth_imag_current = fault_data[fault_index[end][1]].branch_imag_current
         lay = Plots.@layout [a{0.3w} [b c; d e]]
         r0_pred = surrogate_prediction.r0_pred
         t_series = surrogate_prediction.t_series
@@ -21,7 +21,7 @@ function plot_overview(surrogate_prediction, fault_index, fault_data, exs)
         dim_r = Int(length(r_series) / length(t_series))
         r_series = reshape(r_series, (dim_r, length(t_series)))    #Loses shape when serialized/deserialized to arrow
         res = surrogate_prediction.res
-        ex = exs[fault_index[1]]
+        ex = exs[fault_index[end][1]]
 
         p1 = Plots.plot(t_series, i_series[1, :], label = L"$\hat{y}_1$")
         Plots.scatter!(p1, t_series, i_series[1, :], label = false, markersize = 1)
@@ -70,7 +70,7 @@ function plot_overview(surrogate_prediction, fault_index, fault_data, exs)
             p2,
             layout = lay,
             dpi = 300,
-            title = string("f:", fault_index[1], ", t:", fault_index[2]),
+            title = string("f:", fault_index[end][1], ", t:", fault_index[end][2]),
         )
     else
         p1 = Plots.scatter(surrogate_prediction.r0_pred, label = "predicted initial values")
@@ -78,7 +78,7 @@ function plot_overview(surrogate_prediction, fault_index, fault_data, exs)
         p2 = Plots.scatter(
             surrogate_prediction.res,
             label = "residual of SS/Boundary conditions",
-            title = string("f:", fault_index[1], ", t:", fault_index[2]),
+            title = string("f:", fault_index[end][1], ", t:", fault_index[end][2]),
         )
         return Plots.plot(p1, p2, layout = (2, 1))
     end
@@ -423,12 +423,8 @@ function print_train_parameter_overview(train_params_folder)
         Matrix_row = Any[]
         params = TrainParams(f)
         for fieldname in fieldnames(TrainParams)
-            exclude_fields = [
-                :base_path,
-                :input_data_path,
-                :output_data_path,
-                :verify_psid_node_off,
-            ]
+            exclude_fields =
+                [:base_path, :input_data_path, :output_data_path, :verify_psid_node_off]
             if !(fieldname in exclude_fields)
                 if fieldname == :training_groups    #Special case for compact printing 
                     push!(

@@ -398,24 +398,11 @@ function train(params::TrainParams)
             _build_exogenous_input_functions(params.train_data, train_dataset)    #can build ex from the components in params.train_data or from the dataset values by interpolating...
         #want to test how this impacts the speed of a single train iteration (the interpolation)
         #@warn exogenous_input_functions[1](1.0, [1, 1])      #evaluate exogenous_input_functions before going to the training
-
-        train_details = params.curriculum_timespans
-        fault_indices = collect(1:length(train_dataset))
-        timespan_indices = collect(1:length(params.curriculum_timespans))
         @assert length(train_dataset) == length(exogenous_input_functions)
-        train_groups =
-            _generate_training_groups(fault_indices, timespan_indices, params.curriculum)
-        n_trains = length(train_groups)
+        fault_indices = collect(1:length(train_dataset))    #TODO - should this be filtered for only stable faults? 
         n_samples = length(filter(x -> x.stable == true, train_dataset))
-        per_solve_max_epochs = _calculate_per_solve_max_epochs(
-            params.optimizer.primary_maxiters,
-            n_trains,
-            n_samples,
-        )
-        adjust_max_epochs =
-            _calculate_per_solve_max_epochs(params.optimizer.adjust_maxiters, 1, n_samples)
-        @info "Curriculum pairings (fault_index, timespan_index)", train_groups
-        @info "\n # of trainings: $n_trains \n # of epochs per training: $per_solve_max_epochs \n # of samples per epoch:  $n_samples"
+        @info "\n number of stable training samples: $n_samples"
+
         if isempty(params.p_start)
             θ = p_nn_init
         else
@@ -423,8 +410,26 @@ function train(params::TrainParams)
         end
         total_time = @elapsed begin
             #PRIMARY OPTIMIZATION (usually ADAM)
-            @warn "primary optimizer $optimizer"
-            for group in train_groups
+            primary_train_details = params.primary_curriculum_timespans
+            primary_timespan_indices =
+                collect(1:length(params.primary_curriculum_timespans))
+            primary_train_groups = _generate_training_groups(
+                fault_indices,
+                primary_timespan_indices,
+                params.primary_curriculum,
+            )
+            primary_n_trains = length(primary_train_groups)
+            primary_per_solve_max_epochs = _calculate_per_solve_max_epochs(
+                params.optimizer.primary_maxiters,
+                primary_n_trains,
+                length(primary_train_groups[1]),
+            )
+            @info "Primary Curriculum pairings (fault_index, timespan_index)",
+            primary_train_groups
+            @info "primary optimizer $optimizer"
+            @info "\n curriculum: $(params.primary_curriculum) \n # of solves: $primary_n_trains \n # of epochs per training (based on maxiters parameter): $primary_per_solve_max_epochs \n # of iterations per epoch $(length(primary_train_groups[1])) \n # of samples per iteration $(length(primary_train_groups[1][1])) "
+
+            for group in primary_train_groups
                 res, output = _train(
                     θ,
                     surrogate,
@@ -434,34 +439,58 @@ function train(params::TrainParams)
                     validation_dataset,
                     sys_validation,
                     exogenous_input_functions,
-                    train_details,
+                    primary_train_details,
                     params,
                     optimizer,
                     group,
-                    per_solve_max_epochs,
+                    primary_per_solve_max_epochs,
                     output,
                 )
                 θ = res.u
             end
-            @warn "adjust optimizer $optimizer_adjust"
 
             #ADJUST OPTIMIZATION (usually BFGS)
-            res, output = _train(
-                θ,
-                surrogate,
-                θ_ranges,
-                connecting_branches,
-                train_dataset,
-                validation_dataset,
-                sys_validation,
-                exogenous_input_functions,
-                train_details,
-                params,
-                optimizer_adjust,
-                train_groups[end],
-                adjust_max_epochs,
-                output,
-            )
+            if !(params.optimizer.adjust == "nothing")
+                adjust_train_details = params.adjust_curriculum_timespans
+                adjust_timespan_indices =
+                    collect(1:length(params.adjust_curriculum_timespans))
+                adjust_train_groups = _generate_training_groups(
+                    fault_indices,
+                    adjust_timespan_indices,
+                    params.adjust_curriculum,
+                )
+                adjust_n_trains = length(adjust_train_groups)
+                adjust_per_solve_max_epochs = _calculate_per_solve_max_epochs(
+                    params.optimizer.adjust_maxiters,
+                    adjust_n_trains,
+                    length(adjust_train_groups[1]),
+                )
+
+                @info "Adjust Curriculum pairings (fault_index, timespan_index)",
+                adjust_train_groups
+                @info "adjust optimizer $optimizer_adjust"
+                @info "\n curriculum: $(params.adjust_curriculum) \n # of solves: $adjust_n_trains \n # of epochs per training (based on maxiters parameter): $adjust_per_solve_max_epochs \n # of iterations per epoch $(length(adjust_train_groups[1])) \n # of samples per iteration $(length(adjust_train_groups[1][1])) "
+
+                for group in adjust_train_groups
+                    res, output = _train(
+                        θ,
+                        surrogate,
+                        θ_ranges,
+                        connecting_branches,
+                        train_dataset,
+                        validation_dataset,
+                        sys_validation,
+                        exogenous_input_functions,
+                        adjust_train_details,
+                        params,
+                        optimizer_adjust,
+                        group,
+                        adjust_per_solve_max_epochs,
+                        output,
+                    )
+                    θ = res.u
+                end
+            end
         end
         output["total_time"] = total_time
 
@@ -511,7 +540,7 @@ function _train(
         OptimizationOptimisers.Optimisers.Adam,
         OptimizationOptimJL.Optim.AbstractOptimizer,
     },
-    group::Vector{Tuple{Int64, Int64}},
+    group::Vector{Vector{Tuple{Int64, Int64}}},
     per_solve_max_epochs::Int,
     output::Dict{String, Any},
 )
@@ -528,7 +557,8 @@ function _train(
 
     sensealg = instantiate_sensealg(params.optimizer)
     optfun = Optimization.OptimizationFunction(
-        (θ, P, fault_timespan_index) -> outer_loss_function(θ, fault_timespan_index),
+        (θ, P, vector_fault_timespan_index) ->
+            outer_loss_function(θ, vector_fault_timespan_index),
         sensealg,
     )
     optprob = Optimization.OptimizationProblem(optfun, θ)
@@ -544,11 +574,13 @@ function _train(
     )
 
     #Calculate loss before training
-    loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index =
-        outer_loss_function(θ, (1, 1))
-    #cb(θ, loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index)
-
-    @warn "Starting full train with $per_solve_max_epochs epochs"
+    #=     loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index_vector =
+            outer_loss_function(θ, [(1, 1)])
+        @warn loss 
+        @warn loss_initialization
+        @warn loss_dynamic 
+        cb(θ, loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index) =#
+    @warn "Starting full train: \n # of iterations per epoch: $(length(group)) \n # of epochs per solve: $per_solve_max_epochs \n max # of iterations for solve: $(per_solve_max_epochs*length(group))"
     timing_stats = @timed Optimization.solve(
         optprob,
         optimizer,
@@ -566,27 +598,44 @@ function _train(
     )
     res = timing_stats.value
     @warn "Residual of Optimization.solve(): $(res)"
-    #=if res.original !== nothing 
-        @warn "The result from BFGS: $(res.original)"
-        @warn res.original.stopped_by
-    end  =#
+    if res.original !== nothing
+        @warn "The result from original optimization library: $(res.original)"
+        @warn "stopped by?: $(res.original.stopped_by)"
+    end
     return res, output
 end
 
 function _generate_training_groups(fault_index, timespan_index, curriculum)
-    x = [(f, t) for f in fault_index, t in timespan_index]
-    dataset = reshape(x, length(x))
-    if curriculum == "none"
+    if curriculum == "individual faults"
+        x = [[(f, t)] for f in fault_index, t in timespan_index]
+        dataset = reshape(x, length(x))
         grouped_data = [dataset]
-    elseif curriculum == "progressive"
-        sorted = sort(dataset)
-        grouped_data = [[x] for x in sorted]
+        return grouped_data
+    elseif curriculum == "individual faults x2"
+        x = [[(f, t)] for f in fault_index, t in timespan_index]
+        dataset = reshape(x, length(x))
+        grouped_data = [dataset, dataset]
+        return grouped_data
+    elseif curriculum == "individual faults x3"
+        x = [[(f, t)] for f in fault_index, t in timespan_index]
+        dataset = reshape(x, length(x))
+        grouped_data = [dataset, dataset, dataset]
+        return grouped_data
+    elseif curriculum == "simultaneous"
+        x = [(f, t) for f in fault_index, t in timespan_index]
+        dataset = reshape(x, length(x))
+        grouped_data = [[dataset]]
+        return grouped_data
+        #=     elseif curriculum == "progressive"
+                x = [[(f, t)] for f in fault_index, t in timespan_index]
+                dataset = reshape(x, length(x))
+                sorted = sort(dataset)
+                grouped_data = [[x] for x in sorted]
+                return grouped_data  =#
     else
         @error "Curriculum not found"
         return false
     end
-
-    return grouped_data
 end
 
 function _initialize_training_output_dict()
@@ -600,7 +649,7 @@ function _initialize_training_output_dict()
         "predictions" => DataFrames.DataFrame(
             parameters = Vector{Any}[],
             surrogate_solution = SteadyStateNeuralODE_solution[],
-            fault_index = Tuple{Int64, Int64}[],
+            fault_index = Vector{Tuple{Int64, Int64}}[],
         ),
         "validation_loss" => DataFrames.DataFrame(
             mae_ir = Vector{Float64}[],
