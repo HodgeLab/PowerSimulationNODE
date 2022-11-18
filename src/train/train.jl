@@ -585,8 +585,13 @@ function _train(
         optprob,
         optimizer,
         IterTools.ncycle(train_loader, per_solve_max_epochs),
-        callback = cb,
+        callback = cb;
         allow_f_increases = true,
+        show_trace = true, 
+        x_abstol = -1.0, 
+        x_reltol = -1.0,
+        f_abstol = -1.0, 
+        f_reltol = -1.0,
     )
     push!(
         output["timing_stats"],
