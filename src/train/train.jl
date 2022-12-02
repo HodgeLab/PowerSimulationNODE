@@ -42,7 +42,7 @@ function _surrogate_perturbation_to_function_of_time(
     D <: PSIDS.SteadyStateNODEData,
 }
     V_funcs = []
-    if train_data_params.system == "full"
+    if train_data_params.system == "full" || typeof(perturbation[1]) == PSIDS.Chirp
         for i in 1:size(data.surrogate_real_voltage)[1]
             function Vr(t)
                 ix_after = findfirst(x -> x > t, data.tsteps)
@@ -136,6 +136,64 @@ function _single_perturbation_to_function_of_time(
     return (Vr_func, Vi_func)
 end
 
+#= function _single_perturbation_to_function_of_time(
+    single_perturbation::PSIDS.Chirp,
+    data::PSIDS.SteadyStateNODEData,
+    port_ix::Int64,
+)
+    @warn "The implemented Chirp voltage is technically the voltage behind the source impedance--- the assumption is that the source impedance is insignificantly small."
+    Vr0 = data.surrogate_real_voltage[port_ix, 1]
+    Vi0 = data.surrogate_imag_voltage[port_ix, 1]
+    Vm0 = sqrt(Vr0^2 + Vi0^2)
+    θ0 = atan(Vr0 / Vi0)
+
+    tstart = single_perturbation.tstart
+    N = single_perturbation.N
+    ω1 = single_perturbation.ω1
+    ω2 = single_perturbation.ω2
+    V_amp = single_perturbation.V_amp
+    ω_amp = single_perturbation.ω_amp
+
+    function V(t)
+        val = Vm0
+        if t < tstart
+            return val
+        elseif t >= tstart && t < N
+            val += V_amp * sin(ω1 * (t - tstart) + (ω2 - ω1) * (t - tstart)^2 / (2 * N))
+            return val
+        elseif t >= N #same expression as above, replace t with N
+            val += V_amp * sin(ω1 * (N - tstart) + (ω2 - ω1) * (N - tstart)^2 / (2 * N))
+            return val
+        end
+    end
+
+    function θ(t)
+        val = θ0
+        if t < tstart
+            return val
+        elseif t >= tstart && t < N
+            val +=
+                t -
+                ω_amp / ((ω1 + (ω2 - ω1) * (t - tstart) / N)) *
+                cos(ω1 * (t - tstart) + (ω2 - ω1) * (t - tstart)^2 / (2 * N))
+            return val
+        elseif t >= N   #same expression as above, replace t with N
+            val +=
+                N -
+                ω_amp / ((ω1 + (ω2 - ω1) * (N - tstart) / N)) *
+                cos(ω1 * (N - tstart) + (ω2 - ω1) * (N - tstart)^2 / (2 * N))
+            return val
+        end
+    end
+    function Vr_func(t)
+        return V(t) * cos(θ(t))
+    end
+    function Vi_func(t)
+        return V(t) * sin(θ(t))
+    end
+    return (Vr_func, Vi_func)
+end
+ =#
 function _single_perturbation_to_function_of_time(
     single_perturbation::PSIDS.VStep,
     data::PSIDS.SteadyStateNODEData,
@@ -187,7 +245,7 @@ function evaluate_loss(
         sys,
         perturbations,
         operating_points,
-        PSIDS.SteadyStateNODEDataParams(connecting_branch_names = connecting_branches),
+        PSIDS.SteadyStateNODEDataParams(location_of_data_collection = connecting_branches),
         generate_data_params,
         dataset_aux = groundtruth_dataset,
     )
@@ -207,32 +265,32 @@ function evaluate_loss(
                 push!(
                     mae_ir,
                     mae(
-                        surrogate_dataset[ix].branch_real_current,
-                        groundtruth_dataset[ix].branch_real_current,
+                        surrogate_dataset[ix].real_current,
+                        groundtruth_dataset[ix].real_current,
                     ),
                 )
                 push!(
                     max_error_ir,
                     maximum(
                         abs.(
-                            surrogate_dataset[ix].branch_real_current .-
-                            groundtruth_dataset[ix].branch_real_current,
+                            surrogate_dataset[ix].real_current .-
+                            groundtruth_dataset[ix].real_current,
                         ),
                     ),
                 )
                 push!(
                     mae_ii,
                     mae(
-                        surrogate_dataset[ix].branch_imag_current,
-                        groundtruth_dataset[ix].branch_imag_current,
+                        surrogate_dataset[ix].imag_current,
+                        groundtruth_dataset[ix].imag_current,
                     ),
                 )
                 push!(
                     max_error_ii,
                     maximum(
                         abs.(
-                            surrogate_dataset[ix].branch_imag_current .-
-                            groundtruth_dataset[ix].branch_imag_current,
+                            surrogate_dataset[ix].imag_current .-
+                            groundtruth_dataset[ix].imag_current,
                         ),
                     ),
                 )
@@ -249,7 +307,7 @@ function evaluate_loss(
 end
 
 function calculate_scaling_extrema(train_dataset)
-    n_ports = size(train_dataset[1].branch_real_current)[1]
+    n_ports = size(train_dataset[1].real_current)[1]
 
     d_current_min = fill(Inf, n_ports)
     q_current_min = fill(Inf, n_ports)
@@ -264,7 +322,7 @@ function calculate_scaling_extrema(train_dataset)
     for d in train_dataset
         if d.stable == true
             θ0 = atan(d.surrogate_imag_voltage[1] / d.surrogate_real_voltage[1])
-            id_iq = PSID.ri_dq(θ0) * vcat(d.branch_real_current, d.branch_imag_current)
+            id_iq = PSID.ri_dq(θ0) * vcat(d.real_current, d.imag_current)
             vd_vq =
                 PSID.ri_dq(θ0) * vcat(d.surrogate_real_voltage, d.surrogate_imag_voltage)
             id_max = maximum(id_iq[1, :])
@@ -335,7 +393,7 @@ function train(params::TrainParams)
     train_dataset = Serialization.deserialize(params.train_data_path)
     validation_dataset = Serialization.deserialize(params.validation_data_path)
     test_dataset = Serialization.deserialize(params.test_data_path)
-    connecting_branches = Serialization.deserialize(params.connecting_branch_names_path)
+    connecting_branches = Serialization.deserialize(params.data_collection_location_path)[2]
     @info "Length of possible training conditions (number of fault/operating point combinations):",
     length(train_dataset)
     @info "Length of actual training dataset (stable conditions):",
@@ -587,10 +645,10 @@ function _train(
         IterTools.ncycle(train_loader, per_solve_max_epochs),
         callback = cb;
         allow_f_increases = true,
-        show_trace = true, 
-        x_abstol = -1.0, 
+        show_trace = true,
+        x_abstol = -1.0,
         x_reltol = -1.0,
-        f_abstol = -1.0, 
+        f_abstol = -1.0,
         f_reltol = -1.0,
     )
     push!(

@@ -212,7 +212,7 @@ mutable struct TrainParams
     system_path::String
     surrogate_system_path::String
     train_system_path::String
-    connecting_branch_names_path::String
+    data_collection_location_path::String
     train_data_path::String
     validation_data_path::String
     test_data_path::String
@@ -335,7 +335,7 @@ function TrainParams(;
         PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
         "train_system.json",
     ),
-    connecting_branch_names_path = joinpath(
+    data_collection_location_path = joinpath(
         base_path,
         PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
         "connecting_branches_names",
@@ -387,7 +387,7 @@ function TrainParams(;
         system_path,
         surrogate_system_path,
         train_system_path,
-        connecting_branch_names_path,
+        data_collection_location_path,
         train_data_path,
         validation_data_path,
         test_data_path,

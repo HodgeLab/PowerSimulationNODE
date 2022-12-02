@@ -139,7 +139,7 @@ end
             primary = "Adam", #"Bfgs", "Adam"
             primary_η = 0.000001,
             primary_maxiters = 6,
-            adjust = "Bfgs",    #"nothing"
+            adjust = "nothing",    #"nothing, Bfgs"
             adjust_initial_stepnorm = 0.001,  #ignored for LBfgs
             adjust_maxiters = 10,   #doesn't reflect properly TODO 
         ),
