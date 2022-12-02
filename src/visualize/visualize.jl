@@ -10,8 +10,8 @@ end
 function plot_overview(surrogate_prediction, fault_index, fault_data, exs)
     if size(surrogate_prediction.r0) != size(surrogate_prediction.r_series)
         tsteps = fault_data[fault_index[end][1]].tsteps
-        ground_truth_real_current = fault_data[fault_index[end][1]].branch_real_current
-        ground_truth_imag_current = fault_data[fault_index[end][1]].branch_imag_current
+        ground_truth_real_current = fault_data[fault_index[end][1]].real_current
+        ground_truth_imag_current = fault_data[fault_index[end][1]].imag_current
         lay = Plots.@layout [a{0.3w} [b c; d e]]
         r0_pred = surrogate_prediction.r0_pred
         t_series = surrogate_prediction.t_series
@@ -202,10 +202,10 @@ function _rebase_path!(params, new_base_path)
         PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
         splitpath(params.train_system_path)[end],
     )
-    params.connecting_branch_names_path = joinpath(
+    params.data_collection_location_path = joinpath(
         new_base_path,
         PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
-        splitpath(params.connecting_branch_names_path)[end],
+        splitpath(params.data_collection_location_path)[end],
     )
     params.train_data_path = joinpath(
         new_base_path,
@@ -444,7 +444,6 @@ function print_train_parameter_overview(train_params_folder)
             Matrix = vcat(Matrix, Matrix_row)
         end
     end
-    @warn Matrix
     common_params_indices = [all(x -> x == col[1], col) for col in eachcol(Matrix)]
     changing_params_indices = [!(all(x -> x == col[1], col)) for col in eachcol(Matrix)]
 

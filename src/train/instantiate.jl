@@ -478,11 +478,11 @@ end
 
 function _inner_loss_function(
     surrogate_solution,
-    branch_real_current_subset,
-    branch_imag_current_subset,
+    real_current_subset,
+    imag_current_subset,
     params,
 )
-    ground_truth_subset = vcat(branch_real_current_subset, branch_imag_current_subset)
+    ground_truth_subset = vcat(real_current_subset, imag_current_subset)
     rmse_weight = params.loss_function.type_weights.rmse
     mae_weight = params.loss_function.type_weights.mae
     initialization_weight = params.loss_function.component_weights.initialization_weight
@@ -564,24 +564,24 @@ function _outer_loss_function(
         #powerflow = train_dataset[fault_index].powerflow
         vr0 = train_dataset[fault_index].surrogate_real_voltage[1]
         vi0 = train_dataset[fault_index].surrogate_imag_voltage[1]
-        ir0 = train_dataset[fault_index].branch_real_current[1]
-        ii0 = train_dataset[fault_index].branch_imag_current[1]
+        ir0 = train_dataset[fault_index].real_current[1]
+        ii0 = train_dataset[fault_index].imag_current[1]
 
         tsteps = train_dataset[fault_index].tsteps
         tstops = train_dataset[fault_index].tstops
 
         index_subset = _find_subset_batching(tsteps, train_details[timespan_index])
-        branch_real_current = train_dataset[fault_index].branch_real_current
-        branch_real_current_subset = branch_real_current[:, index_subset]
-        branch_imag_current = train_dataset[fault_index].branch_imag_current
-        branch_imag_current_subset = branch_imag_current[:, index_subset]
+        real_current = train_dataset[fault_index].real_current
+        real_current_subset = real_current[:, index_subset]
+        imag_current = train_dataset[fault_index].imag_current
+        imag_current_subset = imag_current[:, index_subset]
         tsteps_subset = tsteps[index_subset]
         #tstops_subset = tstops[index_subset]   #TODO - does it matter if we pass the entire tstops (outside of the range?)
         surrogate_solution = surrogate(V, [vr0, vi0], [ir0, ii0], tsteps_subset, tstops, θ)
         loss_i, loss_d = _inner_loss_function(
             surrogate_solution,
-            branch_real_current_subset,
-            branch_imag_current_subset,
+            real_current_subset,
+            imag_current_subset,
             params,
         )
         loss_initialization += loss_i
