@@ -223,6 +223,7 @@ end
 StructTypes.StructType(::Type{TrainParams}) = StructTypes.Mutable()
 StructTypes.StructType(::Type{PSIDS.GenerateDataParams}) = StructTypes.Struct()
 StructTypes.StructType(::Type{PSIDS.PVS}) = StructTypes.Struct()
+StructTypes.StructType(::Type{PSIDS.Chirp}) = StructTypes.Struct()
 StructTypes.StructType(::Type{PSIDS.VStep}) = StructTypes.Struct()
 StructTypes.StructType(::Type{PSIDS.GenerationLoadScale}) = StructTypes.Struct()
 StructTypes.StructType(::Type{PSIDS.ScaleSource}) = StructTypes.Struct()
@@ -236,6 +237,7 @@ StructTypes.subtypekey(::Type{PSIDS.SurrogatePerturbation}) = :type
 StructTypes.subtypekey(::Type{PSIDS.SurrogateOperatingPoint}) = :type
 StructTypes.subtypes(::Type{PSIDS.SurrogatePerturbation}) = (
     PVS = PSIDS.PVS,
+    Chirp = PSIDS.Chirp,
     VStep = PSIDS.VStep,
     RandomBranchTrip = PSIDS.RandomBranchTrip,
     RandomLoadTrip = PSIDS.RandomLoadTrip,
