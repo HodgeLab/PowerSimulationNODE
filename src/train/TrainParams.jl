@@ -225,6 +225,7 @@ StructTypes.StructType(::Type{PSIDS.GenerateDataParams}) = StructTypes.Struct()
 StructTypes.StructType(::Type{PSIDS.PVS}) = StructTypes.Struct()
 StructTypes.StructType(::Type{PSIDS.VStep}) = StructTypes.Struct()
 StructTypes.StructType(::Type{PSIDS.GenerationLoadScale}) = StructTypes.Struct()
+StructTypes.StructType(::Type{PSIDS.ScaleSource}) = StructTypes.Struct()
 StructTypes.StructType(::Type{PSIDS.RandomBranchTrip}) = StructTypes.Struct()
 StructTypes.StructType(::Type{PSIDS.RandomLoadTrip}) = StructTypes.Struct()
 StructTypes.StructType(::Type{PSIDS.RandomLoadChange}) = StructTypes.Struct()
@@ -241,7 +242,7 @@ StructTypes.subtypes(::Type{PSIDS.SurrogatePerturbation}) = (
     RandomLoadChange = PSIDS.RandomLoadChange,
 )
 StructTypes.subtypes(::Type{PSIDS.SurrogateOperatingPoint}) =
-    (GenerationLoadScale = PSIDS.GenerationLoadScale,)
+    (GenerationLoadScale = PSIDS.GenerationLoadScale, ScaleSource = PSIDS.ScaleSource)
 
 function TrainParams(;
     train_id = "train_instance_1",
