@@ -27,9 +27,10 @@ Arguments:
   [Common Solver Arguments](https://diffeq.sciml.ai/dev/basics/common_solver_opts/)
   documentation for more details.
 """
-struct SteadyStateNeuralODE{P, M, RE, M2, RE2, M3, RE3, SS, DS, A, K} <:
+struct SteadyStateNeuralODE{PT, PF, M, RE, M2, RE2, M3, RE3, SS, DS, PM, A, K} <:
        SteadyStateNeuralODELayer
-    p::P
+    p_train::PT
+    p_fixed::PF                                    #need to split into p_fixed and p_train.... 
     len::Int        #length of p1 
     len2::Int       #length of p2 
     model1::M       #Initializer model 
@@ -40,7 +41,8 @@ struct SteadyStateNeuralODE{P, M, RE, M2, RE2, M3, RE3, SS, DS, A, K} <:
     re3::RE3
     ss_solver::SS
     dyn_solver::DS
-    args::A
+    p_map::PM
+    args::A                                #add p_map 
     kwargs::K
 
     function SteadyStateNeuralODE(
@@ -61,6 +63,7 @@ struct SteadyStateNeuralODE{P, M, RE, M2, RE2, M3, RE3, SS, DS, A, K} <:
         end
         new{
             typeof(p),
+            typeof(p),
             typeof(model1),
             typeof(re1),
             typeof(model2),
@@ -69,10 +72,12 @@ struct SteadyStateNeuralODE{P, M, RE, M2, RE2, M3, RE3, SS, DS, A, K} <:
             typeof(re3),      #The type of len and len2 (Int) is automatically derived: https://docs.julialang.org/en/v1/manual/constructors/
             typeof(ss_solver),
             typeof(dyn_solver),
+            Vector{Int64},
             typeof(args),
             typeof(kwargs),
         }(
             p,
+            [],
             length(p1),
             length(p2),
             model1,
@@ -83,6 +88,7 @@ struct SteadyStateNeuralODE{P, M, RE, M2, RE2, M3, RE3, SS, DS, A, K} <:
             re3,
             ss_solver,
             dyn_solver,
+            1:length(p),
             args,
             kwargs,
         )
@@ -90,9 +96,19 @@ struct SteadyStateNeuralODE{P, M, RE, M2, RE2, M3, RE3, SS, DS, A, K} <:
 end
 
 Flux.@functor SteadyStateNeuralODE
-Flux.trainable(m::SteadyStateNeuralODE) = (p = m.p,)
+Flux.trainable(m::SteadyStateNeuralODE) = (p = m.p_train,)
 
-function (s::SteadyStateNeuralODE)(V, v0, i0, tsteps, tstops, p = s.p)
+function (s::SteadyStateNeuralODE)(
+    V,
+    v0,
+    i0,
+    tsteps,
+    tstops,
+    p_fixed = s.p_fixed,
+    p_train = s.p_train,
+    p_map = s.p_map,
+)
+    p = vcat(p_fixed, p_train)
     θ = atan(v0[2], v0[1])
     dq_ri = [sin(θ) -cos(θ); cos(θ) sin(θ)]     #note: equivalent to PSID.dq_ri(θ)
     ri_dq = [sin(θ) cos(θ); -cos(θ) sin(θ)]     #note: equivalent to PSID.dq_ri(θ)
@@ -103,23 +119,25 @@ function (s::SteadyStateNeuralODE)(V, v0, i0, tsteps, tstops, p = s.p)
     function dudt_ss(u, p, t)
         Vd, Vq = dq_ri * V(0.0)
         return vcat(
-            s.re2(p[(s.len + 1):(s.len + s.len2)])((
+            s.re2(p[p_map[(s.len + 1):(s.len + s.len2)]])((
                 u[1:(end - 2)],
                 [Vd, Vq], #u[3:4],
                 u[(end - 1):end],
             )),
-            s.re3(p[(s.len + s.len2 + 1):end])(u[1:(end - 2)])[1] .- Id0,
-            s.re3(p[(s.len + s.len2 + 1):end])(u[1:(end - 2)])[2] .- Iq0,
+            s.re3(p[p_map[(s.len + s.len2 + 1):end]])(u[1:(end - 2)])[1] .- Id0,
+            s.re3(p[p_map[(s.len + s.len2 + 1):end]])(u[1:(end - 2)])[2] .- Iq0,
         )
     end
 
     #u[1:end] = surrogate states 
     function dudt_dyn(u, p, t)
         Vd, Vq = dq_ri * V(t)
-        return vcat(s.re2(p[(s.len + 1):(s.len + s.len2)])((u[1:end], [Vd, Vq], refs)))
+        return vcat(
+            s.re2(p[p_map[(s.len + 1):(s.len + s.len2)]])((u[1:end], [Vd, Vq], refs)),
+        )
     end
     #PREDICTOR 
-    u0_pred = s.re1(p[1:(s.len)])((Vq0, [Id0, Iq0]))
+    u0_pred = s.re1(p[p_map[1:(s.len)]])((Vq0, [Id0, Iq0]))
 
     #SOLVE PROBLEM TO STEADY STATE 
     ff_ss = OrdinaryDiffEq.ODEFunction{false}(dudt_ss)
@@ -166,7 +184,7 @@ function (s::SteadyStateNeuralODE)(V, v0, i0, tsteps, tstops, p = s.p)
             Array(ss_solution.u),
             tsteps,
             Array(sol[1:end, :]),
-            ri_dq * s.re3(p[(s.len + s.len2 + 1):end])(sol[1:end, :]),
+            ri_dq * s.re3(p[p_map[(s.len + s.len2 + 1):end]])(sol[1:end, :]),
             res,
             true,
         )
@@ -176,7 +194,7 @@ function (s::SteadyStateNeuralODE)(V, v0, i0, tsteps, tstops, p = s.p)
             Array(ss_solution.u),
             tsteps,
             Array(ss_solution.u),
-            s.re3(p[(s.len + s.len2 + 1):end])(ss_solution.u[1:(end - 2)]),
+            s.re3(p[p_map[(s.len + s.len2 + 1):end]])(ss_solution.u[1:(end - 2)]),
             res,
             false,
         )

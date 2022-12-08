@@ -526,21 +526,25 @@ function instantiate_outer_loss_function(
             Tuple{Tuple{Float64, Float64}, Float64},
         },
     },
+    p_fixed::Vector{Float32},
+    p_map::Vector{Int64},
     params::TrainParams,
 )
-    return (θ, vector_fault_timespan_index) -> _outer_loss_function(
-        θ,
+    return (p_train, vector_fault_timespan_index) -> _outer_loss_function(
+        p_train,
         vector_fault_timespan_index,
         surrogate,
         train_dataset,
         exogenous_input_functions,
         train_details,
+        p_fixed,
+        p_map,
         params,
     )
 end
 
 function _outer_loss_function(
-    θ,
+    p_train,
     vector_fault_timespan_index::Vector{Tuple{Int64, Int64}},
     surrogate::SteadyStateNeuralODE,
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
@@ -551,6 +555,8 @@ function _outer_loss_function(
             Tuple{Tuple{Float64, Float64}, Float64},
         },
     },
+    p_fixed::Vector{Float32},
+    p_map::Vector{Int64},
     params::TrainParams,
 )
     vector_fault_timespan_index
@@ -577,7 +583,16 @@ function _outer_loss_function(
         imag_current_subset = imag_current[:, index_subset]
         tsteps_subset = tsteps[index_subset]
         #tstops_subset = tstops[index_subset]   #TODO - does it matter if we pass the entire tstops (outside of the range?)
-        surrogate_solution = surrogate(V, [vr0, vi0], [ir0, ii0], tsteps_subset, tstops, θ)
+        surrogate_solution = surrogate(
+            V,
+            [vr0, vi0],
+            [ir0, ii0],
+            tsteps_subset,
+            tstops,
+            p_fixed,
+            p_train,
+            p_map,
+        )
         loss_i, loss_d = _inner_loss_function(
             surrogate_solution,
             real_current_subset,
@@ -611,6 +626,8 @@ function instantiate_cb!(
     sys_validation,
     connecting_branches,
     surrogate,
+    p_fixed,
+    p_map,
     θ_ranges,
 )
     if Sys.iswindows() || Sys.isapple()
@@ -619,26 +636,29 @@ function instantiate_cb!(
         print_loss = false
     end
 
-    return (p, l, l_initialization, l_dynamic, surrogate_solution, fault_index) -> _cb!(
-        p,
-        l,
-        l_initialization,
-        l_dynamic,
-        surrogate_solution,
-        fault_index,
-        output,
-        params,
-        print_loss,
-        validation_dataset,
-        sys_validation,
-        connecting_branches,
-        surrogate,
-        θ_ranges,
-    )
+    return (p_train, l, l_initialization, l_dynamic, surrogate_solution, fault_index) ->
+        _cb!(
+            p_train,
+            l,
+            l_initialization,
+            l_dynamic,
+            surrogate_solution,
+            fault_index,
+            output,
+            params,
+            print_loss,
+            validation_dataset,
+            sys_validation,
+            connecting_branches,
+            surrogate,
+            p_fixed,
+            p_map,
+            θ_ranges,
+        )
 end
 
 function _cb!(
-    p,
+    p_train,
     l,
     l_initialization,
     l_dynamic,
@@ -651,6 +671,8 @@ function _cb!(
     sys_validation,
     connecting_branches,
     surrogate,
+    p_fixed,
+    p_map,
     θ_ranges,
 )
     lb_loss = params.lb_loss
@@ -661,7 +683,10 @@ function _cb!(
     push!(output["loss"], (l_initialization, l_dynamic, l, surrogate_solution.converged))
     if mod(output["total_iterations"], exportmode_skip) == 0 ||
        output["total_iterations"] == 1
-        push!(output["predictions"], ([p], surrogate_solution, fault_index))
+        push!(
+            output["predictions"],
+            ([vcat(p_fixed, p_train)[p_map]], surrogate_solution, fault_index),
+        )
         push!(output["recorded_iterations"], output["total_iterations"])
     end
     output["total_iterations"] += 1
@@ -683,7 +708,7 @@ function _cb!(
     if mod(output["total_iterations"], validation_loss_every_n) == 0
         validation_loss = evaluate_loss(
             sys_validation,
-            p,
+            vcat(p_fixed, p_train)[p_map],
             validation_dataset,
             params.validation_data,
             connecting_branches,

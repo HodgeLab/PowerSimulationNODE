@@ -187,6 +187,7 @@ mutable struct TrainParams
             Tuple{Tuple{Float64, Float64}, Float64},
         },
     }
+    primary_fix_params::String
     adjust_curriculum::String
     adjust_curriculum_timespans::Vector{
         NamedTuple{
@@ -194,6 +195,7 @@ mutable struct TrainParams
             Tuple{Tuple{Float64, Float64}, Float64},
         },
     }
+    adjust_fix_params::String
     validation_loss_every_n::Int64
     loss_function::NamedTuple{
         (:component_weights, :type_weights),
@@ -308,8 +310,10 @@ function TrainParams(;
     lb_loss = 0.0,
     primary_curriculum = "individual faults",
     primary_curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
+    primary_fix_params = "none", #"initializer+observation"
     adjust_curriculum = "simultaneous",
     adjust_curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
+    adjust_fix_params = "none",  #"initializer+observation"
     validation_loss_every_n = 100,
     loss_function = (
         component_weights = (
@@ -379,8 +383,10 @@ function TrainParams(;
         lb_loss,
         primary_curriculum,
         primary_curriculum_timespans,
+        primary_fix_params,
         adjust_curriculum,
         adjust_curriculum_timespans,
+        adjust_fix_params,
         validation_loss_every_n,
         loss_function,
         rng_seed,

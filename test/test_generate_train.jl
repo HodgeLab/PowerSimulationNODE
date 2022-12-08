@@ -137,15 +137,17 @@ end
         optimizer = (
             sensealg = "Zygote",
             primary = "Adam", #"Bfgs", "Adam"
-            primary_η = 0.000001,
+            primary_η = 0.001,
             primary_maxiters = 6,
             adjust = "nothing",    #"nothing, Bfgs"
-            adjust_initial_stepnorm = 0.001,  #ignored for LBfgs
+            adjust_initial_stepnorm = 0.00001,  #ignored for LBfgs
             adjust_maxiters = 10,   #doesn't reflect properly TODO 
         ),
         scaling_limits = (input_limits = (-1.0, 1.0), target_limits = (-1.0, 1.0)),
-        primary_curriculum = "individual faults x3",
+        primary_curriculum = "simultaneous",
+        primary_fix_params = "initializer+observation", #"none" , "initializer", "initializer+observation"
         adjust_curriculum = "simultaneous",
+        adjust_fix_params = "initializer+observation",
     )
     try
         generate_and_train_test(p)
