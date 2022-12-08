@@ -174,7 +174,7 @@ function (s::SteadyStateNeuralODE)(
             ss_solution.u[1:(end - 2)],
             (tsteps[1], tsteps[end]),
             p;
-            #tstops = tstops,
+            tstops = tstops,
             saveat = tsteps,
         )
         sol = OrdinaryDiffEq.solve(prob_dyn, s.dyn_solver; s.kwargs...)
