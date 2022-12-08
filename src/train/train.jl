@@ -462,10 +462,13 @@ function train(params::TrainParams)
         @info "\n number of stable training samples: $n_samples"
 
         if isempty(params.p_start)
-            θ = p_nn_init
+            p_full, _ = Flux.destructure(surrogate)
         else
-            θ = params.p_start
+            @assert length(p_train) == length(params.p_start)
+            p_full = params.p_start
         end
+        p_fixed, p_train, p_map =
+            _initialize_params(params.primary_fix_params, p_full, surrogate)
         total_time = @elapsed begin
             #PRIMARY OPTIMIZATION (usually ADAM)
             primary_train_details = params.primary_curriculum_timespans
@@ -489,7 +492,9 @@ function train(params::TrainParams)
 
             for group in primary_train_groups
                 res, output = _train(
-                    θ,
+                    p_train,
+                    p_fixed,
+                    p_map,
                     surrogate,
                     θ_ranges,
                     connecting_branches,
@@ -504,11 +509,14 @@ function train(params::TrainParams)
                     primary_per_solve_max_epochs,
                     output,
                 )
-                θ = res.u
+                p_train = res.u
             end
 
+            p_full = vcat(p_fixed, p_train)[p_map]
             #ADJUST OPTIMIZATION (usually BFGS)
             if !(params.optimizer.adjust == "nothing")
+                p_fixed, p_train, p_map =
+                    _initialize_params(params.adjust_fix_params, p_full, surrogate)
                 adjust_train_details = params.adjust_curriculum_timespans
                 adjust_timespan_indices =
                     collect(1:length(params.adjust_curriculum_timespans))
@@ -531,7 +539,9 @@ function train(params::TrainParams)
 
                 for group in adjust_train_groups
                     res, output = _train(
-                        θ,
+                        p_train,
+                        p_fixed,
+                        p_map,
                         surrogate,
                         θ_ranges,
                         connecting_branches,
@@ -546,15 +556,16 @@ function train(params::TrainParams)
                         adjust_per_solve_max_epochs,
                         output,
                     )
-                    θ = res.u
+                    p_train = res.u
                 end
+                p_full = vcat(p_fixed, p_train)[p_map]
             end
         end
         output["total_time"] = total_time
 
         output["final_loss"] = evaluate_loss(
             sys_validation,
-            θ,
+            p_full,
             validation_dataset,
             params.validation_data,
             connecting_branches,
@@ -566,7 +577,7 @@ function train(params::TrainParams)
             @warn "FORCE GC!"
         end
         _capture_output(output, params.output_data_path, params.train_id)
-        return true, θ
+        return true, p_full
     catch e
         @error "Error in try block of train(): " exception = (e, catch_backtrace())
         if params.force_gc == true
@@ -579,7 +590,9 @@ function train(params::TrainParams)
 end
 
 function _train(
-    θ::Vector{Float32},
+    p_train::Vector{Float32},
+    p_fixed::Vector{Float32},
+    p_map::Vector{Int64},
     surrogate::SteadyStateNeuralODE,
     θ_ranges::Dict{String, UnitRange{Int64}},
     connecting_branches::Vector{Tuple{String, Symbol}},
@@ -602,7 +615,8 @@ function _train(
     per_solve_max_epochs::Int,
     output::Dict{String, Any},
 )
-    @warn "Starting value of parameters: $θ"
+    @warn "Starting value of trainable parameters: $p_train"
+    @warn "Starting value of fixed parameters: $p_fixed"
     train_loader =
         Flux.Data.DataLoader(group; batchsize = 1, shuffle = true, partial = true)
     outer_loss_function = instantiate_outer_loss_function(
@@ -610,16 +624,18 @@ function _train(
         train_dataset,
         exogenous_input_functions,
         train_details,
+        p_fixed,
+        p_map,
         params,
     )
 
     sensealg = instantiate_sensealg(params.optimizer)
     optfun = Optimization.OptimizationFunction(
-        (θ, P, vector_fault_timespan_index) ->
-            outer_loss_function(θ, vector_fault_timespan_index),
+        (p_train, P, vector_fault_timespan_index) ->
+            outer_loss_function(p_train, vector_fault_timespan_index),
         sensealg,
     )
-    optprob = Optimization.OptimizationProblem(optfun, θ)
+    optprob = Optimization.OptimizationProblem(optfun, p_train)
 
     cb = instantiate_cb!(
         output,
@@ -628,16 +644,18 @@ function _train(
         sys_validation,
         connecting_branches,
         surrogate,
+        p_fixed,
+        p_map,
         θ_ranges,
     )
 
     #Calculate loss before training
-    #=     loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index_vector =
-            outer_loss_function(θ, [(1, 1)])
-        @warn loss 
-        @warn loss_initialization
-        @warn loss_dynamic 
-        cb(θ, loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index) =#
+    #=         loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index_vector =
+                outer_loss_function(p_train, [(1, 1)])
+            @warn loss 
+            @warn loss_initialization
+            @warn loss_dynamic 
+            cb(p_train, loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index_vector)  =#
     @warn "Starting full train: \n # of iterations per epoch: $(length(group)) \n # of epochs per solve: $per_solve_max_epochs \n max # of iterations for solve: $(per_solve_max_epochs*length(group))"
     timing_stats = @timed Optimization.solve(
         optprob,
@@ -666,6 +684,43 @@ function _train(
         @warn "stopped by?: $(res.original.stopped_by)"
     end
     return res, output
+end
+
+function _initialize_params(
+    p_fixed::String,
+    p_full::Vector{Float32},
+    surrogate::SteadyStateNeuralODE,
+)
+    total_length = length(p_full)
+    initializer_length = surrogate.len
+    node_length = surrogate.len2
+    observation_length = total_length - initializer_length - node_length
+    if p_fixed == "initializer+observation"
+        p_fixed = vcat(
+            p_full[1:initializer_length],
+            p_full[(initializer_length + node_length + 1):total_length],
+        )
+        p_train = p_full[(initializer_length + 1):(initializer_length + node_length)]
+        p_map = vcat(
+            1:initializer_length,
+            (total_length - node_length + 1):total_length,
+            (initializer_length + 1):(initializer_length + observation_length),
+        )  #WRONG?
+        return p_fixed, p_train, p_map
+    elseif p_fixed == "initializer"
+        p_fixed = p_full[1:initializer_length]
+        p_train = p_full[(initializer_length + 1):end]
+        p_map = collect(1:total_length)
+        return p_fixed, p_train, p_map
+    elseif p_fixed == "none"
+        p_fixed = Float32[]
+        p_train = p_full
+        p_map = collect(1:length(p_full))
+        return p_fixed, p_train, p_map
+    else
+        @error "invalid entry for parameter p_fixed which indicates which types of parameters should be held constant"
+        return false
+    end
 end
 
 function _generate_training_groups(fault_index, timespan_index, curriculum)
