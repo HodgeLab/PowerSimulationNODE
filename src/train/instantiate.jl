@@ -574,8 +574,11 @@ function _outer_loss_function(
         ii0 = train_dataset[fault_index].imag_current[1]
 
         tsteps = train_dataset[fault_index].tsteps
-        tstops = train_dataset[fault_index].tstops
-
+        if params.force_tstops == true
+            tstops = train_dataset[fault_index].tstops
+        else
+            tstops = []
+        end
         index_subset = _find_subset_batching(tsteps, train_details[timespan_index])
         real_current = train_dataset[fault_index].real_current
         real_current_subset = real_current[:, index_subset]
