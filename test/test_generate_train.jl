@@ -10,10 +10,37 @@ function generate_and_train_test(p)
     input_param_file = joinpath(p.base_path, "input_data", "input_test1.json")
     PowerSimulationNODE.serialize(p, input_param_file)
     visualize_training(input_param_file, skip = 1)
-    #animate_training(input_param_file, skip = 1)       #TODO - commented to make test pass - process failing
+    #animate_training(input_param_file, skip = 1)       #TODO - internal bug in animation
     a = generate_summary(joinpath(p.base_path, "output_data"))
     pp = visualize_summary(a)
     print_high_level_output_overview(a, p.base_path)
+
+    #θ_ranges is needed to split the full parameter vector (θ) into the parts of the surrogate.
+    θ_ranges = JSON3.read(
+        read(joinpath(p.base_path, "output_data", p.train_id, "high_level_outputs")),
+        Dict{String, Any},
+    )["θ_ranges"]
+    @warn θ_ranges
+
+    #Plot real and imag current for a full dataset  (TODO- document)
+    ps = visualize_loss(
+        System(p.surrogate_system_path),
+        θ,
+        Serialization.deserialize(p.validation_data_path),
+        p.validation_data,
+        Serialization.deserialize(p.data_collection_location_path)[2],
+        θ_ranges,
+    )
+
+    #Evaluate loss metrics for a full dataset 
+    _ = evaluate_loss(
+        System(p.surrogate_system_path),
+        θ,
+        Serialization.deserialize(p.validation_data_path),
+        p.validation_data,
+        Serialization.deserialize(p.data_collection_location_path)[2],
+        θ_ranges,
+    )
 end
 
 function _generic_test_setup()
@@ -129,7 +156,7 @@ end
             σ2_initialization = 0.0,
         ),
         model_observation = (
-            type = "dense",
+            type = "dense", # "DirectObservation",
             n_layer = 0,
             width_layers = 4,
             activation = "relu",
@@ -137,7 +164,7 @@ end
         optimizer = (
             sensealg = "Zygote",
             primary = "Adam", #"Bfgs", "Adam"
-            primary_η = 0.001,
+            primary_η = 0.0000000001,
             primary_maxiters = 6,
             adjust = "nothing",    #"nothing, Bfgs"
             adjust_initial_stepnorm = 0.00001,  #ignored for LBfgs
@@ -148,6 +175,7 @@ end
         primary_fix_params = "initializer+observation", #"none" , "initializer", "initializer+observation"
         adjust_curriculum = "simultaneous",
         adjust_fix_params = "initializer+observation",
+        force_tstops = true,
     )
     try
         generate_and_train_test(p)

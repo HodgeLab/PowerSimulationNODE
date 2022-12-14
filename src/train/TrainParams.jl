@@ -207,6 +207,7 @@ mutable struct TrainParams
             NamedTuple{(:rmse, :mae), Tuple{Float64, Float64}},
         },
     }
+    force_tstops::Bool
     rng_seed::Int64
     output_mode_skip::Int64
     train_time_limit_seconds::Int64
@@ -323,6 +324,7 @@ function TrainParams(;
         ),
         type_weights = (rmse = 1.0, mae = 0.0),
     ),
+    force_tstops = true,
     rng_seed = 123,
     output_mode_skip = 1,
     train_time_limit_seconds = 1e9,
@@ -389,6 +391,7 @@ function TrainParams(;
         adjust_fix_params,
         validation_loss_every_n,
         loss_function,
+        force_tstops,
         rng_seed,
         output_mode_skip,
         train_time_limit_seconds,

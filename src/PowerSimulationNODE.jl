@@ -22,6 +22,8 @@ export build_subsystems
 export generate_train_data
 export generate_validation_data
 export generate_test_data
+export evaluate_loss
+export visualize_loss
 
 import Arrow
 import Dates

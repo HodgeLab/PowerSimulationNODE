@@ -4,6 +4,7 @@ using Revise
 #using PowerFlows
 using Random
 using OrdinaryDiffEq
+using JSON3
 using PowerSimulationNODE
 using PowerSystems
 using PowerSimulationsDynamics
@@ -22,18 +23,18 @@ const PSID = PowerSimulationsDynamics
 const PSIDS = PowerSimulationsDynamicsSurrogates
 
 logger = PSY.configure_logging(;
-    console_level = PowerSimulationNODE.NODE_CONSOLE_LEVEL, # Logging.Error
+    console_level = PowerSimulationNODE.NODE_CONSOLE_LEVEL,  # Logging.Error
     file_level = PowerSimulationNODE.NODE_FILE_LEVEL,
 )
 with_logger(logger) do
-    #include("test_NLsolve.jl")     #TODO - test initialization of NODE such that NLsolve converges.       
+    include("test_NLsolve.jl")
     include("test_generate_train.jl")
     include("test_hpc.jl")
     include("test_serialize.jl")
     include("test_prettytable.jl")
     include("test_build_param_lists.jl")
     include("test_psidsurrogate_vs_trainsurrogate.jl")
-    #include("test_relative_angle.jl")   #TODO - show that the surrogate doesn't depend on absolute angle values.
+    include("test_relative_angle.jl")
 end
 flush(logger)
 close(logger)

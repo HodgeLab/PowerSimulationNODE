@@ -82,25 +82,43 @@ function instantiate_surrogate_psid(
     model_initializer =
         _instantiate_model_initializer(params, n_ports, scaling_extrema, flux = false)     #scaling_extrema not used in PSID NNs
     model_node = _instantiate_model_node(params, n_ports, scaling_extrema, flux = false)   #scaling_extrema not used in PSID NNs
-    model_observation =
-        _instantiate_model_observation(params, n_ports, scaling_extrema, flux = false)     #scaling_extrema not used in PSID NNs
 
-    surr = PSIDS.SteadyStateNODE(
-        name = source_name,
-        initializer_structure = model_initializer,
-        node_structure = model_node,
-        observer_structure = model_observation,
-        input_min = scaling_extrema["input_min"],
-        input_max = scaling_extrema["input_max"],
-        input_lims = params.scaling_limits.input_limits,
-        target_min = scaling_extrema["target_min"],
-        target_max = scaling_extrema["target_max"],
-        target_lims = params.scaling_limits.target_limits,
-        base_power = 100.0,
-        ext = Dict{String, Any}(),
-    )
+    if params.model_observation.type == "dense"   #If the type is "dense", instantiate SteadyStateNODEObs
+        model_observation =
+            _instantiate_model_observation(params, n_ports, scaling_extrema, flux = false)     #scaling_extrema not used in PSID NNs    
+        surr = PSIDS.SteadyStateNODEObs(
+            name = source_name,
+            initializer_structure = model_initializer,
+            node_structure = model_node,
+            observer_structure = model_observation,
+            input_min = scaling_extrema["input_min"],
+            input_max = scaling_extrema["input_max"],
+            input_lims = params.scaling_limits.input_limits,
+            target_min = scaling_extrema["target_min"],
+            target_max = scaling_extrema["target_max"],
+            target_lims = params.scaling_limits.target_limits,
+            base_power = 100.0,
+            ext = Dict{String, Any}(),
+        )
+    elseif params.model_observation.type == "DirectObservation" #If the type is "DirectObservation", instantiate SteadyStateNODE
+        surr = PSIDS.SteadyStateNODE(
+            name = source_name,
+            initializer_structure = model_initializer,
+            node_structure = model_node,
+            input_min = scaling_extrema["input_min"],
+            input_max = scaling_extrema["input_max"],
+            input_lims = params.scaling_limits.input_limits,
+            target_min = scaling_extrema["target_min"],
+            target_max = scaling_extrema["target_max"],
+            target_lims = params.scaling_limits.target_limits,
+            base_power = 100.0,
+            ext = Dict{String, Any}(),
+        )
+    else
+        @error "Invalid parameter for observation function"
+    end
     display(surr)
-    @info "SteadyStateNODE: $(surr)\n"
+    @info "Surrogate: $(surr)\n"
     return surr
 end
 
@@ -108,8 +126,6 @@ function instantiate_surrogate_flux(
     params::TrainParams,
     n_ports::Int64,
     scaling_extrema::Dict{String, Vector{Float64}},
-    #=     connecting_branches_names::Vector{Tuple{String, Symbol}},
-        sys::PSY.System, =#
 )
     steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
     dynamic_solver = instantiate_solver(params.dynamic_solver)
@@ -128,9 +144,6 @@ function instantiate_surrogate_flux(
     @info "number of parameters: $(length(Flux.destructure(model_node)[1]))\n"
     @info "Observation structure: $(model_observation)\n"
     @info "number of parameters: $(length(Flux.destructure(model_observation)[1]))\n"
-    # connecting_branches =
-    #     [PSY.get_component(PSY.ACBranch, sys, n[1]) for n in connecting_branches_names]
-    # branch_polarity = [n[2] for n in connecting_branches_names]
     dynamic_reltol = params.dynamic_solver.reltol
     dynamic_abstol = params.dynamic_solver.abstol
     dynamic_maxiters = params.dynamic_solver.maxiters
@@ -141,8 +154,6 @@ function instantiate_surrogate_flux(
         model_initializer,
         model_node,
         model_observation,
-        # connecting_branches,
-        # branch_polarity,
         steadystate_solver,
         dynamic_solver,
         steadystate_maxiters,
@@ -464,6 +475,20 @@ function _instantiate_model_observation(params, n_ports, scaling_extrema; flux =
                 )
             end
         end
+    elseif type == "DirectObservation"
+        if flux == true
+            push!(vector_layers, (x) -> (x[1:(n_ports * SURROGATE_OUTPUT_DIM), :]))
+            push!(
+                vector_layers,
+                (x) -> (
+                    (x .- target_lims[1]) .* (target_max .- target_min) ./
+                    (target_lims[2] .- target_lims[1]) .+ target_min
+                ),
+            )
+        else
+            @error "DirectObservation incompatible with instantiating observation for PSID"
+            @assert false
+        end
     elseif type == "OutputParams"
         @error "OutputParams layer for inititalizer not yet implemented"
     end
@@ -574,8 +599,11 @@ function _outer_loss_function(
         ii0 = train_dataset[fault_index].imag_current[1]
 
         tsteps = train_dataset[fault_index].tsteps
-        tstops = train_dataset[fault_index].tstops
-
+        if params.force_tstops == true
+            tstops = train_dataset[fault_index].tstops
+        else
+            tstops = []
+        end
         index_subset = _find_subset_batching(tsteps, train_details[timespan_index])
         real_current = train_dataset[fault_index].real_current
         real_current_subset = real_current[:, index_subset]
@@ -712,7 +740,6 @@ function _cb!(
             validation_dataset,
             params.validation_data,
             connecting_branches,
-            surrogate,
             θ_ranges,
         )
 
