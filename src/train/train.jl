@@ -223,19 +223,97 @@ function _single_perturbation_to_function_of_time(
     return (Vr_func, Vi_func)
 end
 
-function evaluate_loss(
-    sys,
-    θ,
-    groundtruth_dataset,
-    params,
-    connecting_branches,
-    surrogate,
-    θ_ranges,
-)
-    for s in PSY.get_components(PSIDS.SteadyStateNODE, sys)
+function visualize_loss(sys, θ, groundtruth_dataset, params, connecting_branches, θ_ranges)
+    for s in PSY.get_components(PSIDS.SteadyStateNODEObs, sys)
         PSIDS.set_initializer_parameters!(s, θ[θ_ranges["initializer_range"]])
         PSIDS.set_node_parameters!(s, θ[θ_ranges["node_range"]])
         PSIDS.set_observer_parameters!(s, θ[θ_ranges["observation_range"]])
+    end
+
+    for s in PSY.get_components(PSIDS.SteadyStateNODE, sys)
+        PSIDS.set_initializer_parameters!(s, θ[θ_ranges["initializer_range"]])
+        PSIDS.set_node_parameters!(s, θ[θ_ranges["node_range"]])
+    end
+    operating_points = params.operating_points
+    perturbations = params.perturbations
+    generate_data_params = params.params
+    surrogate_dataset = PSIDS.generate_surrogate_data(
+        sys,
+        sys,
+        perturbations,
+        operating_points,
+        PSIDS.SteadyStateNODEDataParams(location_of_data_collection = connecting_branches),
+        generate_data_params,
+        dataset_aux = groundtruth_dataset,
+    )
+    @assert length(surrogate_dataset) == length(groundtruth_dataset)
+    plots = []
+    for ix in eachindex(surrogate_dataset, groundtruth_dataset)
+        if groundtruth_dataset[ix].stable == true
+            if surrogate_dataset[ix].stable == false
+                @error "Groundtruth data is stable but surrogate is unstable for entry $ix of the dataset"
+            elseif surrogate_dataset[ix].stable == true
+                p1 = plot(
+                    surrogate_dataset[ix].tsteps,
+                    surrogate_dataset[ix].surrogate_real_voltage,
+                    label = "Vr (surr)",
+                )
+                plot!(
+                    p1,
+                    groundtruth_dataset[ix].tsteps,
+                    groundtruth_dataset[ix].surrogate_real_voltage,
+                    label = "Vr (true)",
+                )
+                p2 = plot(
+                    surrogate_dataset[ix].tsteps,
+                    surrogate_dataset[ix].surrogate_imag_voltage,
+                    label = "Vi (surr)",
+                )
+                plot!(
+                    p2,
+                    groundtruth_dataset[ix].tsteps,
+                    groundtruth_dataset[ix].surrogate_imag_voltage,
+                    label = "Vi (true)",
+                )
+                p3 = plot(
+                    surrogate_dataset[ix].tsteps,
+                    surrogate_dataset[ix].real_current,
+                    label = "Ir (surr)",
+                )
+                plot!(
+                    p3,
+                    groundtruth_dataset[ix].tsteps,
+                    groundtruth_dataset[ix].real_current,
+                    label = "Ir (true)",
+                )
+                p4 = plot(
+                    surrogate_dataset[ix].tsteps,
+                    surrogate_dataset[ix].imag_current,
+                    label = "Ii (surr)",
+                )
+                plot!(
+                    p4,
+                    groundtruth_dataset[ix].tsteps,
+                    groundtruth_dataset[ix].imag_current,
+                    label = "Ii (true)",
+                )
+                push!(plots, plot(p1, p2, p3, p4))
+            end
+        end
+    end
+    return plots
+end
+
+function evaluate_loss(sys, θ, groundtruth_dataset, params, connecting_branches, θ_ranges)
+    for s in PSY.get_components(PSIDS.SteadyStateNODEObs, sys)
+        PSIDS.set_initializer_parameters!(s, θ[θ_ranges["initializer_range"]])
+        PSIDS.set_node_parameters!(s, θ[θ_ranges["node_range"]])
+        PSIDS.set_observer_parameters!(s, θ[θ_ranges["observation_range"]])
+    end
+
+    for s in PSY.get_components(PSIDS.SteadyStateNODE, sys)
+        PSIDS.set_initializer_parameters!(s, θ[θ_ranges["initializer_range"]])
+        PSIDS.set_node_parameters!(s, θ[θ_ranges["node_range"]])
     end
     operating_points = params.operating_points
     perturbations = params.perturbations
@@ -407,6 +485,8 @@ function train(params::TrainParams)
     @info "Length of actual test dataset (stable conditions):",
     length(filter(x -> x.stable == true, test_dataset))
 
+    @info "length(tstops) in first train condition: $(length(train_dataset[1].tstops))"
+    @info "length(tsteps) in first train condition: $(length(train_dataset[1].tsteps))"
     n_ports = length(connecting_branches)
     @info "Surrogate contains $n_ports ports"
     output = _initialize_training_output_dict()
@@ -433,6 +513,7 @@ function train(params::TrainParams)
         )
         PSY.add_component!(sys_validation, psid_surrogate, sources[1])
         display(sys_validation)
+        PSY.to_json(sys_validation, params.surrogate_system_path, force = true) #Replace validation_system with a system that has the surrogate
 
         #INSTANTIATE 
         surrogate = instantiate_surrogate_flux(params, n_ports, scaling_extrema)
@@ -569,7 +650,6 @@ function train(params::TrainParams)
             validation_dataset,
             params.validation_data,
             connecting_branches,
-            surrogate,
             θ_ranges,
         )
         if params.force_gc == true
