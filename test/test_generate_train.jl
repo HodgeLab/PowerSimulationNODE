@@ -148,8 +148,9 @@ end
             width_layers = 4,
             activation = "hardtanh",
         ),
-        model_node = (
+        model_dynamic = (
             type = "dense",
+            hidden_states = 5,
             n_layer = 1,
             width_layers = 4,
             activation = "relu",

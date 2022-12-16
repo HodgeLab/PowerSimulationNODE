@@ -98,7 +98,7 @@ end
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
 
     p = TrainParams(
-        model_node = (
+        model_dynamic = (
             type = "dense",
             n_layer = 1,
             width_layers = 4,
@@ -224,7 +224,7 @@ end
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
 
     p = TrainParams(
-        model_node = (
+        model_dynamic = (
             type = "dense",
             n_layer = 1,
             width_layers = 4,

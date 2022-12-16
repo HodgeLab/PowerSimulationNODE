@@ -41,8 +41,9 @@
     p = TrainParams(
         base_path = joinpath(pwd(), "test"),
         surrogate_buses = [2],
-        model_node = (
+        model_dynamic = (
             type = "dense",
+            hidden_states = 3,
             n_layer = 1,
             width_layers = 4,
             activation = "hardtanh",
@@ -83,7 +84,6 @@
         ),
         system_path = joinpath(pwd(), "test", "system_data", "test.json"),
         rng_seed = 4,
-        hidden_states = 3,
         dynamic_solver = (solver = "Rodas5", reltol = 1e-6, abstol = 1e-6, maxiters = 1e5),
     )
 
@@ -253,8 +253,9 @@ end
     p = TrainParams(
         base_path = joinpath(pwd(), "test"),
         surrogate_buses = [2],
-        model_node = (
+        model_dynamic = (
             type = "dense",
+            hidden_states = 3,
             n_layer = 1,
             width_layers = 4,
             activation = "hardtanh",
@@ -295,7 +296,6 @@ end
         ),
         system_path = joinpath(pwd(), "test", "system_data", "test.json"),
         rng_seed = 4,
-        hidden_states = 3,
         dynamic_solver = (solver = "Rodas5", reltol = 1e-6, abstol = 1e-6, maxiters = 1e5),
     )
 

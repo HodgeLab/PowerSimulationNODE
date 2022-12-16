@@ -28,7 +28,7 @@ logger = PSY.configure_logging(;
 )
 with_logger(logger) do
     include("test_NLsolve.jl")
-    include("test_generate_train.jl")
+    #include("test_generate_train.jl")
     include("test_hpc.jl")
     include("test_serialize.jl")
     include("test_prettytable.jl")

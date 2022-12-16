@@ -33,20 +33,20 @@
         PSIDS.GenerateDataParams,
     },
     }`: test_data describes the validation dataset. No system option because test data always comes from full system. 
-- `hidden_states::Int64`: The number of surrogate states. User defined depending on complexity of underlying model.
 - `model_initializer::NamedTuple{
     (:type, :n_layer, :width_layers, :activation),
     Tuple{String, Int64, Int64, String},
     }`: Parameters which determine the structure of the initializer NN. `type="dense"`. `n_layer` is the number of hidden layers. `width_layers` is the width of hidden layers. `activation=["tanh", "relu"]` in the activation function 
-- `model_node::NamedTuple{
+- `model_dynamic::NamedTuple{
     (
         :type,
+        :hidden_states,
         :n_layer,
         :width_layers,
         :activation,
         :σ2_initialization,
     ),
-    Tuple{String, Int64, Int64, String, Float64},
+    Tuple{String, Int64, Int64, Int64, String, Float64},
     }`: Parameters which determine the structure of the neural ODE. `type="dense"`. `n_layer` is the number of hidden layers. `width_layers` is the width of hidden layers. `activation=["tanh", "relu"]` in the activation function. 
     `σ2_initialization` is the variance of the initial params for the node model. Set `σ2_initialization = 0.0` to use the default flux initialization.
 - `model_observation::NamedTuple{
@@ -104,7 +104,6 @@
 - `validation_data_path::String`: path to validation data.
 - `test_data_path::String`: path to test_data. 
 - `output_data_path:String`: From `base_path`, the directory for saving output data.
-- `force_gc:Bool`: `true`: After training and before writing outputs to file, force GC.gc() in order to alleviate out-of-memory problems on hpc.
 """
 mutable struct TrainParams
     train_id::String
@@ -137,14 +136,13 @@ mutable struct TrainParams
             PSIDS.GenerateDataParams,
         },
     }
-    hidden_states::Int64
     model_initializer::NamedTuple{
         (:type, :n_layer, :width_layers, :activation),
         Tuple{String, Int64, Int64, String},
     }
-    model_node::NamedTuple{
-        (:type, :n_layer, :width_layers, :activation, :σ2_initialization),
-        Tuple{String, Int64, Int64, String, Float64},
+    model_dynamic::NamedTuple{
+        (:type, :hidden_states, :n_layer, :width_layers, :activation, :σ2_initialization),
+        Tuple{String, Int64, Int64, Int64, String, Float64},
     }
     model_observation::NamedTuple{
         (:type, :n_layer, :width_layers, :activation),
@@ -212,7 +210,6 @@ mutable struct TrainParams
     validation_data_path::String
     test_data_path::String
     output_data_path::String
-    force_gc::Bool
 end
 
 StructTypes.StructType(::Type{TrainParams}) = StructTypes.Mutable()
@@ -263,15 +260,15 @@ function TrainParams(;
         perturbations = [[PSIDS.VStep(source_name = "InfBus")]],    #To do - make this a branch impedance double 
         params = PSIDS.GenerateDataParams(),
     ),
-    hidden_states = 5,
     model_initializer = (
         type = "dense",     #OutputParams (train initial conditions)
         n_layer = 0,
         width_layers = 4,
         activation = "hardtanh",
     ),
-    model_node = (
+    model_dynamic = (
         type = "dense",
+        hidden_states = 5,
         n_layer = 1,
         width_layers = 4,
         activation = "hardtanh",
@@ -288,7 +285,7 @@ function TrainParams(;
         abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
         maxiters = 5,
     ),
-    dynamic_solver = (solver = "Rodas5", reltol = 1e-6, abstol = 1e-6, maxiters = 1000),
+    dynamic_solver = (solver = "Rodas5", reltol = 1e-6, abstol = 1e-6, maxiters = 1000),     
     optimizer = (
         sensealg = "Zygote",
         primary = "Adam",
@@ -356,7 +353,6 @@ function TrainParams(;
         "test_data_$(test_data.id)",
     ),
     output_data_path = joinpath(base_path, "output_data"),
-    force_gc = true,
 )
     TrainParams(
         train_id,
@@ -364,9 +360,8 @@ function TrainParams(;
         train_data,
         validation_data,
         test_data,
-        hidden_states,
         model_initializer,
-        model_node,
+        model_dynamic,
         model_observation,
         steady_state_solver,
         dynamic_solver,
@@ -394,7 +389,6 @@ function TrainParams(;
         validation_data_path,
         test_data_path,
         output_data_path,
-        force_gc,
     )
 end
 

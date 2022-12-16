@@ -9,9 +9,9 @@
         p = TrainParams(
             base_path = joinpath(pwd(), "test"),
             surrogate_buses = [2],
-            hidden_states = h,
-            model_node = (
+            model_dynamic = (
                 type = "dense",
+                hidden_states = h,
                 n_layer = 2,
                 width_layers = 10,
                 activation = "hardtanh",

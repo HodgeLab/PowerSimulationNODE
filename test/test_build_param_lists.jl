@@ -10,7 +10,7 @@ try
     no_change_params[:lb_loss] = 100.0
 
     #INDICATE PARAMETES TO ITERATE OVER COMBINATORIALLY 
-    change_params[:hidden_states] = [1, 2, 3]
+    change_params[:lb_loss] = [1.0, 2.0, 3.0]
     change_params[:rng_seed] = [1, 2, 3]
 
     build_params_list!(params_data, no_change_params, change_params)

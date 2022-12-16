@@ -652,18 +652,11 @@ function train(params::TrainParams)
             connecting_branches,
             θ_ranges,
         )
-        if params.force_gc == true
-            GC.gc()     #Run garbage collector manually before file write.
-            @warn "FORCE GC!"
-        end
+
         _capture_output(output, params.output_data_path, params.train_id)
         return true, p_full
     catch e
         @error "Error in try block of train(): " exception = (e, catch_backtrace())
-        if params.force_gc == true
-            GC.gc()     #Run garbage collector manually before file write.
-            @warn "FORCE GC!"
-        end
         _capture_output(output, params.output_data_path, params.train_id)
         return false, θ
     end

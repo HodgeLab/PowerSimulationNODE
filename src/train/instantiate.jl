@@ -81,7 +81,8 @@ function instantiate_surrogate_psid(
 )
     model_initializer =
         _instantiate_model_initializer(params, n_ports, scaling_extrema, flux = false)     #scaling_extrema not used in PSID NNs
-    model_node = _instantiate_model_node(params, n_ports, scaling_extrema, flux = false)   #scaling_extrema not used in PSID NNs
+    model_dynamic =
+        _instantiate_model_dynamic(params, n_ports, scaling_extrema, flux = false)   #scaling_extrema not used in PSID NNs
 
     if params.model_observation.type == "dense"   #If the type is "dense", instantiate SteadyStateNODEObs
         model_observation =
@@ -89,7 +90,7 @@ function instantiate_surrogate_psid(
         surr = PSIDS.SteadyStateNODEObs(
             name = source_name,
             initializer_structure = model_initializer,
-            node_structure = model_node,
+            node_structure = model_dynamic,
             observer_structure = model_observation,
             input_min = scaling_extrema["input_min"],
             input_max = scaling_extrema["input_max"],
@@ -104,7 +105,7 @@ function instantiate_surrogate_psid(
         surr = PSIDS.SteadyStateNODE(
             name = source_name,
             initializer_structure = model_initializer,
-            node_structure = model_node,
+            node_structure = model_dynamic,
             input_min = scaling_extrema["input_min"],
             input_max = scaling_extrema["input_max"],
             input_lims = (NN_INPUT_LIMITS.min, NN_INPUT_LIMITS.max),
@@ -131,17 +132,18 @@ function instantiate_surrogate_flux(
     dynamic_solver = instantiate_solver(params.dynamic_solver)
     model_initializer =
         _instantiate_model_initializer(params, n_ports, scaling_extrema, flux = true)
-    model_node = _instantiate_model_node(params, n_ports, scaling_extrema, flux = true)
+    model_dynamic =
+        _instantiate_model_dynamic(params, n_ports, scaling_extrema, flux = true)
     model_observation =
         _instantiate_model_observation(params, n_ports, scaling_extrema, flux = true)
 
     display(model_initializer)
-    display(model_node)
+    display(model_dynamic)
     display(model_observation)
     @info "Iniitalizer structure: $(model_initializer)\n"
     @info "number of parameters: $(length(Flux.destructure(model_initializer)[1]))\n"
-    @info "NODE structure: $(model_node)\n"
-    @info "number of parameters: $(length(Flux.destructure(model_node)[1]))\n"
+    @info "NODE structure: $(model_dynamic)\n"
+    @info "number of parameters: $(length(Flux.destructure(model_dynamic)[1]))\n"
     @info "Observation structure: $(model_observation)\n"
     @info "number of parameters: $(length(Flux.destructure(model_observation)[1]))\n"
     dynamic_reltol = params.dynamic_solver.reltol
@@ -152,7 +154,7 @@ function instantiate_surrogate_flux(
 
     return SteadyStateNeuralODE(
         model_initializer,
-        model_node,
+        model_dynamic,
         model_observation,
         steadystate_solver,
         dynamic_solver,
@@ -166,7 +168,7 @@ end
 
 function _instantiate_model_initializer(params, n_ports, scaling_extrema; flux = true)
     initializer_params = params.model_initializer
-    hidden_states = params.hidden_states
+    hidden_states = params.model_dynamic.hidden_states
     type = initializer_params.type
     n_layer = initializer_params.n_layer
     width_layers = initializer_params.width_layers
@@ -258,9 +260,9 @@ function _instantiate_model_initializer(params, n_ports, scaling_extrema; flux =
     end
 end
 
-function _instantiate_model_node(params, n_ports, scaling_extrema; flux = true)
-    node_params = params.model_node
-    hidden_states = params.hidden_states
+function _instantiate_model_dynamic(params, n_ports, scaling_extrema; flux = true)
+    node_params = params.model_dynamic
+    hidden_states = node_params.hidden_states
     type = node_params.type
     n_layer = node_params.n_layer
     width_layers = node_params.width_layers
@@ -409,7 +411,7 @@ end
 
 function _instantiate_model_observation(params, n_ports, scaling_extrema; flux = true)
     observation_params = params.model_observation
-    hidden_states = params.hidden_states
+    hidden_states = params.model_dynamic.hidden_states
     type = observation_params.type
     n_layer = observation_params.n_layer
     width_layers = observation_params.width_layers
