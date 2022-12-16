@@ -100,6 +100,7 @@ end
     p = TrainParams(
         model_dynamic = (
             type = "dense",
+            hidden_states = 5, 
             n_layer = 1,
             width_layers = 4,
             activation = "hardtanh",
@@ -226,6 +227,7 @@ end
     p = TrainParams(
         model_dynamic = (
             type = "dense",
+            hidden_states = 5, 
             n_layer = 1,
             width_layers = 4,
             activation = "hardtanh",
