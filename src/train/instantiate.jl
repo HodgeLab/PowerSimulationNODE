@@ -93,10 +93,10 @@ function instantiate_surrogate_psid(
             observer_structure = model_observation,
             input_min = scaling_extrema["input_min"],
             input_max = scaling_extrema["input_max"],
-            input_lims = params.scaling_limits.input_limits,
+            input_lims = (NN_INPUT_LIMITS.min, NN_INPUT_LIMITS.max),
             target_min = scaling_extrema["target_min"],
             target_max = scaling_extrema["target_max"],
-            target_lims = params.scaling_limits.target_limits,
+            target_lims = (NN_TARGET_LIMITS.min, NN_TARGET_LIMITS.max),
             base_power = 100.0,
             ext = Dict{String, Any}(),
         )
@@ -107,10 +107,10 @@ function instantiate_surrogate_psid(
             node_structure = model_node,
             input_min = scaling_extrema["input_min"],
             input_max = scaling_extrema["input_max"],
-            input_lims = params.scaling_limits.input_limits,
+            input_lims = (NN_INPUT_LIMITS.min, NN_INPUT_LIMITS.max),
             target_min = scaling_extrema["target_min"],
             target_max = scaling_extrema["target_max"],
-            target_lims = params.scaling_limits.target_limits,
+            target_lims = (NN_TARGET_LIMITS.min, NN_TARGET_LIMITS.max),
             base_power = 100.0,
             ext = Dict{String, Any}(),
         )
@@ -172,10 +172,8 @@ function _instantiate_model_initializer(params, n_ports, scaling_extrema; flux =
     width_layers = initializer_params.width_layers
     input_min = scaling_extrema["input_min"]
     input_max = scaling_extrema["input_max"]
-    input_lims = params.scaling_limits.input_limits
     target_min = scaling_extrema["target_min"]
     target_max = scaling_extrema["target_max"]
-    target_lims = params.scaling_limits.target_limits
     if flux == true
         activation = activation_map(initializer_params.activation)
     else
@@ -190,11 +188,12 @@ function _instantiate_model_initializer(params, n_ports, scaling_extrema; flux =
                     vcat,
                     (x) -> (
                         (x - input_min[2]) / (input_max[2] - input_min[2]) *
-                        (input_lims[2] - input_lims[1]) + input_lims[1]
+                        (NN_INPUT_LIMITS[2] - NN_INPUT_LIMITS[1]) + NN_INPUT_LIMITS[1]
                     ),    #Only pass Vq (Vd=0 by definition)
                     (x) -> (
                         (x .- target_min) ./ (target_max .- target_min) .*
-                        (target_lims[2] .- target_lims[1]) .+ input_lims[1]
+                        (NN_TARGET_LIMITS[2] .- NN_TARGET_LIMITS[1]) .+
+                        NN_TARGET_LIMITS[1]
                     ),        #same as PSIDS.min_max_normalization
                 ),
             )
@@ -268,7 +267,6 @@ function _instantiate_model_node(params, n_ports, scaling_extrema; flux = true)
     σ2_initialization = node_params.σ2_initialization
     input_min = scaling_extrema["input_min"]
     input_max = scaling_extrema["input_max"]
-    input_lims = params.scaling_limits.input_limits
     if flux == true
         activation = activation_map(node_params.activation)
     else
@@ -284,7 +282,8 @@ function _instantiate_model_node(params, n_ports, scaling_extrema; flux = true)
                     (x) -> x,
                     (x) -> (
                         (x .- input_min) ./ (input_max .- input_min) .*
-                        (input_lims[2] .- input_lims[1]) .+ input_lims[1]
+                        (NN_INPUT_LIMITS[2] .- NN_INPUT_LIMITS[1]) .+
+                        NN_INPUT_LIMITS[1]
                     ),
                     (x) -> x,
                 ),
@@ -416,7 +415,6 @@ function _instantiate_model_observation(params, n_ports, scaling_extrema; flux =
     width_layers = observation_params.width_layers
     target_min = scaling_extrema["target_min"]
     target_max = scaling_extrema["target_max"]
-    target_lims = params.scaling_limits.target_limits
     if flux == true
         activation = activation_map(observation_params.activation)
     else
@@ -433,8 +431,8 @@ function _instantiate_model_observation(params, n_ports, scaling_extrema; flux =
                 push!(
                     vector_layers,
                     (x) -> (
-                        (x .- target_lims[1]) .* (target_max .- target_min) ./
-                        (target_lims[2] .- target_lims[1]) .+ target_min
+                        (x .- NN_TARGET_LIMITS[1]) .* (target_max .- target_min) ./
+                        (NN_TARGET_LIMITS[2] .- NN_TARGET_LIMITS[1]) .+ target_min
                     ),
                 )
             else
@@ -464,8 +462,8 @@ function _instantiate_model_observation(params, n_ports, scaling_extrema; flux =
                 push!(
                     vector_layers,
                     (x) -> (
-                        (x .- target_lims[1]) .* (target_max .- target_min) ./
-                        (target_lims[2] .- target_lims[1]) .+ target_min
+                        (x .- NN_TARGET_LIMITS[1]) .* (target_max .- target_min) ./
+                        (NN_TARGET_LIMITS[2] .- NN_TARGET_LIMITS[1]) .+ target_min
                     ),
                 )
             else
@@ -481,8 +479,8 @@ function _instantiate_model_observation(params, n_ports, scaling_extrema; flux =
             push!(
                 vector_layers,
                 (x) -> (
-                    (x .- target_lims[1]) .* (target_max .- target_min) ./
-                    (target_lims[2] .- target_lims[1]) .+ target_min
+                    (x .- NN_TARGET_LIMITS[1]) .* (target_max .- target_min) ./
+                    (NN_TARGET_LIMITS[2] .- NN_TARGET_LIMITS[1]) .+ target_min
                 ),
             )
         else

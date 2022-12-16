@@ -16,6 +16,8 @@ const SURROGATE_EXOGENOUS_INPUT_DIM = 2 #[Vr, Vi]
 const SURROGATE_SS_INPUT_DIM = 3    #[P, Q, V, θ]  --> changed to [Vq, Id, Iq] (Vq = 0 in local ref frame)
 const SURROGATE_OUTPUT_DIM = 2 #[Ir, Ii]
 const SURROGATE_N_REFS = 2
+const NN_INPUT_LIMITS = (min = -1.0, max = 1.0)
+const NN_TARGET_LIMITS = (min = -1.0, max = 1.0)
 
 const TIME_LIMIT_BUFFER_SECONDS = 2700 #45 minutes to compile Julia environment (before training) and capture output data (after training) before hpc process is killed externally 
 

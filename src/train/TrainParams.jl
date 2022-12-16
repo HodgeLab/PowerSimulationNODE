@@ -53,10 +53,6 @@
     (:type, :n_layer, :width_layers, :activation),
     Tuple{String, Int64, Int64, String, String},
     }`: Parameters which determine the structure of the observer NN. `type="dense"`. `n_layer` is the number of hidden layers. `width_layers` is the width of hidden layers. `activation=["tanh", "relu"]` in the activation function. 
-- `scaling_limits::NamedTuple{
-    (:input_limits, :target_limits),
-    Tuple{Tuple{Float64, Float64}, Tuple{Float64, Float64}},
-    }`: Determines the input and target minimum and maximum values to be used with min-max normalization. The minimum and maximum values for each input and target come from the train dataset. 
 - `steady_state_solver::NamedTuple{
     (:solver, :abstol, :maxiters),
     Tuple{String, Float64, Int64}},
@@ -153,10 +149,6 @@ mutable struct TrainParams
     model_observation::NamedTuple{
         (:type, :n_layer, :width_layers, :activation),
         Tuple{String, Int64, Int64, String},
-    }
-    scaling_limits::NamedTuple{
-        (:input_limits, :target_limits),
-        Tuple{Tuple{Float64, Float64}, Tuple{Float64, Float64}},
     }
     steady_state_solver::NamedTuple{
         (:solver, :abstol, :maxiters),
@@ -291,7 +283,6 @@ function TrainParams(;
         width_layers = 4,
         activation = "hardtanh",
     ),
-    scaling_limits = (input_limits = (-1.0, 1.0), target_limits = (-1.0, 1.0)),
     steady_state_solver = (
         solver = "SSRootfind",
         abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
@@ -377,7 +368,6 @@ function TrainParams(;
         model_initializer,
         model_node,
         model_observation,
-        scaling_limits,
         steady_state_solver,
         dynamic_solver,
         optimizer,
