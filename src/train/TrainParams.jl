@@ -4,95 +4,71 @@
 # Fields
 - `train_id::String`: id for the training instance, used for naming output data folder.
 - `surrogate_buses::Vector{Int64}`: The numbers of the buses which make up the portion of the system to be replaced with a surrogate.
-- `train_data::NamedTuple{
-    (:id, :operating_points, :perturbations, :params, :system),
-    Tuple{
-        String,
-        Vector{PSIDS.SurrogateOperatingPoint},
-        Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}},
-        PSIDS.GenerateDataParams,
-        String,
-    },
-    }`: train_data describes the training dataset. The `:system` field options are `"reduced"` and `"full"`. 
-- `validation_data::NamedTuple{
-    (:id, :operating_points, :perturbations, :params),
-    Tuple{
-        String,
-        Vector{PSIDS.SurrogateOperatingPoint},
-        Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}},
-        PSIDS.GenerateDataParams,
-    },
-    }`: validation_data describes the validation dataset. No system option because validation data always comes from full system. 
-
-- `test_data::NamedTuple{
-    (:id, :operating_points, :perturbations, :params),
-    Tuple{
-        String,
-        Vector{PSIDS.SurrogateOperatingPoint},
-        Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}},
-        PSIDS.GenerateDataParams,
-    },
-    }`: test_data describes the validation dataset. No system option because test data always comes from full system. 
-- `model_initializer::NamedTuple{
-    (:type, :n_layer, :width_layers, :activation),
-    Tuple{String, Int64, Int64, String},
-    }`: Parameters which determine the structure of the initializer NN. `type="dense"`. `n_layer` is the number of hidden layers. `width_layers` is the width of hidden layers. `activation=["tanh", "relu"]` in the activation function 
-- `model_dynamic::NamedTuple{
-    (
-        :type,
-        :hidden_states,
-        :n_layer,
-        :width_layers,
-        :activation,
-        :σ2_initialization,
-    ),
-    Tuple{String, Int64, Int64, Int64, String, Float64},
-    }`: Parameters which determine the structure of the neural ODE. `type="dense"`. `n_layer` is the number of hidden layers. `width_layers` is the width of hidden layers. `activation=["tanh", "relu"]` in the activation function. 
-    `σ2_initialization` is the variance of the initial params for the node model. Set `σ2_initialization = 0.0` to use the default flux initialization.
-- `model_observation::NamedTuple{
-    (:type, :n_layer, :width_layers, :activation),
-    Tuple{String, Int64, Int64, String, String},
-    }`: Parameters which determine the structure of the observer NN. `type="dense"`. `n_layer` is the number of hidden layers. `width_layers` is the width of hidden layers. `activation=["tanh", "relu"]` in the activation function. 
-- `steady_state_solver::NamedTuple{
-    (:solver, :abstol, :maxiters),
-    Tuple{String, Float64, Int64}},
-    }`: The solver used for initializing surrogate to steady state.
-- `dynamic_solver::NamedTuple{
-    (:solver, :reltol, :abstol, :maxiters),
-    Tuple{String, Float64, Float64, Int},
-    }`: The solver used for solving the neural ODE dynamics. `solver` is the solver name from DifferentialEquations.jl, `tols` is a tuple `(reltol, abstol)`
-- `optimizer::NamedTuple{
-    (:sensealg, :primary, :primary_η, :adjust, :adjust_initial_stepnorm, adjust_maxiters),
-    Tuple{String, String, Float64, Int64, String, Float64, Int64},
-    }`: The optimizer(s) used during training. `sensealg="Zygote"` or `sensealg="ForwardDiff"` . The primary optimizer is used throughout the training according to the data provided and the `curriculum`/`curriculum_timespans` parameter.
-    WARNING: The adjust optimizer is not yet implemented (TODO)
-- `p_start::Vector{Float32}`: Starting parameters (for initializer, node, and observation together). By default is empty which starts with randomly initialized parameters (see `rng_seed`). 
-- `lb_loss::Float64`: If the value of the loss on the validation set moves below lb_loss during training, the current optimization ends (current range).
-- `primary_curriculum::String`: A curriculum for ordering the training data. `"simultaneous"` will train on all of the data for each iteration of the optimizer.  `"individual faults"` will cycle through the train dataset faults with one fault per iteration.  `"individual faults x2"` will run two distinct solves with the same dataset (in other words, restart the optimizer half way through)
-- `primary_curriculum_timespans::Array{
-    NamedTuple{
-        (:tspan, :batching_sample_factor),
-        Tuple{Tuple{Float64, Float64}, Float64},
-    },
-    }`: Indicates the timespan to train on and the sampling factor for batching. If more than one entry in `curriculum_timespans`, each fault from the input data is paired with each value of `curriculum_timespans`
-- `adjust_curriculum::String`: A curriculum for ordering the training data. `"simultaneous"` will train on all of the data for each iteration of the optimizer.  `"individual faults"` will cycle through the train dataset faults with one fault per iteration. 
-- `adjust_curriculum_timespans::Array{
-    NamedTuple{
-        (:tspan, :batching_sample_factor),
-        Tuple{Tuple{Float64, Float64}, Float64},
-    },
-    }`: Indicates the timespan to train on and the sampling factor for batching. If more than one entry in `curriculum_timespans`, each fault from the input data is paired with each value of `curriculum_timespans`
+- `train_data::NamedTuple{(:id, :operating_points, :perturbations, :params, :system)}`: 
+    - `id::String`: For identifying repeated train data sets for hyper parameter tuning. 
+    - `operating_points::Vector{PSIDS.SurrogateOperatingPoint}`: 
+    - `perturbations::Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}}`:  
+    - `params::PSIDS.GenerateDataParams`: 
+    - `system::String`: options are `"full"` and `"reduced"`.  
+- `validation_data::NamedTuple{(:id, :operating_points, :perturbations, :params)}`: 
+    - `id::String`: For identifying repeated train data sets for hyper parameter tuning. 
+    - `operating_points::Vector{PSIDS.SurrogateOperatingPoint}`:
+    - `perturbations::Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}}`:  
+    - `params::PSIDS.GenerateDataParams`: 
+- `validation_data::NamedTuple{(:id, :operating_points, :perturbations, :params)}`: 
+    - `id::String`: For identifying repeated train data sets for hyper parameter tuning. 
+    - `operating_points::Vector{PSIDS.SurrogateOperatingPoint}`:  
+    - `perturbations::Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}}`:  
+    - `params::PSIDS.GenerateDataParams`: 
+- `model_initializer::NamedTuple{(:type, :n_layer, :width_layers, :activation)}`: Parameters for the initialization of the model.
+    - `type::String`: Valid options: `"dense"`.
+    - `n_layer::Int64`: the number of hidden layers.
+    - `width_layers::Int64`: the width of the hidden layers. 
+    - `activation::String`: Valid options: `"tanh"`, `"relu"`. 
+- `model_dynamic::NamedTuple{(:type, :hidden_states, :n_layer, :width_layers, :activation, :σ2_initialization)}`: Parameters for the dynamics of the model.
+    - `type::String`: Valid options: `"dense"`.
+    - `hidden_states::Int64`: number of dynamic states. 
+    - `n_layer::Int64`: the number of hidden layers.
+    - `width_layers::Int64`: the width of the hidden layers. 
+    - `activation::String`: Valid options: `"tanh"`, `"relu"`.    
+    - `σ2_initialization`:  variance of the initial params for the node model. Set `σ2_initialization = 0.0` to use the default flux initialization.
+- `model_initializer::NamedTuple{(:type, :n_layer, :width_layers, :activation)}`: Parameters for the observation of outputs from dynamic states.
+    - `type::String`: Valid options: `"dense"`.
+    - `n_layer::Int64`: the number of hidden layers.
+    - `width_layers::Int64`: the width of the hidden layers. 
+    - `activation::String`: Valid options: `"tanh"`, `"relu"`. 
+- `steady_state_solver::NamedTuple{(:solver, :abstol, :maxiters)}`: Solver for finding initial conditions.
+    - `solver::String`: the solver name from DifferentialEquations.jl
+    - `abstol::Float64`: absolute tolerance of the solve.
+    - `maxiters::Int64`: maximum iterations of the solve. 
+- `dynamic_solver::NamedTuple{(:solver, :reltol, :abstol, :maxiters, :force_tstops)}`:  Solver for dynamic trajectories.
+    - `solver::String`: the solver name from DifferentialEquations.jl
+    - `reltol::Float64`: relative tolearnce of the solve. 
+    - `abstol::Float64`: absolute tolearnce of the solve. 
+    - `maxiters::Int64`: maximum iterations of the solve. 
+    - `force_tstops::Bool`: if `true`, force the solver to stop at tstops from the train dataset. If `false`, do not explicitly force any steps. 
+- `optimizer::Vector{NamedTuple{(:sensealg, :algorithm, :η, :adjust, :initial_stepnorm, :maxiters, :lb_loss, :curriculum, :curriculum_timespans, :fix_params, :loss_function)}}`: Details of the optimization
+    - `sensealg::String`: Valid options: `"Zygote"` or `"ForwardDiff"` 
+    - `algorithm::String`: Valid options: `"Adam"`, `"Bfgs"`, `"LBfgs"`. Typical choice is to start with Adam and then use BFGS. 
+    - `η::Float64`: Adam step size (ignored for other algorithms) 
+    - `initial_stepnorm::Float64`: Bfgs initial step norm (ignored for other algorithms)
+    - `maxiters::Int64`: Maximum number of  training iterations. 
+    - `lb_loss::Float64`:  If the value of the loss on the validation set moves below lb_loss during training, the current optimization ends (current range).
+    - `curriculum::String`: `"simultaneous"`: train on all of the data for each iteration of the optimizer.  `"individual faults"` cycle through the train dataset faults with one fault per iteration.  `"individual faults x2"` will run two distinct solves with the same dataset (restart the optimizer half way through) 
+    - `curriculum_timespans::Vector{NamedTuple{(:tspan, :batching_sample_factor)}`: If more than one entry in `curriculum_timespans`, each fault from the input data is paired with each value of `curriculum_timespans`
+        - `tspan::Tuple{Float64, Float64}`: timespan for a batch. 
+        - `batching_sample_factor::Float64`: batching factor for a batch.  
+    - `fix_params::String`: Valid options: `"initializer+observation"` (only train dynamic parameters), `"initializer"`, (train dynamic and observation parameters), `"none"` (train all parameters).
+    - `loss_function::NamedTuple{(:component_weights, :type_weights)}`:
+        - `component_weights::NamedTuple{(:initialization_weight, :dynamic_weight, :residual_penalty)}`
+            - `initialization_weight::Float64`: scales the portion of loss function penalizing the difference between predicted steady state and actual. 
+            - `dynamic_weight::Float64`: scales the portion of the loss function penalizing differences in the output time series.
+            - `residual_penalty::Float64`: scales the loss function if the implicit layer does not converge (if set to Inf, the loss is infinite anytime the implicit layer does not converge). 
+        - `type_weights::NamedTuple{(:rmse, :mae)}`: (sum to one)
+            - `rmse::Float64`: weight for root mean square error loss formulation.
+            - `mae::Float64`: weight for mean absolute error loss formulation.
+- `p_start::Vector{Float32}`: Starting parameters (for initializer, dynamics, and observation together). By default is empty which starts with randomly initialized parameters (see `rng_seed`). 
 - `validation_loss_every_n::Int64`: Determines how often, during training, the surrogate is added to the full system and loss is evaluated. 
-- `loss_function::NamedTuple{
-    (:component_weights, :type_weights),
-    Tuple{
-        NamedTuple{(:initialization_weight, :dynamic_weight, :residual_penalty), Tuple{Float64, Float64, Float64}},
-        NamedTuple{(:rmse, :mae), Tuple{Float64, Float64}},
-    }, 
-    }`: Various weighting factors to change the loss function. `initialization_weight` scales the portion of loss function penalizing the difference between predicted steady state and actual.
-    `dynamic_weight` scales the portion of the loss function penalizing differences in the output time series.
-    `residual_penalty` scales the loss function if the implicit layer does not converge (if set to Inf, the loss is infinite anytime the implicit layer does not converge).
-    `type_weights` should sum to one. 
 - `rng_seed::Int64`: Seed for the random number generator used for initializing the NN for reproducibility across training runs.
 - `output_mode_skip::Int`: Record and save output data every `output_mode_skip` iterations. Meant to ease memory constraints on HPC. 
 - `train_time_limit_seconds::Int64`:  
