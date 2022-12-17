@@ -638,7 +638,7 @@ function _train(
         OptimizationOptimisers.Optimisers.Adam,
         OptimizationOptimJL.Optim.AbstractOptimizer,
     },
-    sensealg::Union{Optimization.AutoForwardDiff, Optimization.AutoZygote},
+    sensealg,
     group::Vector{Vector{Tuple{Int64, Int64}}},
     per_solve_max_epochs::Int,
     output::Dict{String, Any},
