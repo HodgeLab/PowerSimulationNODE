@@ -7,11 +7,11 @@ try
     change_params = Dict{Symbol, Any}()
 
     #INDICATE CONSTANT, NON-DEFAULT PARAMETERS
-    no_change_params[:lb_loss] = 100.0
+    no_change_params[:rng_seed] = 1
 
     #INDICATE PARAMETES TO ITERATE OVER COMBINATORIALLY 
-    change_params[:lb_loss] = [1.0, 2.0, 3.0]
-    change_params[:rng_seed] = [1, 2, 3]
+    change_params[:validation_loss_every_n] = [1, 2, 3]
+    change_params[:train_id] = ["1", "2", "3"]
 
     build_params_list!(params_data, no_change_params, change_params)
     @test length(params_data) == 9

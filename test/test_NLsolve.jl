@@ -44,6 +44,7 @@
                 reltol = 1e-6,
                 abstol = 1e-6,
                 maxiters = 1e5,
+                force_tstops = true,
             ),
         )
 

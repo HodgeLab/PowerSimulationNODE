@@ -84,7 +84,13 @@
         ),
         system_path = joinpath(pwd(), "test", "system_data", "test.json"),
         rng_seed = 4,
-        dynamic_solver = (solver = "Rodas5", reltol = 1e-6, abstol = 1e-6, maxiters = 1e5),
+        dynamic_solver = (
+            solver = "Rodas5",
+            reltol = 1e-6,
+            abstol = 1e-6,
+            maxiters = 1e5,
+            force_tstops = true,
+        ),
     )
 
     build_subsystems(p)
@@ -296,7 +302,13 @@ end
         ),
         system_path = joinpath(pwd(), "test", "system_data", "test.json"),
         rng_seed = 4,
-        dynamic_solver = (solver = "Rodas5", reltol = 1e-6, abstol = 1e-6, maxiters = 1e5),
+        dynamic_solver = (
+            solver = "Rodas5",
+            reltol = 1e-6,
+            abstol = 1e-6,
+            maxiters = 1e5,
+            force_tstops = true,
+        ),
     )
 
     build_subsystems(p)

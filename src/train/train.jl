@@ -517,9 +517,6 @@ function train(params::TrainParams)
 
         #INSTANTIATE 
         surrogate = instantiate_surrogate_flux(params, n_ports, scaling_extrema)
-        optimizer = instantiate_optimizer(params)
-        !(params.optimizer.adjust == "nothing") &&
-            (optimizer_adjust = instantiate_optimizer_adjust(params))
 
         p_nn_init, _ = Flux.destructure(surrogate)
         n_parameters = length(p_nn_init)
@@ -536,7 +533,7 @@ function train(params::TrainParams)
         exogenous_input_functions =
             _build_exogenous_input_functions(params.train_data, train_dataset)    #can build ex from the components in params.train_data or from the dataset values by interpolating...
         #want to test how this impacts the speed of a single train iteration (the interpolation)
-        #@warn exogenous_input_functions[1](1.0, [1, 1])      #evaluate exogenous_input_functions before going to the training
+
         @assert length(train_dataset) == length(exogenous_input_functions)
         fault_indices = collect(1:length(train_dataset))    #TODO - should this be filtered for only stable faults? 
         n_samples = length(filter(x -> x.stable == true, train_dataset))
@@ -548,77 +545,32 @@ function train(params::TrainParams)
             @assert length(p_train) == length(params.p_start)
             p_full = params.p_start
         end
-        p_fixed, p_train, p_map =
-            _initialize_params(params.primary_fix_params, p_full, surrogate)
+
         total_time = @elapsed begin
-            #PRIMARY OPTIMIZATION (usually ADAM)
-            primary_train_details = params.primary_curriculum_timespans
-            primary_timespan_indices =
-                collect(1:length(params.primary_curriculum_timespans))
-            primary_train_groups = _generate_training_groups(
-                fault_indices,
-                primary_timespan_indices,
-                params.primary_curriculum,
-            )
-            primary_n_trains = length(primary_train_groups)
-            primary_per_solve_max_epochs = _calculate_per_solve_max_epochs(
-                params.optimizer.primary_maxiters,
-                primary_n_trains,
-                length(primary_train_groups[1]),
-            )
-            @info "Primary Curriculum pairings (fault_index, timespan_index)",
-            primary_train_groups
-            @info "primary optimizer $optimizer"
-            @info "\n curriculum: $(params.primary_curriculum) \n # of solves: $primary_n_trains \n # of epochs per training (based on maxiters parameter): $primary_per_solve_max_epochs \n # of iterations per epoch $(length(primary_train_groups[1])) \n # of samples per iteration $(length(primary_train_groups[1][1])) "
-
-            for group in primary_train_groups
-                res, output = _train(
-                    p_train,
-                    p_fixed,
-                    p_map,
-                    surrogate,
-                    θ_ranges,
-                    connecting_branches,
-                    train_dataset,
-                    validation_dataset,
-                    sys_validation,
-                    exogenous_input_functions,
-                    primary_train_details,
-                    params,
-                    optimizer,
-                    group,
-                    primary_per_solve_max_epochs,
-                    output,
-                )
-                p_train = res.u
-            end
-
-            p_full = vcat(p_fixed, p_train)[p_map]
-            #ADJUST OPTIMIZATION (usually BFGS)
-            if !(params.optimizer.adjust == "nothing")
+            for (opt_ix, opt) in enumerate(params.optimizer)
                 p_fixed, p_train, p_map =
-                    _initialize_params(params.adjust_fix_params, p_full, surrogate)
-                adjust_train_details = params.adjust_curriculum_timespans
-                adjust_timespan_indices =
-                    collect(1:length(params.adjust_curriculum_timespans))
-                adjust_train_groups = _generate_training_groups(
+                    _initialize_params(opt.fix_params, p_full, surrogate)
+                train_details = opt.curriculum_timespans
+                timespan_indices = collect(1:length(opt.curriculum_timespans))
+                train_groups = _generate_training_groups(
                     fault_indices,
-                    adjust_timespan_indices,
-                    params.adjust_curriculum,
+                    timespan_indices,
+                    opt.curriculum,
                 )
-                adjust_n_trains = length(adjust_train_groups)
-                adjust_per_solve_max_epochs = _calculate_per_solve_max_epochs(
-                    params.optimizer.adjust_maxiters,
-                    adjust_n_trains,
-                    length(adjust_train_groups[1]),
+                n_trains = length(train_groups)
+                per_solve_max_epochs = _calculate_per_solve_max_epochs(
+                    opt.maxiters,
+                    n_trains,
+                    length(train_groups[1]),
                 )
+                @warn opt
+                algorithm = instantiate_optimizer(opt)
+                sensealg = instantiate_sensealg(opt)
+                @info "Curriculum pairings (fault_index, timespan_index)", train_groups
+                @info "optimizer $(opt.algorithm)"
+                @info "\n curriculum: $(opt.curriculum) \n # of solves: $n_trains \n # of epochs per training (based on maxiters parameter): $per_solve_max_epochs \n # of iterations per epoch $(length(train_groups[1])) \n # of samples per iteration $(length(train_groups[1][1])) "
 
-                @info "Adjust Curriculum pairings (fault_index, timespan_index)",
-                adjust_train_groups
-                @info "adjust optimizer $optimizer_adjust"
-                @info "\n curriculum: $(params.adjust_curriculum) \n # of solves: $adjust_n_trains \n # of epochs per training (based on maxiters parameter): $adjust_per_solve_max_epochs \n # of iterations per epoch $(length(adjust_train_groups[1])) \n # of samples per iteration $(length(adjust_train_groups[1][1])) "
-
-                for group in adjust_train_groups
+                for group in train_groups
                     res, output = _train(
                         p_train,
                         p_fixed,
@@ -630,12 +582,14 @@ function train(params::TrainParams)
                         validation_dataset,
                         sys_validation,
                         exogenous_input_functions,
-                        adjust_train_details,
+                        train_details,
                         params,
-                        optimizer_adjust,
+                        algorithm,
+                        sensealg,
                         group,
-                        adjust_per_solve_max_epochs,
+                        per_solve_max_epochs,
                         output,
+                        opt_ix,
                     )
                     p_train = res.u
                 end
@@ -680,13 +634,15 @@ function _train(
         },
     },
     params::TrainParams,
-    optimizer::Union{
+    algorithm::Union{
         OptimizationOptimisers.Optimisers.Adam,
         OptimizationOptimJL.Optim.AbstractOptimizer,
     },
+    sensealg::Union{Optimization.AutoForwardDiff, Optimization.AutoZygote},
     group::Vector{Vector{Tuple{Int64, Int64}}},
     per_solve_max_epochs::Int,
     output::Dict{String, Any},
+    opt_ix::Int64,
 )
     @warn "Starting value of trainable parameters: $p_train"
     @warn "Starting value of fixed parameters: $p_fixed"
@@ -700,9 +656,9 @@ function _train(
         p_fixed,
         p_map,
         params,
+        opt_ix,
     )
 
-    sensealg = instantiate_sensealg(params.optimizer)
     optfun = Optimization.OptimizationFunction(
         (p_train, P, vector_fault_timespan_index) ->
             outer_loss_function(p_train, vector_fault_timespan_index),
@@ -720,19 +676,21 @@ function _train(
         p_fixed,
         p_map,
         θ_ranges,
+        opt_ix,
     )
 
-    #Calculate loss before training
-    #=         loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index_vector =
-                outer_loss_function(p_train, [(1, 1)])
-            @warn loss 
-            @warn loss_initialization
-            @warn loss_dynamic 
-            cb(p_train, loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index_vector)  =#
+    #Calculate loss before training - useful code for debugging changes to make sure forward pass works before checking train
+    #=             loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index_vector =
+                    outer_loss_function(p_train, [(1, 1)])
+                @warn loss 
+                @warn loss_initialization
+                @warn loss_dynamic 
+                cb(p_train, loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index_vector)   =#
+
     @warn "Starting full train: \n # of iterations per epoch: $(length(group)) \n # of epochs per solve: $per_solve_max_epochs \n max # of iterations for solve: $(per_solve_max_epochs*length(group))"
     timing_stats = @timed Optimization.solve(
         optprob,
-        optimizer,
+        algorithm,
         IterTools.ncycle(train_loader, per_solve_max_epochs),
         callback = cb;
         allow_f_increases = true,

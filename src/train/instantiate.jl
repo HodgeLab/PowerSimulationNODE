@@ -57,19 +57,15 @@ function instantiate_sensealg(inputs)
     return sensealg_map(inputs.sensealg)()
 end
 
-function instantiate_optimizer(inputs)
-    if inputs.optimizer.primary == "Adam"
-        return optimizer_map(inputs.optimizer.primary)(inputs.optimizer.primary_η)
-    end
-end
-
-function instantiate_optimizer_adjust(inputs)
-    if inputs.optimizer.adjust == "Bfgs"
-        return optimizer_map(inputs.optimizer.adjust)(
-            initial_stepnorm = inputs.optimizer.adjust_initial_stepnorm,
-        )
-    elseif inputs.optimizer.adjust == "LBfgs"
-        return optimizer_map(inputs.optimizer.adjust)()
+function instantiate_optimizer(opt)
+    if opt.algorithm == "Adam"
+        return optimizer_map(opt.algorithm)(opt.η)
+    elseif opt.algorithm == "Bfgs"
+        return optimizer_map(opt.algorithm)(initial_stepnorm = opt.initial_stepnorm)
+    elseif opt.algorithm == "LBfgs"
+        return optimizer_map(opt.algorithm)()
+    else
+        @error "invalid algorithm provided"
     end
 end
 
@@ -506,13 +502,16 @@ function _inner_loss_function(
     real_current_subset,
     imag_current_subset,
     params,
+    opt_ix,
 )
     ground_truth_subset = vcat(real_current_subset, imag_current_subset)
-    rmse_weight = params.loss_function.type_weights.rmse
-    mae_weight = params.loss_function.type_weights.mae
-    initialization_weight = params.loss_function.component_weights.initialization_weight
-    dynamic_weight = params.loss_function.component_weights.dynamic_weight
-    residual_penalty = params.loss_function.component_weights.residual_penalty
+    rmse_weight = params.optimizer[opt_ix].loss_function.type_weights.rmse
+    mae_weight = params.optimizer[opt_ix].loss_function.type_weights.mae
+    initialization_weight =
+        params.optimizer[opt_ix].loss_function.component_weights.initialization_weight
+    dynamic_weight = params.optimizer[opt_ix].loss_function.component_weights.dynamic_weight
+    residual_penalty =
+        params.optimizer[opt_ix].loss_function.component_weights.residual_penalty
     r0_pred = surrogate_solution.r0_pred
     r0 = surrogate_solution.r0
     i_series = surrogate_solution.i_series
@@ -554,6 +553,7 @@ function instantiate_outer_loss_function(
     p_fixed::Vector{Float32},
     p_map::Vector{Int64},
     params::TrainParams,
+    opt_ix::Int64,
 )
     return (p_train, vector_fault_timespan_index) -> _outer_loss_function(
         p_train,
@@ -565,6 +565,7 @@ function instantiate_outer_loss_function(
         p_fixed,
         p_map,
         params,
+        opt_ix,
     )
 end
 
@@ -583,6 +584,7 @@ function _outer_loss_function(
     p_fixed::Vector{Float32},
     p_map::Vector{Int64},
     params::TrainParams,
+    opt_ix::Int64,
 )
     vector_fault_timespan_index
     surrogate_solution = 0.0    #Only return the surrogate_solution from the last fault of the iteration (cannot mutate arrays with Zygote)
@@ -599,7 +601,7 @@ function _outer_loss_function(
         ii0 = train_dataset[fault_index].imag_current[1]
 
         tsteps = train_dataset[fault_index].tsteps
-        if params.force_tstops == true
+        if params.dynamic_solver.force_tstops == true
             tstops = train_dataset[fault_index].tstops
         else
             tstops = []
@@ -626,6 +628,7 @@ function _outer_loss_function(
             real_current_subset,
             imag_current_subset,
             params,
+            opt_ix,
         )
         loss_initialization += loss_i
         loss_dynamic += loss_d
@@ -657,6 +660,7 @@ function instantiate_cb!(
     p_fixed,
     p_map,
     θ_ranges,
+    opt_ix,
 )
     if Sys.iswindows() || Sys.isapple()
         print_loss = true
@@ -682,6 +686,7 @@ function instantiate_cb!(
             p_fixed,
             p_map,
             θ_ranges,
+            opt_ix,
         )
 end
 
@@ -702,8 +707,9 @@ function _cb!(
     p_fixed,
     p_map,
     θ_ranges,
+    opt_ix,
 )
-    lb_loss = params.lb_loss
+    lb_loss = params.optimizer[opt_ix].lb_loss
     exportmode_skip = params.output_mode_skip
     train_time_limit_seconds = params.train_time_limit_seconds
     validation_loss_every_n = params.validation_loss_every_n

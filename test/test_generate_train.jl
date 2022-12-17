@@ -134,14 +134,6 @@ end
                 solver_tols = (reltol = 1e-4, abstol = 1e-4),
             ),
         ),
-        validation_loss_every_n = 20,
-        output_mode_skip = 1,
-        steady_state_solver = (
-            solver = "SSRootfind",
-            abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
-            maxiters = 1e3,   #TODO - don't think this has any impact - not implemented correctly? check  
-        ),
-        dynamic_solver = (solver = "Rodas5", reltol = 1e-6, abstol = 1e-6, maxiters = 1e5),
         model_initializer = (
             type = "dense",     #OutputParams (train initial conditions)
             n_layer = 0,
@@ -162,20 +154,42 @@ end
             width_layers = 4,
             activation = "relu",
         ),
-        optimizer = (
-            sensealg = "Zygote",
-            primary = "Adam", #"Bfgs", "Adam"
-            primary_η = 0.0000000001,
-            primary_maxiters = 6,
-            adjust = "nothing",    #"nothing, Bfgs"
-            adjust_initial_stepnorm = 0.00001,  #ignored for LBfgs
-            adjust_maxiters = 10,   #doesn't reflect properly TODO 
+        steady_state_solver = (
+            solver = "SSRootfind",
+            abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+            maxiters = 1e3,   #TODO - don't think this has any impact - not implemented correctly? check  
         ),
-        primary_curriculum = "simultaneous",
-        primary_fix_params = "initializer+observation", #"none" , "initializer", "initializer+observation"
-        adjust_curriculum = "simultaneous",
-        adjust_fix_params = "initializer+observation",
-        force_tstops = true,
+        dynamic_solver = (
+            solver = "Rodas5",
+            reltol = 1e-6,
+            abstol = 1e-6,
+            maxiters = 1e5,
+            force_tstops = true,
+        ),
+        optimizer = [
+            (
+                sensealg = "Zygote",
+                algorithm = "Adam", #"Bfgs", "Adam"
+                η = 0.0000000001,
+                initial_stepnorm = 0.0, #ignored for ADAM 
+                maxiters = 6,
+                lb_loss = 0.0,
+                curriculum = "simultaneous",
+                curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
+                fix_params = "initializer+observation",
+                loss_function = (
+                    component_weights = (
+                        initialization_weight = 1.0,
+                        dynamic_weight = 1.0,
+                        residual_penalty = 1.0e9,
+                    ),
+                    type_weights = (rmse = 1.0, mae = 0.0),
+                ),
+            ),
+        ],
+        p_start = [],
+        validation_loss_every_n = 20,
+        output_mode_skip = 1,
     )
     try
         generate_and_train_test(p)

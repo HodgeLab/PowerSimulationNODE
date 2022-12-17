@@ -153,51 +153,53 @@ mutable struct TrainParams
         Tuple{String, Float64, Int},
     }
     dynamic_solver::NamedTuple{
-        (:solver, :reltol, :abstol, :maxiters),
-        Tuple{String, Float64, Float64, Int},
+        (:solver, :reltol, :abstol, :maxiters, :force_tstops),
+        Tuple{String, Float64, Float64, Int, Bool},
     }
-    optimizer::NamedTuple{
-        (
-            :sensealg,
-            :primary,
-            :primary_η,
-            :primary_maxiters,
-            :adjust,
-            :adjust_initial_stepnorm,
-            :adjust_maxiters,
-        ),
-        Tuple{String, String, Float64, Int64, String, Float64, Int64},
+    optimizer::Vector{
+        NamedTuple{
+            (
+                :sensealg,
+                :algorithm,
+                :η,
+                :initial_stepnorm,
+                :maxiters,
+                :lb_loss,
+                :curriculum,
+                :curriculum_timespans,
+                :fix_params,
+                :loss_function,
+            ),
+            Tuple{
+                String,
+                String,
+                Float64,
+                Float64,
+                Int64,
+                Float64,
+                String,
+                Vector{
+                    NamedTuple{
+                        (:tspan, :batching_sample_factor),
+                        Tuple{Tuple{Float64, Float64}, Float64},
+                    },
+                },
+                String,
+                NamedTuple{
+                    (:component_weights, :type_weights),
+                    Tuple{
+                        NamedTuple{
+                            (:initialization_weight, :dynamic_weight, :residual_penalty),
+                            Tuple{Float64, Float64, Float64},
+                        },
+                        NamedTuple{(:rmse, :mae), Tuple{Float64, Float64}},
+                    },
+                },
+            },
+        },
     }
     p_start::Vector{Float32}
-    lb_loss::Float64
-    primary_curriculum::String
-    primary_curriculum_timespans::Vector{
-        NamedTuple{
-            (:tspan, :batching_sample_factor),
-            Tuple{Tuple{Float64, Float64}, Float64},
-        },
-    }
-    primary_fix_params::String
-    adjust_curriculum::String
-    adjust_curriculum_timespans::Vector{
-        NamedTuple{
-            (:tspan, :batching_sample_factor),
-            Tuple{Tuple{Float64, Float64}, Float64},
-        },
-    }
-    adjust_fix_params::String
     validation_loss_every_n::Int64
-    loss_function::NamedTuple{
-        (:component_weights, :type_weights),
-        Tuple{
-            NamedTuple{
-                (:initialization_weight, :dynamic_weight, :residual_penalty),
-                Tuple{Float64, Float64, Float64},
-            },
-            NamedTuple{(:rmse, :mae), Tuple{Float64, Float64}},
-        },
-    }
-    force_tstops::Bool
     rng_seed::Int64
     output_mode_skip::Int64
     train_time_limit_seconds::Int64
@@ -285,34 +287,36 @@ function TrainParams(;
         abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
         maxiters = 5,
     ),
-    dynamic_solver = (solver = "Rodas5", reltol = 1e-6, abstol = 1e-6, maxiters = 1000),     
-    optimizer = (
-        sensealg = "Zygote",
-        primary = "Adam",
-        primary_η = 0.000001,
-        primary_maxiters = 15,
-        adjust = "nothing",
-        adjust_initial_stepnorm = 0.01,
-        adjust_maxiters = 0,
+    dynamic_solver = (
+        solver = "Rodas5",
+        reltol = 1e-6,
+        abstol = 1e-6,
+        maxiters = 1000,
+        force_tstops = true,
     ),
-    p_start = [],
-    lb_loss = 0.0,
-    primary_curriculum = "individual faults",
-    primary_curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
-    primary_fix_params = "none", #"initializer+observation"
-    adjust_curriculum = "simultaneous",
-    adjust_curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
-    adjust_fix_params = "none",  #"initializer+observation"
-    validation_loss_every_n = 100,
-    loss_function = (
-        component_weights = (
-            initialization_weight = 1.0,
-            dynamic_weight = 1.0,
-            residual_penalty = 1.0e9,
+    optimizer = [
+        (
+            sensealg = "Zygote",
+            algorithm = "Adam",
+            η = 0.000001,
+            initial_stepnorm = 0.01,
+            maxiters = 15,
+            lb_loss = 0.0,
+            curriculum = "individual faults",
+            curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
+            fix_params = "none",
+            loss_function = (
+                component_weights = (
+                    initialization_weight = 1.0,
+                    dynamic_weight = 1.0,
+                    residual_penalty = 1.0e9,
+                ),
+                type_weights = (rmse = 1.0, mae = 0.0),
+            ),
         ),
-        type_weights = (rmse = 1.0, mae = 0.0),
-    ),
-    force_tstops = true,
+    ],
+    p_start = [],
+    validation_loss_every_n = 100,
     rng_seed = 123,
     output_mode_skip = 1,
     train_time_limit_seconds = 1e9,
@@ -367,16 +371,7 @@ function TrainParams(;
         dynamic_solver,
         optimizer,
         p_start,
-        lb_loss,
-        primary_curriculum,
-        primary_curriculum_timespans,
-        primary_fix_params,
-        adjust_curriculum,
-        adjust_curriculum_timespans,
-        adjust_fix_params,
         validation_loss_every_n,
-        loss_function,
-        force_tstops,
         rng_seed,
         output_mode_skip,
         train_time_limit_seconds,
