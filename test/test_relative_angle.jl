@@ -98,19 +98,17 @@ end
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
 
     p = TrainParams(
-        model_dynamic = (
-            type = "dense",
-            hidden_states = 5,
-            n_layer = 1,
-            width_layers = 4,
-            activation = "hardtanh",
-            σ2_initialization = 0.05,
-        ),
-        model_observation = (
-            type = "dense",
-            n_layer = 0,
-            width_layers = 4,
-            activation = "hardtanh",
+        model_params = SteadyStateNODEObsParams(
+            dynamic_layer_type = "dense",
+            dynamic_hidden_states = 5,
+            dynamic_n_layer = 1,
+            dynamic_width_layers = 4,
+            dynamic_activation = "hardtanh",
+            dynamic_σ2_initialization = 0.05,
+            observation_layer_type = "dense",
+            observation_n_layer = 0,
+            observation_width_layers = 4,
+            observation_activation = "hardtanh",
         ),
     )
     scaling_extrema = Dict{}(
@@ -119,9 +117,19 @@ end
         "input_max" => [1.0, 1.0],
         "input_min" => [-1.0, -1.0],
     )
-    train_surrogate = PowerSimulationNODE.instantiate_surrogate_flux(p, 1, scaling_extrema)
-    psid_surrogate =
-        PowerSimulationNODE.instantiate_surrogate_psid(p, 1, scaling_extrema, "test-source")
+    train_surrogate = PowerSimulationNODE.instantiate_surrogate_flux(
+        p,
+        p.model_params,
+        1,
+        scaling_extrema,
+    )
+    psid_surrogate = PowerSimulationNODE.instantiate_surrogate_psid(
+        p,
+        p.model_params,
+        1,
+        scaling_extrema,
+        "test-source",
+    )
     θ, _ = Flux.destructure(train_surrogate)
     PSIDS.set_initializer_parameters!(psid_surrogate, θ[1:(train_surrogate.len)])
     PSIDS.set_node_parameters!(
@@ -225,19 +233,13 @@ end
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
 
     p = TrainParams(
-        model_dynamic = (
-            type = "dense",
-            hidden_states = 5,
-            n_layer = 1,
-            width_layers = 4,
-            activation = "hardtanh",
-            σ2_initialization = 0.05,
-        ),
-        model_observation = (
-            type = "DirectObservation",
-            n_layer = 0,
-            width_layers = 4,
-            activation = "hardtanh",
+        model_params = SteadyStateNODEParams(
+            dynamic_layer_type = "dense",
+            dynamic_hidden_states = 5,
+            dynamic_n_layer = 1,
+            dynamic_width_layers = 4,
+            dynamic_activation = "hardtanh",
+            dynamic_σ2_initialization = 0.05,
         ),
     )
     scaling_extrema = Dict{}(
@@ -246,9 +248,19 @@ end
         "input_max" => [1.0, 1.0],
         "input_min" => [-1.0, -1.0],
     )
-    train_surrogate = PowerSimulationNODE.instantiate_surrogate_flux(p, 1, scaling_extrema)
-    psid_surrogate =
-        PowerSimulationNODE.instantiate_surrogate_psid(p, 1, scaling_extrema, "test-source")
+    train_surrogate = PowerSimulationNODE.instantiate_surrogate_flux(
+        p,
+        p.model_params,
+        1,
+        scaling_extrema,
+    )
+    psid_surrogate = PowerSimulationNODE.instantiate_surrogate_psid(
+        p,
+        p.model_params,
+        1,
+        scaling_extrema,
+        "test-source",
+    )
     θ, _ = Flux.destructure(train_surrogate)
     PSIDS.set_initializer_parameters!(psid_surrogate, θ[1:(train_surrogate.len)])
     PSIDS.set_node_parameters!(

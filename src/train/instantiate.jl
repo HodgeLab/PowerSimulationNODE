@@ -71,6 +71,7 @@ end
 
 function instantiate_surrogate_psid(
     params::TrainParams,
+    model_params::SteadyStateNODEObsParams,
     n_ports::Int64,
     scaling_extrema::Dict{String, Vector{Float64}},
     source_name::String,
@@ -79,41 +80,52 @@ function instantiate_surrogate_psid(
         _instantiate_model_initializer(params, n_ports, scaling_extrema, flux = false)     #scaling_extrema not used in PSID NNs
     model_dynamic =
         _instantiate_model_dynamic(params, n_ports, scaling_extrema, flux = false)   #scaling_extrema not used in PSID NNs
+    model_observation =
+        _instantiate_model_observation(params, n_ports, scaling_extrema, flux = false)     #scaling_extrema not used in PSID NNs    
 
-    if params.model_observation.type == "dense"   #If the type is "dense", instantiate SteadyStateNODEObs
-        model_observation =
-            _instantiate_model_observation(params, n_ports, scaling_extrema, flux = false)     #scaling_extrema not used in PSID NNs    
-        surr = PSIDS.SteadyStateNODEObs(
-            name = source_name,
-            initializer_structure = model_initializer,
-            node_structure = model_dynamic,
-            observer_structure = model_observation,
-            input_min = scaling_extrema["input_min"],
-            input_max = scaling_extrema["input_max"],
-            input_lims = (NN_INPUT_LIMITS.min, NN_INPUT_LIMITS.max),
-            target_min = scaling_extrema["target_min"],
-            target_max = scaling_extrema["target_max"],
-            target_lims = (NN_TARGET_LIMITS.min, NN_TARGET_LIMITS.max),
-            base_power = 100.0,
-            ext = Dict{String, Any}(),
-        )
-    elseif params.model_observation.type == "DirectObservation" #If the type is "DirectObservation", instantiate SteadyStateNODE
-        surr = PSIDS.SteadyStateNODE(
-            name = source_name,
-            initializer_structure = model_initializer,
-            node_structure = model_dynamic,
-            input_min = scaling_extrema["input_min"],
-            input_max = scaling_extrema["input_max"],
-            input_lims = (NN_INPUT_LIMITS.min, NN_INPUT_LIMITS.max),
-            target_min = scaling_extrema["target_min"],
-            target_max = scaling_extrema["target_max"],
-            target_lims = (NN_TARGET_LIMITS.min, NN_TARGET_LIMITS.max),
-            base_power = 100.0,
-            ext = Dict{String, Any}(),
-        )
-    else
-        @error "Invalid parameter for observation function"
-    end
+    surr = PSIDS.SteadyStateNODEObs(
+        name = source_name,
+        initializer_structure = model_initializer,
+        node_structure = model_dynamic,
+        observer_structure = model_observation,
+        input_min = scaling_extrema["input_min"],
+        input_max = scaling_extrema["input_max"],
+        input_lims = (NN_INPUT_LIMITS.min, NN_INPUT_LIMITS.max),
+        target_min = scaling_extrema["target_min"],
+        target_max = scaling_extrema["target_max"],
+        target_lims = (NN_TARGET_LIMITS.min, NN_TARGET_LIMITS.max),
+        base_power = 100.0,
+        ext = Dict{String, Any}(),
+    )
+    display(surr)
+    @info "Surrogate: $(surr)\n"
+    return surr
+end
+
+function instantiate_surrogate_psid(
+    params::TrainParams,
+    model_params::SteadyStateNODEParams,
+    n_ports::Int64,
+    scaling_extrema::Dict{String, Vector{Float64}},
+    source_name::String,
+)
+    model_initializer =
+        _instantiate_model_initializer(params, n_ports, scaling_extrema, flux = false)     #scaling_extrema not used in PSID NNs
+    model_dynamic =
+        _instantiate_model_dynamic(params, n_ports, scaling_extrema, flux = false)   #scaling_extrema not used in PSID NNs
+    surr = PSIDS.SteadyStateNODE(
+        name = source_name,
+        initializer_structure = model_initializer,
+        node_structure = model_dynamic,
+        input_min = scaling_extrema["input_min"],
+        input_max = scaling_extrema["input_max"],
+        input_lims = (NN_INPUT_LIMITS.min, NN_INPUT_LIMITS.max),
+        target_min = scaling_extrema["target_min"],
+        target_max = scaling_extrema["target_max"],
+        target_lims = (NN_TARGET_LIMITS.min, NN_TARGET_LIMITS.max),
+        base_power = 100.0,
+        ext = Dict{String, Any}(),
+    )
     display(surr)
     @info "Surrogate: $(surr)\n"
     return surr
@@ -121,6 +133,7 @@ end
 
 function instantiate_surrogate_flux(
     params::TrainParams,
+    model_params::Union{SteadyStateNODEParams, SteadyStateNODEObsParams},
     n_ports::Int64,
     scaling_extrema::Dict{String, Vector{Float64}},
 )
@@ -163,19 +176,19 @@ function instantiate_surrogate_flux(
 end
 
 function _instantiate_model_initializer(params, n_ports, scaling_extrema; flux = true)
-    initializer_params = params.model_initializer
-    hidden_states = params.model_dynamic.hidden_states
-    type = initializer_params.type
-    n_layer = initializer_params.n_layer
-    width_layers = initializer_params.width_layers
+    m = params.model_params
+    hidden_states = m.dynamic_hidden_states
+    type = m.initializer_layer_type
+    n_layer = m.initializer_n_layer
+    width_layers = m.initializer_width_layers
     input_min = scaling_extrema["input_min"]
     input_max = scaling_extrema["input_max"]
     target_min = scaling_extrema["target_min"]
     target_max = scaling_extrema["target_max"]
     if flux == true
-        activation = activation_map(initializer_params.activation)
+        activation = activation_map(m.initializer_activation)
     else
-        activation = initializer_params.activation
+        activation = m.initializer_activation
     end
     vector_layers = []
     if type == "dense"
@@ -257,18 +270,18 @@ function _instantiate_model_initializer(params, n_ports, scaling_extrema; flux =
 end
 
 function _instantiate_model_dynamic(params, n_ports, scaling_extrema; flux = true)
-    node_params = params.model_dynamic
-    hidden_states = node_params.hidden_states
-    type = node_params.type
-    n_layer = node_params.n_layer
-    width_layers = node_params.width_layers
-    σ2_initialization = node_params.σ2_initialization
+    m = params.model_params
+    hidden_states = m.dynamic_hidden_states
+    type = m.dynamic_layer_type
+    n_layer = m.dynamic_n_layer
+    width_layers = m.dynamic_width_layers
+    σ2_initialization = m.dynamic_σ2_initialization
     input_min = scaling_extrema["input_min"]
     input_max = scaling_extrema["input_max"]
     if flux == true
-        activation = activation_map(node_params.activation)
+        activation = activation_map(m.dynamic_activation)
     else
-        activation = node_params.activation
+        activation = m.dynamic_activation
     end
     vector_layers = []
     if type == "dense"
@@ -406,20 +419,34 @@ function _instantiate_model_dynamic(params, n_ports, scaling_extrema; flux = tru
 end
 
 function _instantiate_model_observation(params, n_ports, scaling_extrema; flux = true)
-    observation_params = params.model_observation
-    hidden_states = params.model_dynamic.hidden_states
-    type = observation_params.type
-    n_layer = observation_params.n_layer
-    width_layers = observation_params.width_layers
+    m = params.model_params
     target_min = scaling_extrema["target_min"]
     target_max = scaling_extrema["target_max"]
-    if flux == true
-        activation = activation_map(observation_params.activation)
-    else
-        activation = observation_params.activation
-    end
     vector_layers = []
-    if type == "dense"
+    if typeof(m) == SteadyStateNODEParams
+        if flux == true
+            push!(vector_layers, (x) -> (x[1:(n_ports * SURROGATE_OUTPUT_DIM), :]))
+            push!(
+                vector_layers,
+                (x) -> (
+                    (x .- NN_TARGET_LIMITS[1]) .* (target_max .- target_min) ./
+                    (NN_TARGET_LIMITS[2] .- NN_TARGET_LIMITS[1]) .+ target_min
+                ),
+            )
+        else
+            @error "DirectObservation incompatible with instantiating observation for PSID"
+            @assert false
+        end
+    elseif typeof(m) == SteadyStateNODEObsParams
+        if flux == true
+            activation = activation_map(m.observation_activation)
+        else
+            activation = m.observation_activation
+        end
+        hidden_states = m.dynamic_hidden_states
+        type = m.observation_layer_type
+        n_layer = m.observation_n_layer
+        width_layers = m.observation_width_layers
         if n_layer == 0
             if flux == true
                 push!(
@@ -470,20 +497,6 @@ function _instantiate_model_observation(params, n_ports, scaling_extrema; flux =
                     (width_layers, n_ports * SURROGATE_OUTPUT_DIM, true, "identity"),
                 )
             end
-        end
-    elseif type == "DirectObservation"
-        if flux == true
-            push!(vector_layers, (x) -> (x[1:(n_ports * SURROGATE_OUTPUT_DIM), :]))
-            push!(
-                vector_layers,
-                (x) -> (
-                    (x .- NN_TARGET_LIMITS[1]) .* (target_max .- target_min) ./
-                    (NN_TARGET_LIMITS[2] .- NN_TARGET_LIMITS[1]) .+ target_min
-                ),
-            )
-        else
-            @error "DirectObservation incompatible with instantiating observation for PSID"
-            @assert false
         end
     elseif type == "OutputParams"
         @error "OutputParams layer for inititalizer not yet implemented"

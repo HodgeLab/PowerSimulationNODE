@@ -506,7 +506,8 @@ function train(params::TrainParams)
         (length(sources) > 1) &&
             @error "Surrogate with multiple input/output ports not yet supported"
         psid_surrogate = instantiate_surrogate_psid(
-            params,
+            params,            
+            params.model_params,
             n_ports,
             scaling_extrema,
             PSY.get_name(sources[1]),
@@ -516,7 +517,12 @@ function train(params::TrainParams)
         PSY.to_json(sys_validation, params.surrogate_system_path, force = true) #Replace validation_system with a system that has the surrogate
 
         #INSTANTIATE 
-        surrogate = instantiate_surrogate_flux(params, n_ports, scaling_extrema)
+        surrogate = instantiate_surrogate_flux(
+            params,
+            params.model_params,
+            n_ports,
+            scaling_extrema,
+        )
 
         p_nn_init, _ = Flux.destructure(surrogate)
         n_parameters = length(p_nn_init)

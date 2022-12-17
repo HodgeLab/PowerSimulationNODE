@@ -41,19 +41,17 @@
     p = TrainParams(
         base_path = joinpath(pwd(), "test"),
         surrogate_buses = [2],
-        model_dynamic = (
-            type = "dense",
-            hidden_states = 3,
-            n_layer = 1,
-            width_layers = 4,
-            activation = "hardtanh",
-            σ2_initialization = 0.1,
-        ),
-        model_observation = (
-            type = "dense",
-            n_layer = 0,
-            width_layers = 4,
-            activation = "hardtanh",
+        model_params = SteadyStateNODEObsParams(
+            dynamic_layer_type = "dense",
+            dynamic_hidden_states = 3,
+            dynamic_n_layer = 1,
+            dynamic_width_layers = 4,
+            dynamic_activation = "hardtanh",
+            dynamic_σ2_initialization = 0.1,
+            observation_layer_type = "dense",
+            observation_n_layer = 0,
+            observation_width_layers = 4,
+            observation_activation = "hardtanh",
         ),
         train_data = (
             id = "1",
@@ -120,9 +118,19 @@
     connecting_branches = Serialization.deserialize(p.data_collection_location_path)[2]
 
     #INSTANTIATE BOTH TYPES OF SURROGATES 
-    train_surrogate = PowerSimulationNODE.instantiate_surrogate_flux(p, 1, scaling_extrema)
-    psid_surrogate =
-        PowerSimulationNODE.instantiate_surrogate_psid(p, 1, scaling_extrema, "test-source")
+    train_surrogate = PowerSimulationNODE.instantiate_surrogate_flux(
+        p,
+        p.model_params,
+        1,
+        scaling_extrema,
+    )
+    psid_surrogate = PowerSimulationNODE.instantiate_surrogate_psid(
+        p,
+        p.model_params,
+        1,
+        scaling_extrema,
+        "test-source",
+    )
     surrogate_sol = train_surrogate(exs[1], v0, i0, tsteps, tstops)
     p1 = plot(
         surrogate_sol.t_series,
@@ -259,19 +267,13 @@ end
     p = TrainParams(
         base_path = joinpath(pwd(), "test"),
         surrogate_buses = [2],
-        model_dynamic = (
-            type = "dense",
-            hidden_states = 3,
-            n_layer = 1,
-            width_layers = 4,
-            activation = "hardtanh",
-            σ2_initialization = 0.1,
-        ),
-        model_observation = (
-            type = "DirectObservation",
-            n_layer = 0,
-            width_layers = 4,
-            activation = "hardtanh",
+        model_params = SteadyStateNODEParams(
+            dynamic_layer_type = "dense",
+            dynamic_hidden_states = 3,
+            dynamic_n_layer = 1,
+            dynamic_width_layers = 4,
+            dynamic_activation = "hardtanh",
+            dynamic_σ2_initialization = 0.1,
         ),
         train_data = (
             id = "1",
@@ -338,9 +340,19 @@ end
     connecting_branches = Serialization.deserialize(p.data_collection_location_path)[2]
 
     #INSTANTIATE BOTH TYPES OF SURROGATES 
-    train_surrogate = PowerSimulationNODE.instantiate_surrogate_flux(p, 1, scaling_extrema)
-    psid_surrogate =
-        PowerSimulationNODE.instantiate_surrogate_psid(p, 1, scaling_extrema, "test-source")
+    train_surrogate = PowerSimulationNODE.instantiate_surrogate_flux(
+        p,
+        p.model_params,
+        1,
+        scaling_extrema,
+    )
+    psid_surrogate = PowerSimulationNODE.instantiate_surrogate_psid(
+        p,
+        p.model_params,
+        1,
+        scaling_extrema,
+        "test-source",
+    )
     surrogate_sol = train_surrogate(exs[1], v0, i0, tsteps, tstops)
     p1 = plot(
         surrogate_sol.t_series,

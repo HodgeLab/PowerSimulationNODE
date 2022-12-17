@@ -20,23 +20,7 @@
     - `operating_points::Vector{PSIDS.SurrogateOperatingPoint}`:  
     - `perturbations::Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}}`:  
     - `params::PSIDS.GenerateDataParams`: 
-- `model_initializer::NamedTuple{(:type, :n_layer, :width_layers, :activation)}`: Parameters for the initialization of the model.
-    - `type::String`: Valid options: `"dense"`.
-    - `n_layer::Int64`: the number of hidden layers.
-    - `width_layers::Int64`: the width of the hidden layers. 
-    - `activation::String`: Valid options: `"tanh"`, `"relu"`. 
-- `model_dynamic::NamedTuple{(:type, :hidden_states, :n_layer, :width_layers, :activation, :σ2_initialization)}`: Parameters for the dynamics of the model.
-    - `type::String`: Valid options: `"dense"`.
-    - `hidden_states::Int64`: number of dynamic states. 
-    - `n_layer::Int64`: the number of hidden layers.
-    - `width_layers::Int64`: the width of the hidden layers. 
-    - `activation::String`: Valid options: `"tanh"`, `"relu"`.    
-    - `σ2_initialization`:  variance of the initial params for the node model. Set `σ2_initialization = 0.0` to use the default flux initialization.
-- `model_initializer::NamedTuple{(:type, :n_layer, :width_layers, :activation)}`: Parameters for the observation of outputs from dynamic states.
-    - `type::String`: Valid options: `"dense"`.
-    - `n_layer::Int64`: the number of hidden layers.
-    - `width_layers::Int64`: the width of the hidden layers. 
-    - `activation::String`: Valid options: `"tanh"`, `"relu"`. 
+- `model_params::Union{SteadyStateNODEParams, SteadyStateNODEObsParams, ClassicGenParams}`: The type of surrogate model to train. Could be data-driven, physics-based, or a combination.
 - `steady_state_solver::NamedTuple{(:solver, :abstol, :maxiters)}`: Solver for finding initial conditions.
     - `solver::String`: the solver name from DifferentialEquations.jl
     - `abstol::Float64`: absolute tolerance of the solve.
@@ -112,18 +96,7 @@ mutable struct TrainParams
             PSIDS.GenerateDataParams,
         },
     }
-    model_initializer::NamedTuple{
-        (:type, :n_layer, :width_layers, :activation),
-        Tuple{String, Int64, Int64, String},
-    }
-    model_dynamic::NamedTuple{
-        (:type, :hidden_states, :n_layer, :width_layers, :activation, :σ2_initialization),
-        Tuple{String, Int64, Int64, Int64, String, Float64},
-    }
-    model_observation::NamedTuple{
-        (:type, :n_layer, :width_layers, :activation),
-        Tuple{String, Int64, Int64, String},
-    }
+    model_params::Union{SteadyStateNODEParams, SteadyStateNODEObsParams, ClassicGenParams}
     steady_state_solver::NamedTuple{
         (:solver, :abstol, :maxiters),
         Tuple{String, Float64, Int},
@@ -203,8 +176,10 @@ StructTypes.StructType(::Type{PSIDS.RandomLoadChange}) = StructTypes.Struct()
 
 StructTypes.StructType(::Type{PSIDS.SurrogatePerturbation}) = StructTypes.AbstractType()
 StructTypes.StructType(::Type{PSIDS.SurrogateOperatingPoint}) = StructTypes.AbstractType()
+StructTypes.StructType(::Type{SurrogateModelParams}) = StructTypes.AbstractType()
 StructTypes.subtypekey(::Type{PSIDS.SurrogatePerturbation}) = :type
 StructTypes.subtypekey(::Type{PSIDS.SurrogateOperatingPoint}) = :type
+StructTypes.subtypekey(::Type{SurrogateModelParams}) = :type
 StructTypes.subtypes(::Type{PSIDS.SurrogatePerturbation}) = (
     PVS = PSIDS.PVS,
     Chirp = PSIDS.Chirp,
@@ -215,6 +190,12 @@ StructTypes.subtypes(::Type{PSIDS.SurrogatePerturbation}) = (
 )
 StructTypes.subtypes(::Type{PSIDS.SurrogateOperatingPoint}) =
     (GenerationLoadScale = PSIDS.GenerationLoadScale, ScaleSource = PSIDS.ScaleSource)
+
+StructTypes.subtypes(::Type{SurrogateModelParams}) = (
+    SteadyStateNODEParams = SteadyStateNODEParams,
+    SteadyStateNODEObsParams = SteadyStateNODEObsParams,
+    ClassicGenParams = ClassicGenParams,
+)
 
 function TrainParams(;
     train_id = "train_instance_1",
@@ -238,26 +219,7 @@ function TrainParams(;
         perturbations = [[PSIDS.VStep(source_name = "InfBus")]],    #To do - make this a branch impedance double 
         params = PSIDS.GenerateDataParams(),
     ),
-    model_initializer = (
-        type = "dense",     #OutputParams (train initial conditions)
-        n_layer = 0,
-        width_layers = 4,
-        activation = "hardtanh",
-    ),
-    model_dynamic = (
-        type = "dense",
-        hidden_states = 5,
-        n_layer = 1,
-        width_layers = 4,
-        activation = "hardtanh",
-        σ2_initialization = 0.0,
-    ),
-    model_observation = (
-        type = "dense",
-        n_layer = 0,
-        width_layers = 4,
-        activation = "hardtanh",
-    ),
+    model_params = SteadyStateNODEObsParams(),
     steady_state_solver = (
         solver = "SSRootfind",
         abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
@@ -291,7 +253,7 @@ function TrainParams(;
             ),
         ),
     ],
-    p_start = [],
+    p_start = Float32[],
     validation_loss_every_n = 100,
     rng_seed = 123,
     output_mode_skip = 1,
@@ -340,9 +302,7 @@ function TrainParams(;
         train_data,
         validation_data,
         test_data,
-        model_initializer,
-        model_dynamic,
-        model_observation,
+        model_params,
         steady_state_solver,
         dynamic_solver,
         optimizer,

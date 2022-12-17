@@ -9,13 +9,13 @@
         p = TrainParams(
             base_path = joinpath(pwd(), "test"),
             surrogate_buses = [2],
-            model_dynamic = (
-                type = "dense",
-                hidden_states = h,
-                n_layer = 2,
-                width_layers = 10,
-                activation = "hardtanh",
-                σ2_initialization = 0.01,
+            model_params = SteadyStateNODEObsParams(
+                dynamic_layer_type = "dense",
+                dynamic_hidden_states = h,
+                dynamic_width_layers = 10,
+                dynamic_n_layer = 2,
+                dynamic_activation = "hardtanh",
+                dynamic_σ2_initialization = 0.01,
             ),
             train_data = (
                 id = "1",
@@ -57,8 +57,12 @@
             "target_max" => [0.55, 0.05],
         )
 
-        train_surrogate =
-            PowerSimulationNODE.instantiate_surrogate_flux(p, 1, scaling_extrema)
+        train_surrogate = PowerSimulationNODE.instantiate_surrogate_flux(
+            p,
+            p.model_params,
+            1,
+            scaling_extrema,
+        )
         θ, _ = Flux.destructure(train_surrogate)
         n_parameters = length(θ)
         θ_ranges = Dict{String, UnitRange{Int64}}(
@@ -70,6 +74,7 @@
         )
         psid_surrogate = PowerSimulationNODE.instantiate_surrogate_psid(
             p,
+            p.model_params,
             1,
             scaling_extrema,
             "test-source",
