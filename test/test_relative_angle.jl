@@ -98,39 +98,36 @@ end
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
 
     p = TrainParams(
-        model_node = (
-            type = "dense",
-            n_layer = 1,
-            width_layers = 4,
-            activation = "hardtanh",
-            σ2_initialization = 0.05,
+        model_params = SteadyStateNODEObsParams(
+            name = "source_BUS 3",
+            dynamic_layer_type = "dense",
+            dynamic_hidden_states = 5,
+            dynamic_n_layer = 1,
+            dynamic_width_layers = 4,
+            dynamic_activation = "hardtanh",
+            dynamic_σ2_initialization = 0.05,
+            observation_layer_type = "dense",
+            observation_n_layer = 0,
+            observation_width_layers = 4,
+            observation_activation = "hardtanh",
         ),
-        model_observation = (
-            type = "dense",
-            n_layer = 0,
-            width_layers = 4,
-            activation = "hardtanh",
+    )
+    fake_train_dataset = [
+        PSIDS.SteadyStateNODEData(
+            real_current = [-1.0 1.0 0.0 0.0],
+            imag_current = [0.0 0.0 -1.0 1.0],
+            surrogate_real_voltage = [-1.0 1.0 0.0 0.0],
+            surrogate_imag_voltage = [0.0 0.0 -1.0 1.0],
+            stable = true,
         ),
+    ]
+
+    train_surrogate = PowerSimulationNODE.instantiate_surrogate_flux(
+        p,
+        p.model_params,
+        fake_train_dataset,
     )
-    scaling_extrema = Dict{}(
-        "target_max" => [1.0, 1.0],
-        "target_min" => [-1.0, -1.0],
-        "input_max" => [1.0, 1.0],
-        "input_min" => [-1.0, -1.0],
-    )
-    train_surrogate = PowerSimulationNODE.instantiate_surrogate_flux(p, 1, scaling_extrema)
-    psid_surrogate =
-        PowerSimulationNODE.instantiate_surrogate_psid(p, 1, scaling_extrema, "test-source")
-    θ, _ = Flux.destructure(train_surrogate)
-    PSIDS.set_initializer_parameters!(psid_surrogate, θ[1:(train_surrogate.len)])
-    PSIDS.set_node_parameters!(
-        psid_surrogate,
-        θ[(train_surrogate.len + 1):(train_surrogate.len + train_surrogate.len2)],
-    )
-    PSIDS.set_observer_parameters!(
-        psid_surrogate,
-        θ[(train_surrogate.len + train_surrogate.len2 + 1):end],
-    )
+
     for b in get_components(Bus, sys)
         if get_number(b) == 1
             source = Source(
@@ -171,10 +168,18 @@ end
                 X_th = 5e-6,
             )
             add_component!(sys, source)
-            set_name!(psid_surrogate, get_name(source))
-            add_component!(sys, psid_surrogate, source)
         end
     end
+    for s in PSY.get_components(PSY.Source, sys)
+        @error PSY.get_name(s)
+    end
+
+    θ, _ = Flux.destructure(train_surrogate)
+
+    PowerSimulationNODE.add_surrogate_psid!(sys, p.model_params, fake_train_dataset)
+
+    PowerSimulationNODE.parameterize_surrogate_psid!(sys, θ, p.model_params)
+
     node_run_powerflow!(sys)
     sim = Simulation!(MassMatrixModel, sys, pwd(), (0.0, 1.0))
     show_states_initial_value(sim)
@@ -224,39 +229,32 @@ end
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
 
     p = TrainParams(
-        model_node = (
-            type = "dense",
-            n_layer = 1,
-            width_layers = 4,
-            activation = "hardtanh",
-            σ2_initialization = 0.05,
-        ),
-        model_observation = (
-            type = "DirectObservation",
-            n_layer = 0,
-            width_layers = 4,
-            activation = "hardtanh",
+        model_params = SteadyStateNODEParams(
+            name = "source_BUS 3",
+            dynamic_layer_type = "dense",
+            dynamic_hidden_states = 5,
+            dynamic_n_layer = 1,
+            dynamic_width_layers = 4,
+            dynamic_activation = "hardtanh",
+            dynamic_σ2_initialization = 0.05,
         ),
     )
-    scaling_extrema = Dict{}(
-        "target_max" => [1.0, 1.0],
-        "target_min" => [-1.0, -1.0],
-        "input_max" => [1.0, 1.0],
-        "input_min" => [-1.0, -1.0],
+    fake_train_dataset = [
+        PSIDS.SteadyStateNODEData(
+            real_current = [-1.0 1.0 0.0 0.0],
+            imag_current = [0.0 0.0 -1.0 1.0],
+            surrogate_real_voltage = [-1.0 1.0 0.0 0.0],
+            surrogate_imag_voltage = [0.0 0.0 -1.0 1.0],
+            stable = true,
+        ),
+    ]
+
+    train_surrogate = PowerSimulationNODE.instantiate_surrogate_flux(
+        p,
+        p.model_params,
+        fake_train_dataset,
     )
-    train_surrogate = PowerSimulationNODE.instantiate_surrogate_flux(p, 1, scaling_extrema)
-    psid_surrogate =
-        PowerSimulationNODE.instantiate_surrogate_psid(p, 1, scaling_extrema, "test-source")
-    θ, _ = Flux.destructure(train_surrogate)
-    PSIDS.set_initializer_parameters!(psid_surrogate, θ[1:(train_surrogate.len)])
-    PSIDS.set_node_parameters!(
-        psid_surrogate,
-        θ[(train_surrogate.len + 1):(train_surrogate.len + train_surrogate.len2)],
-    )
-    #=     PSIDS.set_observer_parameters!(
-            psid_surrogate,
-            θ[(train_surrogate.len + train_surrogate.len2 + 1):end],
-        ) =#
+
     for b in get_components(Bus, sys)
         if get_number(b) == 1
             source = Source(
@@ -297,10 +295,15 @@ end
                 X_th = 5e-6,
             )
             add_component!(sys, source)
-            set_name!(psid_surrogate, get_name(source))
-            add_component!(sys, psid_surrogate, source)
         end
     end
+
+    θ, _ = Flux.destructure(train_surrogate)
+
+    PowerSimulationNODE.add_surrogate_psid!(sys, p.model_params, fake_train_dataset)
+
+    PowerSimulationNODE.parameterize_surrogate_psid!(sys, θ, p.model_params)
+
     node_run_powerflow!(sys)
     sim = Simulation!(MassMatrixModel, sys, pwd(), (0.0, 1.0))
     show_states_initial_value(sim)
