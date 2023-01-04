@@ -3,6 +3,8 @@ abstract type SurrogateModelParams end
 
 struct SteadyStateNODEParams <: SurrogateModelParams
     type::String
+    name::String
+    n_ports::Int64
     initializer_layer_type::String
     initializer_n_layer::Int64
     initializer_width_layers::Int64
@@ -17,6 +19,8 @@ end
 
 function SteadyStateNODEParams(;
     type = "SteadyStateNODE",
+    name = "surrogate-SteadyStateNODE",
+    n_ports = 1,
     initializer_layer_type = "dense",
     initializer_n_layer = 0,
     initializer_width_layers = 4,
@@ -30,6 +34,8 @@ function SteadyStateNODEParams(;
 )
     SteadyStateNODEParams(
         type,
+        name,
+        n_ports,
         initializer_layer_type,
         initializer_n_layer,
         initializer_width_layers,
@@ -45,6 +51,8 @@ end
 
 struct SteadyStateNODEObsParams <: SurrogateModelParams
     type::String
+    name::String
+    n_ports::Int64
     initializer_layer_type::String
     initializer_n_layer::Int64
     initializer_width_layers::Int64
@@ -63,6 +71,8 @@ end
 
 function SteadyStateNODEObsParams(;
     type = "SteadyStateNODEObs",
+    name = "surrogate-SteadyStateNODEObs",
+    n_ports = 1,
     initializer_layer_type = "dense",
     initializer_n_layer = 0,
     initializer_width_layers = 4,
@@ -80,6 +90,8 @@ function SteadyStateNODEObsParams(;
 )
     SteadyStateNODEObsParams(
         type,
+        name,
+        n_ports,
         initializer_layer_type,
         initializer_n_layer,
         initializer_width_layers,
@@ -99,8 +111,9 @@ end
 
 struct ClassicGenParams <: SurrogateModelParams
     type::String
+    name::String
 end
 
-function ClassicGenParams(; type = "ClassicGenParams")
-    ClassicGenParams(type)
+function ClassicGenParams(; type = "ClassicGenParams", name = "surrogate-ClassicGen")
+    ClassicGenParams(type, name)
 end

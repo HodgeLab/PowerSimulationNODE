@@ -31,6 +31,7 @@ export ClassicGenParams
 import Arrow
 import Dates
 import DataFrames
+import DiffEqCallbacks
 import Flux
 import Flux.Losses: mae, mse
 import Optimization
@@ -68,6 +69,7 @@ const PSIDS = PowerSimulationsDynamicsSurrogates
 # Split up code and use Requires strategically to improve load times? (especially the instantiate functions)
 include(joinpath("train", "ModelTypes.jl"))
 include(joinpath("train", "SteadyStateNeuralODE.jl"))
+include(joinpath("train", "ClassicGen.jl"))
 include(joinpath("train", "TrainParams.jl"))
 include("constants.jl")
 include(joinpath("train", "HPCTrain.jl"))

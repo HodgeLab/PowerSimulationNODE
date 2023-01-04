@@ -42,7 +42,7 @@
     - `curriculum_timespans::Vector{NamedTuple{(:tspan, :batching_sample_factor)}`: If more than one entry in `curriculum_timespans`, each fault from the input data is paired with each value of `curriculum_timespans`
         - `tspan::Tuple{Float64, Float64}`: timespan for a batch. 
         - `batching_sample_factor::Float64`: batching factor for a batch.  
-    - `fix_params::String`: Valid options: `"initializer+observation"` (only train dynamic parameters), `"initializer"`, (train dynamic and observation parameters), `"none"` (train all parameters).
+    - `fix_params::Vector{Symbols}`: Valid options: `:initializer`, `:observation` (for data driven surrogates). `[]` will train all parameters for a given model. 
     - `loss_function::NamedTuple{(:component_weights, :type_weights)}`:
         - `component_weights::NamedTuple{(:initialization_weight, :dynamic_weight, :residual_penalty)}`
             - `initialization_weight::Float64`: scales the portion of loss function penalizing the difference between predicted steady state and actual. 
@@ -58,7 +58,8 @@
 - `train_time_limit_seconds::Int64`:  
 - `base_path:String`: Directory for training where input data is found and output data is written.
 - `system_path::String`: Location of the full `System`. Training/validation/test systems are dervied based on `surrogate_buses`.  
-- `surrogate_system_path`: Path to validation system (surrogate is added to this system during training).
+- `surrogate_system_path`: Path to validation system (before surrogate is added to this system during training).
+- `modified_surrogate_system_path`:  Path to validation system (after surrogate is added to this system during training). 
 - `train_system_path`: Path to train system (system with only the surrogate represented in detail with sources surrounding).
 - `train_data_path::String`: path to train data. 
 - `validation_data_path::String`: path to validation data.
@@ -133,7 +134,7 @@ mutable struct TrainParams
                         Tuple{Tuple{Float64, Float64}, Float64},
                     },
                 },
-                String,
+                Vector{Symbol},
                 NamedTuple{
                     (:component_weights, :type_weights),
                     Tuple{
@@ -155,6 +156,7 @@ mutable struct TrainParams
     base_path::String
     system_path::String
     surrogate_system_path::String
+    modified_surrogate_system_path::String
     train_system_path::String
     data_collection_location_path::String
     train_data_path::String
@@ -242,7 +244,7 @@ function TrainParams(;
             lb_loss = 0.0,
             curriculum = "individual faults",
             curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
-            fix_params = "none",
+            fix_params = [],
             loss_function = (
                 component_weights = (
                     initialization_weight = 1.0,
@@ -268,6 +270,11 @@ function TrainParams(;
         base_path,
         PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
         "validation_system.json",
+    ),
+    modified_surrogate_system_path = joinpath(
+        base_path,
+        PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
+        "modified_validation_system.json",
     ),
     train_system_path = joinpath(
         base_path,
@@ -314,6 +321,7 @@ function TrainParams(;
         base_path,  #other paths derived from this one must come after 
         system_path,
         surrogate_system_path,
+        modified_surrogate_system_path,
         train_system_path,
         data_collection_location_path,
         train_data_path,

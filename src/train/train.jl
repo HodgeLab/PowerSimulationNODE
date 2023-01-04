@@ -42,6 +42,7 @@ function _surrogate_perturbation_to_function_of_time(
     D <: PSIDS.SteadyStateNODEData,
 }
     V_funcs = []
+    #NOTE: Cannot write a closed form expression for V(t) for the Chirp source so instead just interpolate between data points like we do for real faults.
     if train_data_params.system == "full" || typeof(perturbation[1]) == PSIDS.Chirp
         for i in 1:size(data.surrogate_real_voltage)[1]
             function Vr(t)
@@ -136,64 +137,6 @@ function _single_perturbation_to_function_of_time(
     return (Vr_func, Vi_func)
 end
 
-#= function _single_perturbation_to_function_of_time(
-    single_perturbation::PSIDS.Chirp,
-    data::PSIDS.SteadyStateNODEData,
-    port_ix::Int64,
-)
-    @warn "The implemented Chirp voltage is technically the voltage behind the source impedance--- the assumption is that the source impedance is insignificantly small."
-    Vr0 = data.surrogate_real_voltage[port_ix, 1]
-    Vi0 = data.surrogate_imag_voltage[port_ix, 1]
-    Vm0 = sqrt(Vr0^2 + Vi0^2)
-    θ0 = atan(Vr0 / Vi0)
-
-    tstart = single_perturbation.tstart
-    N = single_perturbation.N
-    ω1 = single_perturbation.ω1
-    ω2 = single_perturbation.ω2
-    V_amp = single_perturbation.V_amp
-    ω_amp = single_perturbation.ω_amp
-
-    function V(t)
-        val = Vm0
-        if t < tstart
-            return val
-        elseif t >= tstart && t < N
-            val += V_amp * sin(ω1 * (t - tstart) + (ω2 - ω1) * (t - tstart)^2 / (2 * N))
-            return val
-        elseif t >= N #same expression as above, replace t with N
-            val += V_amp * sin(ω1 * (N - tstart) + (ω2 - ω1) * (N - tstart)^2 / (2 * N))
-            return val
-        end
-    end
-
-    function θ(t)
-        val = θ0
-        if t < tstart
-            return val
-        elseif t >= tstart && t < N
-            val +=
-                t -
-                ω_amp / ((ω1 + (ω2 - ω1) * (t - tstart) / N)) *
-                cos(ω1 * (t - tstart) + (ω2 - ω1) * (t - tstart)^2 / (2 * N))
-            return val
-        elseif t >= N   #same expression as above, replace t with N
-            val +=
-                N -
-                ω_amp / ((ω1 + (ω2 - ω1) * (N - tstart) / N)) *
-                cos(ω1 * (N - tstart) + (ω2 - ω1) * (N - tstart)^2 / (2 * N))
-            return val
-        end
-    end
-    function Vr_func(t)
-        return V(t) * cos(θ(t))
-    end
-    function Vi_func(t)
-        return V(t) * sin(θ(t))
-    end
-    return (Vr_func, Vi_func)
-end
- =#
 function _single_perturbation_to_function_of_time(
     single_perturbation::PSIDS.VStep,
     data::PSIDS.SteadyStateNODEData,
@@ -223,101 +166,19 @@ function _single_perturbation_to_function_of_time(
     return (Vr_func, Vi_func)
 end
 
-function visualize_loss(sys, θ, groundtruth_dataset, params, connecting_branches, θ_ranges)
-    for s in PSY.get_components(PSIDS.SteadyStateNODEObs, sys)
-        PSIDS.set_initializer_parameters!(s, θ[θ_ranges["initializer_range"]])
-        PSIDS.set_node_parameters!(s, θ[θ_ranges["node_range"]])
-        PSIDS.set_observer_parameters!(s, θ[θ_ranges["observation_range"]])
-    end
+function evaluate_loss(
+    sys,
+    θ,
+    groundtruth_dataset,
+    data_params,
+    connecting_branches,
+    model_params,
+)
+    parameterize_surrogate_psid!(sys, θ, model_params)
 
-    for s in PSY.get_components(PSIDS.SteadyStateNODE, sys)
-        PSIDS.set_initializer_parameters!(s, θ[θ_ranges["initializer_range"]])
-        PSIDS.set_node_parameters!(s, θ[θ_ranges["node_range"]])
-    end
-    operating_points = params.operating_points
-    perturbations = params.perturbations
-    generate_data_params = params.params
-    surrogate_dataset = PSIDS.generate_surrogate_data(
-        sys,
-        sys,
-        perturbations,
-        operating_points,
-        PSIDS.SteadyStateNODEDataParams(location_of_data_collection = connecting_branches),
-        generate_data_params,
-        dataset_aux = groundtruth_dataset,
-    )
-    @assert length(surrogate_dataset) == length(groundtruth_dataset)
-    plots = []
-    for ix in eachindex(surrogate_dataset, groundtruth_dataset)
-        if groundtruth_dataset[ix].stable == true
-            if surrogate_dataset[ix].stable == false
-                @error "Groundtruth data is stable but surrogate is unstable for entry $ix of the dataset"
-            elseif surrogate_dataset[ix].stable == true
-                p1 = plot(
-                    surrogate_dataset[ix].tsteps,
-                    surrogate_dataset[ix].surrogate_real_voltage,
-                    label = "Vr (surr)",
-                )
-                plot!(
-                    p1,
-                    groundtruth_dataset[ix].tsteps,
-                    groundtruth_dataset[ix].surrogate_real_voltage,
-                    label = "Vr (true)",
-                )
-                p2 = plot(
-                    surrogate_dataset[ix].tsteps,
-                    surrogate_dataset[ix].surrogate_imag_voltage,
-                    label = "Vi (surr)",
-                )
-                plot!(
-                    p2,
-                    groundtruth_dataset[ix].tsteps,
-                    groundtruth_dataset[ix].surrogate_imag_voltage,
-                    label = "Vi (true)",
-                )
-                p3 = plot(
-                    surrogate_dataset[ix].tsteps,
-                    surrogate_dataset[ix].real_current,
-                    label = "Ir (surr)",
-                )
-                plot!(
-                    p3,
-                    groundtruth_dataset[ix].tsteps,
-                    groundtruth_dataset[ix].real_current,
-                    label = "Ir (true)",
-                )
-                p4 = plot(
-                    surrogate_dataset[ix].tsteps,
-                    surrogate_dataset[ix].imag_current,
-                    label = "Ii (surr)",
-                )
-                plot!(
-                    p4,
-                    groundtruth_dataset[ix].tsteps,
-                    groundtruth_dataset[ix].imag_current,
-                    label = "Ii (true)",
-                )
-                push!(plots, plot(p1, p2, p3, p4))
-            end
-        end
-    end
-    return plots
-end
-
-function evaluate_loss(sys, θ, groundtruth_dataset, params, connecting_branches, θ_ranges)
-    for s in PSY.get_components(PSIDS.SteadyStateNODEObs, sys)
-        PSIDS.set_initializer_parameters!(s, θ[θ_ranges["initializer_range"]])
-        PSIDS.set_node_parameters!(s, θ[θ_ranges["node_range"]])
-        PSIDS.set_observer_parameters!(s, θ[θ_ranges["observation_range"]])
-    end
-
-    for s in PSY.get_components(PSIDS.SteadyStateNODE, sys)
-        PSIDS.set_initializer_parameters!(s, θ[θ_ranges["initializer_range"]])
-        PSIDS.set_node_parameters!(s, θ[θ_ranges["node_range"]])
-    end
-    operating_points = params.operating_points
-    perturbations = params.perturbations
-    generate_data_params = params.params
+    operating_points = data_params.operating_points
+    perturbations = data_params.perturbations
+    generate_data_params = data_params.params
     surrogate_dataset = PSIDS.generate_surrogate_data(
         sys,
         sys,
@@ -457,6 +318,154 @@ function calculate_scaling_extrema(train_dataset)
     )
     return scaling_parameters
 end
+
+function visualize_loss(
+    sys,
+    θ,
+    groundtruth_dataset,
+    data_params,
+    connecting_branches,
+    model_params,
+)
+    parameterize_surrogate_psid!(sys, θ, model_params)
+
+    operating_points = data_params.operating_points
+    perturbations = data_params.perturbations
+    generate_data_params = data_params.params
+    surrogate_dataset = PSIDS.generate_surrogate_data(
+        sys,
+        sys,
+        perturbations,
+        operating_points,
+        PSIDS.SteadyStateNODEDataParams(location_of_data_collection = connecting_branches),
+        generate_data_params,
+        dataset_aux = groundtruth_dataset,
+    )
+    @assert length(surrogate_dataset) == length(groundtruth_dataset)
+    plots = []
+    for ix in eachindex(surrogate_dataset, groundtruth_dataset)
+        if groundtruth_dataset[ix].stable == true
+            if surrogate_dataset[ix].stable == false
+                @error "Groundtruth data is stable but surrogate is unstable for entry $ix of the dataset"
+            elseif surrogate_dataset[ix].stable == true
+                p1 = Plots.plot(
+                    surrogate_dataset[ix].tsteps,
+                    surrogate_dataset[ix].surrogate_real_voltage',
+                    label = "Vr (surr)",
+                )
+                Plots.plot!(
+                    p1,
+                    groundtruth_dataset[ix].tsteps,
+                    groundtruth_dataset[ix].surrogate_real_voltage',
+                    label = "Vr (true)",
+                )
+                p2 = Plots.plot(
+                    surrogate_dataset[ix].tsteps,
+                    surrogate_dataset[ix].surrogate_imag_voltage',
+                    label = "Vi (surr)",
+                )
+                Plots.plot!(
+                    p2,
+                    groundtruth_dataset[ix].tsteps,
+                    groundtruth_dataset[ix].surrogate_imag_voltage',
+                    label = "Vi (true)",
+                )
+                p3 = Plots.plot(
+                    surrogate_dataset[ix].tsteps,
+                    surrogate_dataset[ix].real_current',
+                    label = "Ir (surr)",
+                )
+                Plots.plot!(
+                    p3,
+                    groundtruth_dataset[ix].tsteps,
+                    groundtruth_dataset[ix].real_current',
+                    label = "Ir (true)",
+                )
+                p4 = Plots.plot(
+                    surrogate_dataset[ix].tsteps,
+                    surrogate_dataset[ix].imag_current',
+                    label = "Ii (surr)",
+                )
+                Plots.plot!(
+                    p4,
+                    groundtruth_dataset[ix].tsteps,
+                    groundtruth_dataset[ix].imag_current',
+                    label = "Ii (true)",
+                )
+                push!(plots, Plots.plot(p1, p2, p3, p4))
+            end
+        end
+    end
+    return plots
+end
+
+function _calculate_n_params(structure)
+    n_params = 0
+    for layer in structure
+        if layer[3] == true #bias layer 
+            n_params += (layer[1] + 1) * layer[2]
+        else
+            n_params += layer[1] * layer[2]
+        end
+    end
+    return n_params
+end
+
+function parameterize_surrogate_psid!(
+    sys::PSY.System,
+    θ::Vector{Float32},
+    model_params::SteadyStateNODEParams,
+)
+    surrogate = PSY.get_component(PSIDS.SteadyStateNODE, sys, model_params.name)
+    n_params_initializer = _calculate_n_params(surrogate.initializer_structure)
+    n_params_node = _calculate_n_params(surrogate.node_structure)
+    @assert length(θ) == n_params_initializer + n_params_node
+    PSIDS.set_initializer_parameters!(surrogate, θ[1:n_params_initializer])
+    PSIDS.set_node_parameters!(
+        surrogate,
+        θ[(n_params_initializer + 1):(n_params_initializer + n_params_node)],
+    )
+end
+
+function parameterize_surrogate_psid!(
+    sys::PSY.System,
+    θ::Vector{Float32},
+    model_params::SteadyStateNODEObsParams,
+)
+    surrogate = PSY.get_component(PSIDS.SteadyStateNODEObs, sys, model_params.name)
+    n_params_initializer = _calculate_n_params(surrogate.initializer_structure)
+    n_params_node = _calculate_n_params(surrogate.node_structure)
+    n_params_observation = _calculate_n_params(surrogate.observer_structure)
+    @assert length(θ) == n_params_initializer + n_params_node + n_params_observation
+    PSIDS.set_initializer_parameters!(surrogate, θ[1:n_params_initializer])
+    PSIDS.set_node_parameters!(
+        surrogate,
+        θ[(n_params_initializer + 1):(n_params_initializer + n_params_node)],
+    )
+    PSIDS.set_observer_parameters!(
+        surrogate,
+        θ[(n_params_initializer + n_params_node + 1):(n_params_initializer + n_params_node + n_params_observation)],
+    )
+end
+
+function parameterize_surrogate_psid!(
+    sys::PSY.System,
+    θ::Union{Vector{Float32}, Vector{Float64}},
+    model_params::ClassicGenParams,
+)
+    R, Xd_p, eq_p, H, D = θ
+
+    surrogate = PSY.get_component(PSY.DynamicInjection, sys, model_params.name)
+    machine = PSY.get_machine(surrogate)
+    PSY.set_R!(machine, R)
+    PSY.set_Xd_p!(machine, Xd_p)
+    PSY.set_eq_p!(machine, eq_p)
+
+    shaft = PSY.get_shaft(surrogate)
+    PSY.set_H!(shaft, H)
+    PSY.set_D!(shaft, D)
+end
+
 """
     train(params::TrainParams)
 
@@ -487,51 +496,23 @@ function train(params::TrainParams)
 
     @info "length(tstops) in first train condition: $(length(train_dataset[1].tstops))"
     @info "length(tsteps) in first train condition: $(length(train_dataset[1].tsteps))"
-    n_ports = length(connecting_branches)
-    @info "Surrogate contains $n_ports ports"
-    output = _initialize_training_output_dict()
+
+    #TODO - add a function which checks dimensionality of connecting_branches and the type of surrogate match up...
+    #@assert params.model_params.n_ports == length(connecting_branches)  (for Data driven surrogates)
+    #@assert length(connecting_branches) == 1 (for physics based models)
+
+    output = _initialize_training_output_dict(params.model_params)
     θ = Float32[]
     try
-        scaling_extrema = calculate_scaling_extrema(train_dataset)
-
-        #READ VALIDATION SYSTEM AND ADD SURROGATE COMPONENT WITH STRUCTURE BASED ON PARAMS
         sys_validation = node_load_system(params.surrogate_system_path)
-        sources = collect(
-            PSY.get_components(
-                PSY.Source,
-                sys_validation,
-                x -> PSY.get_name(x) !== "InfBus",
-            ),
-        )
-        (length(sources) > 1) &&
-            @error "Surrogate with multiple input/output ports not yet supported"
-        psid_surrogate = instantiate_surrogate_psid(
-            params,            
-            params.model_params,
-            n_ports,
-            scaling_extrema,
-            PSY.get_name(sources[1]),
-        )
-        PSY.add_component!(sys_validation, psid_surrogate, sources[1])
-        display(sys_validation)
-        PSY.to_json(sys_validation, params.surrogate_system_path, force = true) #Replace validation_system with a system that has the surrogate
+        add_surrogate_psid!(sys_validation, params.model_params, train_dataset)
+        PSY.to_json(sys_validation, params.modified_surrogate_system_path, force = true)
 
         #INSTANTIATE 
-        surrogate = instantiate_surrogate_flux(
-            params,
-            params.model_params,
-            n_ports,
-            scaling_extrema,
-        )
+        surrogate = instantiate_surrogate_flux(params, params.model_params, train_dataset)
 
         p_nn_init, _ = Flux.destructure(surrogate)
         n_parameters = length(p_nn_init)
-        θ_ranges = Dict{String, UnitRange{Int64}}(
-            "initializer_range" => 1:(surrogate.len),
-            "node_range" => (surrogate.len + 1):(surrogate.len + surrogate.len2),
-            "observation_range" => (surrogate.len + surrogate.len2 + 1):n_parameters,
-        )
-        output["θ_ranges"] = θ_ranges
         @info "Surrogate has $n_parameters parameters"
         res = nothing
         output["train_id"] = params.train_id
@@ -551,7 +532,6 @@ function train(params::TrainParams)
             @assert length(p_train) == length(params.p_start)
             p_full = params.p_start
         end
-
         total_time = @elapsed begin
             for (opt_ix, opt) in enumerate(params.optimizer)
                 p_fixed, p_train, p_map =
@@ -582,7 +562,6 @@ function train(params::TrainParams)
                         p_fixed,
                         p_map,
                         surrogate,
-                        θ_ranges,
                         connecting_branches,
                         train_dataset,
                         validation_dataset,
@@ -610,7 +589,7 @@ function train(params::TrainParams)
             validation_dataset,
             params.validation_data,
             connecting_branches,
-            θ_ranges,
+            params.model_params,
         )
 
         _capture_output(output, params.output_data_path, params.train_id)
@@ -626,8 +605,7 @@ function _train(
     p_train::Vector{Float32},
     p_fixed::Vector{Float32},
     p_map::Vector{Int64},
-    surrogate::SteadyStateNeuralODE,
-    θ_ranges::Dict{String, UnitRange{Int64}},
+    surrogate::Union{SteadyStateNeuralODE, ClassicGen},
     connecting_branches::Vector{Tuple{String, Symbol}},
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     validation_dataset::Vector{PSIDS.SteadyStateNODEData},
@@ -681,17 +659,23 @@ function _train(
         surrogate,
         p_fixed,
         p_map,
-        θ_ranges,
         opt_ix,
     )
 
     #Calculate loss before training - useful code for debugging changes to make sure forward pass works before checking train
-    #=             loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index_vector =
-                    outer_loss_function(p_train, [(1, 1)])
-                @warn loss 
-                @warn loss_initialization
-                @warn loss_dynamic 
-                cb(p_train, loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index_vector)   =#
+    loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index_vector =
+        outer_loss_function(p_train, [(1, 1)])
+    @warn loss
+    @warn loss_initialization
+    @warn loss_dynamic
+    cb(
+        p_train,
+        loss,
+        loss_initialization,
+        loss_dynamic,
+        surrogate_solution,
+        fault_index_vector,
+    )
 
     @warn "Starting full train: \n # of iterations per epoch: $(length(group)) \n # of epochs per solve: $per_solve_max_epochs \n max # of iterations for solve: $(per_solve_max_epochs*length(group))"
     timing_stats = @timed Optimization.solve(
@@ -724,7 +708,7 @@ function _train(
 end
 
 function _initialize_params(
-    p_fixed::String,
+    p_fixed::Vector{Symbol},
     p_full::Vector{Float32},
     surrogate::SteadyStateNeuralODE,
 )
@@ -732,8 +716,8 @@ function _initialize_params(
     initializer_length = surrogate.len
     node_length = surrogate.len2
     observation_length = total_length - initializer_length - node_length
-    if p_fixed == "initializer+observation"
-        p_fixed = vcat(
+    if (:initializer in p_fixed) && (:observation in p_fixed)
+        p_fix = vcat(
             p_full[1:initializer_length],
             p_full[(initializer_length + node_length + 1):total_length],
         )
@@ -743,21 +727,52 @@ function _initialize_params(
             (total_length - node_length + 1):total_length,
             (initializer_length + 1):(initializer_length + observation_length),
         )  #WRONG?
-        return p_fixed, p_train, p_map
-    elseif p_fixed == "initializer"
-        p_fixed = p_full[1:initializer_length]
+        return p_fix, p_train, p_map
+    elseif (:initializer in p_fixed)
+        p_fix = p_full[1:initializer_length]
         p_train = p_full[(initializer_length + 1):end]
         p_map = collect(1:total_length)
-        return p_fixed, p_train, p_map
-    elseif p_fixed == "none"
-        p_fixed = Float32[]
+        return p_fix, p_train, p_map
+    elseif p_fixed == []
+        p_fix = Float32[]
         p_train = p_full
         p_map = collect(1:length(p_full))
-        return p_fixed, p_train, p_map
+        return p_fix, p_train, p_map
     else
         @error "invalid entry for parameter p_fixed which indicates which types of parameters should be held constant"
         return false
     end
+end
+
+function _initialize_params(
+    p_fixed::Vector{Symbol},
+    p_full::Vector{Float32},
+    surrogate::ClassicGen,
+)
+    @assert !(nothing in indexin(p_fixed, [:R, :Xd_p, :eq_p, :H, :D]))  #ensure given p_fixed is a valid parameter
+    @info "original parameter vector: $p_full"
+    p_fix = Float32[]
+    p_train = Float32[]
+    fixed_indices = []
+    train_indices = []
+    for i in 1:length(p_full)
+        if i in indexin(p_fixed, [:R, :Xd_p, :eq_p, :H, :D])
+            push!(p_fix, p_full[i])
+            push!(fixed_indices, i)
+        else
+            push!(p_train, p_full[i])
+            push!(train_indices, i)
+        end
+    end
+    p_map = Vector{Int64}(undef, 5)
+    for (ix, i) in enumerate(fixed_indices)
+        p_map[i] = ix
+    end
+    for (ix, i) in enumerate(train_indices)
+        p_map[i] = ix + length(fixed_indices)
+    end
+    @info "remapped parameter vector: $(vcat(p_fix, p_train)[p_map])"
+    return p_fix, p_train, p_map
 end
 
 function _generate_training_groups(fault_index, timespan_index, curriculum)
@@ -793,7 +808,9 @@ function _generate_training_groups(fault_index, timespan_index, curriculum)
     end
 end
 
-function _initialize_training_output_dict()
+function _initialize_training_output_dict(
+    ::Union{SteadyStateNODEObsParams, SteadyStateNODEParams},
+)
     return Dict{String, Any}(
         "loss" => DataFrames.DataFrame(
             Loss_initialization = Float64[],
@@ -818,7 +835,35 @@ function _initialize_training_output_dict()
         "final_loss" => Dict{String, Vector{Float64}}(),
         "timing_stats" => [],
         "n_params_surrogate" => 0,
-        "θ_ranges" => Dict{String, UnitRange{Int64}},
+        "train_id" => "",
+    )
+end
+
+function _initialize_training_output_dict(::ClassicGenParams)
+    return Dict{String, Any}(
+        "loss" => DataFrames.DataFrame(
+            Loss_initialization = Float64[],
+            Loss_dynamic = Float64[],
+            Loss = Float64[],
+            reached_ss = Bool[],
+        ),
+        "predictions" => DataFrames.DataFrame(
+            parameters = Vector{Any}[],
+            surrogate_solution = PhysicalModel_solution[],
+            fault_index = Vector{Tuple{Int64, Int64}}[],
+        ),
+        "validation_loss" => DataFrames.DataFrame(
+            mae_ir = Vector{Float64}[],
+            max_error_ir = Vector{Float64}[],
+            mae_ii = Vector{Float64}[],
+            max_error_ii = Vector{Float64}[],
+        ),
+        "total_time" => [],
+        "total_iterations" => 0,
+        "recorded_iterations" => [],
+        "final_loss" => Dict{String, Vector{Float64}}(),
+        "timing_stats" => [],
+        "n_params_surrogate" => 0,
         "train_id" => "",
     )
 end

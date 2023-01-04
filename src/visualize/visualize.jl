@@ -8,6 +8,66 @@ function apply_to_columns(function_for_column, tsteps)#, y)
 end
 
 function plot_overview(surrogate_prediction, fault_index, fault_data, exs)
+    if haskey(surrogate_prediction, :r0)
+        return _plot_overview_data(surrogate_prediction, fault_index, fault_data, exs)
+    else
+        return _plot_overview_physical(surrogate_prediction, fault_index, fault_data, exs)
+    end
+end
+
+function _plot_overview_physical(surrogate_prediction, fault_index, fault_data, exs)
+    if surrogate_prediction.converged
+        tsteps = fault_data[fault_index[end][1]].tsteps
+        ground_truth_real_current = fault_data[fault_index[end][1]].real_current
+        ground_truth_imag_current = fault_data[fault_index[end][1]].imag_current
+        t_series = surrogate_prediction.t_series
+        i_series = surrogate_prediction.i_series
+        i_series = reshape(i_series, (2, length(t_series)))       #Loses shape when serialized/deserialized to arrow  
+        res = surrogate_prediction.res
+        ex = exs[fault_index[end][1]]
+
+        p1 = Plots.plot(t_series, i_series[1, :], label = L"$\hat{y}_1$")
+        Plots.scatter!(p1, t_series, i_series[1, :], label = false, markersize = 1)
+        Plots.scatter!(
+            [0.0],
+            [i_series[1, 1]],
+            color = :black,
+            label = false,
+            markersize = 1,
+        )
+        Plots.plot!(tsteps, ground_truth_real_current[1, :], label = L"$y_1$")
+
+        p2 = Plots.plot(t_series, i_series[2, :], label = L"$\hat{y}_2$")
+        Plots.scatter!(p2, t_series, i_series[2, :], label = false, markersize = 1)
+        Plots.scatter!(
+            [0.0],
+            [i_series[2, 1]],
+            color = :black,
+            label = false,
+            markersize = 1,
+        )
+        Plots.plot!(tsteps, ground_truth_imag_current[1, :], label = L"$y_2$")
+        V = apply_to_columns(ex, t_series)#, i_series)
+        V_0 = apply_to_columns(ex, t_series)#, zero(i_series))
+        p3 = Plots.plot(t_series, V[1, :], label = L"$u_1$")
+        Plots.plot!(t_series, V_0[1, :], label = L"$u_1^0$")
+        p4 = Plots.plot(t_series, V[2, :], label = L"$u_2$")
+        Plots.plot!(t_series, V_0[2, :], label = L"$u_2^0$")
+        return Plots.plot(
+            p3,
+            p4,
+            p1,
+            p2,
+            layout = (2, 2),
+            dpi = 300,
+            title = string("f:", fault_index[end][1], ", t:", fault_index[end][2]),
+        )
+    else
+        return Plots.plot()
+    end
+end
+
+function _plot_overview_data(surrogate_prediction, fault_index, fault_data, exs)
     if size(surrogate_prediction.r0) != size(surrogate_prediction.r_series)
         tsteps = fault_data[fault_index[end][1]].tsteps
         ground_truth_real_current = fault_data[fault_index[end][1]].real_current
@@ -125,12 +185,16 @@ end
 
 function _visualize_loss(path_to_output)
     df_loss = read_arrow_file_to_dataframe(joinpath(path_to_output, "loss"))
-    p1 = Plots.plot(
-        df_loss.Loss_initialization,
-        label = "Loss Init",
-        yaxis = :log,
-        title = "Loss",
-    )
+    if minimum(df_loss.Loss_initialization) == 0.0
+        p1 = Plots.plot(yaxis = :log)
+    else
+        p1 = Plots.plot(
+            df_loss.Loss_initialization,
+            label = "Loss Init",
+            yaxis = :log,
+            title = "Loss",
+        )
+    end
     Plots.plot!(p1, df_loss.Loss_dynamic, label = "Loss Dynamic")
     Plots.plot!(p1, df_loss.Loss, label = "Total Loss")
     p2 =
@@ -196,6 +260,11 @@ function _rebase_path!(params, new_base_path)
         new_base_path,
         PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
         splitpath(params.surrogate_system_path)[end],
+    )
+    params.modified_surrogate_system_path = joinpath(
+        new_base_path,
+        PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
+        splitpath(params.modified_surrogate_system_path)[end],
     )
     params.train_system_path = joinpath(
         new_base_path,

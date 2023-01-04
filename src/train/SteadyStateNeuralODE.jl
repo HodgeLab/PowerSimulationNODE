@@ -111,7 +111,7 @@ function (s::SteadyStateNeuralODE)(
     p = vcat(p_fixed, p_train)
     θ = atan(v0[2], v0[1])
     dq_ri = [sin(θ) -cos(θ); cos(θ) sin(θ)]     #note: equivalent to PSID.dq_ri(θ)
-    ri_dq = [sin(θ) cos(θ); -cos(θ) sin(θ)]     #note: equivalent to PSID.dq_ri(θ)
+    ri_dq = [sin(θ) cos(θ); -cos(θ) sin(θ)]     #note: equivalent to PSID.ri_dq(θ)
     _, Vq0 = dq_ri * [v0[1]; v0[2]]             #note: Vd0 is zero by definition 
     Id0, Iq0 = dq_ri * [i0[1]; i0[2]]
     #u[1:(end-2)] = surrogate states 
@@ -206,7 +206,6 @@ struct SteadyStateNeuralODE_solution{T}
     r0::AbstractArray{T}
     t_series::AbstractArray{T}
     r_series::AbstractArray{T}
-    # v_series::AbstractArray{T}
     i_series::AbstractArray{T}
     res::AbstractArray{T}
     converged::Bool

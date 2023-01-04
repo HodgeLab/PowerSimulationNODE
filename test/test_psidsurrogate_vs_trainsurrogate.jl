@@ -42,6 +42,7 @@
         base_path = joinpath(pwd(), "test"),
         surrogate_buses = [2],
         model_params = SteadyStateNODEObsParams(
+            name = "source_surrogate",
             dynamic_layer_type = "dense",
             dynamic_hidden_states = 3,
             dynamic_n_layer = 1,
@@ -96,8 +97,7 @@
     generate_train_data(p)
     Random.seed!(p.rng_seed) #Seed call usually happens at start of train()
     train_dataset = Serialization.deserialize(p.train_data_path)
-    scaling_extrema = PowerSimulationNODE.calculate_scaling_extrema(train_dataset)
-    sys_validation = System(p.surrogate_system_path)
+    #sys_validation = System(p.surrogate_system_path)
     sys_train = System(p.train_system_path)
     exs = PowerSimulationNODE._build_exogenous_input_functions(p.train_data, train_dataset)
     v0 = [
@@ -118,19 +118,9 @@
     connecting_branches = Serialization.deserialize(p.data_collection_location_path)[2]
 
     #INSTANTIATE BOTH TYPES OF SURROGATES 
-    train_surrogate = PowerSimulationNODE.instantiate_surrogate_flux(
-        p,
-        p.model_params,
-        1,
-        scaling_extrema,
-    )
-    psid_surrogate = PowerSimulationNODE.instantiate_surrogate_psid(
-        p,
-        p.model_params,
-        1,
-        scaling_extrema,
-        "test-source",
-    )
+    train_surrogate =
+        PowerSimulationNODE.instantiate_surrogate_flux(p, p.model_params, train_dataset)
+
     surrogate_sol = train_surrogate(exs[1], v0, i0, tsteps, tstops)
     p1 = plot(
         surrogate_sol.t_series,
@@ -141,18 +131,6 @@
         surrogate_sol.t_series,
         surrogate_sol.i_series[2, :],
         label = "imag current - flux",
-    )
-
-    #SET THE PARAMETERS OF THE PSID SURROGATE FROM THE FLUX ONE 
-    θ, _ = Flux.destructure(train_surrogate)
-    PSIDS.set_initializer_parameters!(psid_surrogate, θ[1:(train_surrogate.len)])
-    PSIDS.set_node_parameters!(
-        psid_surrogate,
-        θ[(train_surrogate.len + 1):(train_surrogate.len + train_surrogate.len2)],
-    )
-    PSIDS.set_observer_parameters!(
-        psid_surrogate,
-        θ[(train_surrogate.len + train_surrogate.len2 + 1):end],
     )
 
     b = collect(get_components(Bus, sys_train))[1]
@@ -168,6 +146,13 @@
         X_th = 5e-6,
     )
     add_component!(sys_train, source_surrogate)
+
+    #SET THE PARAMETERS OF THE PSID SURROGATE FROM THE FLUX ONE 
+    θ, _ = Flux.destructure(train_surrogate)
+
+    PowerSimulationNODE.add_surrogate_psid!(sys_train, p.model_params, train_dataset)
+
+    PowerSimulationNODE.parameterize_surrogate_psid!(sys_train, θ, p.model_params)
 
     #ADD THE SURROGATE COMPONENT 
     for s in get_components(Source, sys_train)
@@ -185,10 +170,6 @@
             )
 
             add_component!(sys_train, chirp, s)
-        end
-        if get_name(s) == "source_surrogate"
-            set_name!(psid_surrogate, get_name(s))
-            add_component!(sys_train, psid_surrogate, s)
         end
     end
 
@@ -268,6 +249,7 @@ end
         base_path = joinpath(pwd(), "test"),
         surrogate_buses = [2],
         model_params = SteadyStateNODEParams(
+            name = "source_surrogate",
             dynamic_layer_type = "dense",
             dynamic_hidden_states = 3,
             dynamic_n_layer = 1,
@@ -318,8 +300,7 @@ end
     generate_train_data(p)
     Random.seed!(p.rng_seed) #Seed call usually happens at start of train()
     train_dataset = Serialization.deserialize(p.train_data_path)
-    scaling_extrema = PowerSimulationNODE.calculate_scaling_extrema(train_dataset)
-    sys_validation = System(p.surrogate_system_path)
+    #sys_validation = System(p.surrogate_system_path)
     sys_train = System(p.train_system_path)
     exs = PowerSimulationNODE._build_exogenous_input_functions(p.train_data, train_dataset)
     v0 = [
@@ -340,19 +321,9 @@ end
     connecting_branches = Serialization.deserialize(p.data_collection_location_path)[2]
 
     #INSTANTIATE BOTH TYPES OF SURROGATES 
-    train_surrogate = PowerSimulationNODE.instantiate_surrogate_flux(
-        p,
-        p.model_params,
-        1,
-        scaling_extrema,
-    )
-    psid_surrogate = PowerSimulationNODE.instantiate_surrogate_psid(
-        p,
-        p.model_params,
-        1,
-        scaling_extrema,
-        "test-source",
-    )
+    train_surrogate =
+        PowerSimulationNODE.instantiate_surrogate_flux(p, p.model_params, train_dataset)
+
     surrogate_sol = train_surrogate(exs[1], v0, i0, tsteps, tstops)
     p1 = plot(
         surrogate_sol.t_series,
@@ -363,14 +334,6 @@ end
         surrogate_sol.t_series,
         surrogate_sol.i_series[2, :],
         label = "imag current - flux",
-    )
-
-    #SET THE PARAMETERS OF THE PSID SURROGATE FROM THE FLUX ONE 
-    θ, _ = Flux.destructure(train_surrogate)
-    PSIDS.set_initializer_parameters!(psid_surrogate, θ[1:(train_surrogate.len)])
-    PSIDS.set_node_parameters!(
-        psid_surrogate,
-        θ[(train_surrogate.len + 1):(train_surrogate.len + train_surrogate.len2)],
     )
 
     b = collect(get_components(Bus, sys_train))[1]
@@ -386,6 +349,13 @@ end
         X_th = 5e-6,
     )
     add_component!(sys_train, source_surrogate)
+
+    #SET THE PARAMETERS OF THE PSID SURROGATE FROM THE FLUX ONE 
+    θ, _ = Flux.destructure(train_surrogate)
+
+    PowerSimulationNODE.add_surrogate_psid!(sys_train, p.model_params, train_dataset)
+
+    PowerSimulationNODE.parameterize_surrogate_psid!(sys_train, θ, p.model_params)
 
     #ADD THE SURROGATE COMPONENT 
     for s in get_components(Source, sys_train)
@@ -403,10 +373,6 @@ end
             )
 
             add_component!(sys_train, chirp, s)
-        end
-        if get_name(s) == "source_surrogate"
-            set_name!(psid_surrogate, get_name(s))
-            add_component!(sys_train, psid_surrogate, s)
         end
     end
 
