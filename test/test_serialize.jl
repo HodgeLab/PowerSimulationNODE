@@ -10,6 +10,7 @@
         @test test_params.train_data.operating_points[1] ==
               test_params_2.train_data.operating_points[1]
         @test test_params.optimizer == test_params_2.optimizer
+        @test test_params.model_params == test_params_2.model_params
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)

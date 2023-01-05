@@ -97,7 +97,7 @@ mutable struct TrainParams
             PSIDS.GenerateDataParams,
         },
     }
-    model_params::Union{SteadyStateNODEParams, SteadyStateNODEObsParams, ClassicGenParams}
+    model_params::SurrogateModelParams
     steady_state_solver::NamedTuple{
         (:solver, :abstol, :maxiters),
         Tuple{String, Float64, Int},
