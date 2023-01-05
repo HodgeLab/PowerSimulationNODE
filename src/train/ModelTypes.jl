@@ -18,7 +18,7 @@ struct SteadyStateNODEParams <: SurrogateModelParams
 end
 
 function SteadyStateNODEParams(;
-    type = "SteadyStateNODE",
+    type = "SteadyStateNODEParams",
     name = "surrogate-SteadyStateNODE",
     n_ports = 1,
     initializer_layer_type = "dense",
@@ -70,7 +70,7 @@ struct SteadyStateNODEObsParams <: SurrogateModelParams
 end
 
 function SteadyStateNODEObsParams(;
-    type = "SteadyStateNODEObs",
+    type = "SteadyStateNODEObsParams",
     name = "surrogate-SteadyStateNODEObs",
     n_ports = 1,
     initializer_layer_type = "dense",
