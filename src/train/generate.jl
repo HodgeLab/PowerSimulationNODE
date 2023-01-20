@@ -20,7 +20,7 @@ function build_subsystems(p::TrainParams)
     Serialization.serialize(
         p.data_collection_location_path,
         (data_collection_location_train, data_collection_location_validation),
-    )        #TODO - change data_collection_location_path to data_collection_location_path
+    )
 end
 
 """

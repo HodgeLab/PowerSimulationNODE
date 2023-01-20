@@ -21,10 +21,9 @@
     - `perturbations::Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}}`:  
     - `params::PSIDS.GenerateDataParams`: 
 - `model_params::Union{SteadyStateNODEParams, SteadyStateNODEObsParams, ClassicGenParams}`: The type of surrogate model to train. Could be data-driven, physics-based, or a combination.
-- `steady_state_solver::NamedTuple{(:solver, :abstol, :maxiters)}`: Solver for finding initial conditions.
+- `steady_state_solver::NamedTuple{(:solver, :abstol)}`: Solver for finding initial conditions.
     - `solver::String`: the solver name from DifferentialEquations.jl
-    - `abstol::Float64`: absolute tolerance of the solve.
-    - `maxiters::Int64`: maximum iterations of the solve. 
+    - `abstol::Float64`: absolute tolerance of the solve. 
 - `dynamic_solver::NamedTuple{(:solver, :reltol, :abstol, :maxiters, :force_tstops)}`:  Solver for dynamic trajectories.
     - `solver::String`: the solver name from DifferentialEquations.jl
     - `reltol::Float64`: relative tolearnce of the solve. 
@@ -98,10 +97,7 @@ mutable struct TrainParams
         },
     }
     model_params::SurrogateModelParams
-    steady_state_solver::NamedTuple{
-        (:solver, :abstol, :maxiters),
-        Tuple{String, Float64, Int},
-    }
+    steady_state_solver::NamedTuple{(:solver, :abstol), Tuple{String, Float64}}
     dynamic_solver::NamedTuple{
         (:solver, :reltol, :abstol, :maxiters, :force_tstops),
         Tuple{String, Float64, Float64, Int, Bool},
@@ -225,7 +221,6 @@ function TrainParams(;
     steady_state_solver = (
         solver = "SSRootfind",
         abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
-        maxiters = 5,
     ),
     dynamic_solver = (
         solver = "Rodas5",

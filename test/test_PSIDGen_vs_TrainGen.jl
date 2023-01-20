@@ -101,7 +101,7 @@ Vm1_flux = sqrt.(Vr1_flux .^ 2 .+ Vi1_flux .^ 2)
 p3 = plot(tsteps, Vm1_flux, label = "Vm1 - flux")
 p4 = plot(tsteps, θ1_flux, label = "θ1 - flux")
 
-connecting_branches = Serialization.deserialize(p.data_collection_location_path)[2]
+data_collection_location = Serialization.deserialize(p.data_collection_location_path)[2]
 
 #INSTANTIATE BOTH TYPES OF SURROGATES 
 train_surrogate =

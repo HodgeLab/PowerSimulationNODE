@@ -20,7 +20,7 @@ struct ClassicGen{PT, PF, PM, SS, DS, A, K} <: ClassicGenLayer
         kwargs...,
     )
         if p === nothing
-            p = Float32[0.0, 0.2995, 0.7087, 3.148, 2.0]# zeros(5)    #make this something reasonable? see if test passes.  
+            p = Float32[0.0, 0.2995, 0.7087, 3.148, 2.0] #default starting parameters
         end
         new{
             typeof(p),
@@ -124,12 +124,7 @@ function (s::ClassicGen)(
             p_ordered,
         ),
     )
-    ss_solution = SteadyStateDiffEq.solve(
-        prob_ss,
-        s.ss_solver;
-        abstol = s.args[2],
-        maxiters = s.args[1],
-    )
+    ss_solution = SteadyStateDiffEq.solve(prob_ss, s.ss_solver; abstol = s.args[1])
     #=     display(s.args[1])
         display(ss_solution.original)
         display(dudt_ss(u0_pred, p, 0.0))

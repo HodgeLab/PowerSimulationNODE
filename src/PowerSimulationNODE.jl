@@ -13,6 +13,7 @@ export generate_surrogate_data
 export GenerateDataParams
 export visualize_summary
 export generate_summary
+export rebase_path!
 export visualize_training
 export animate_training
 export print_train_parameter_overview

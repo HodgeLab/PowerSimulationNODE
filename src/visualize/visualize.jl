@@ -145,7 +145,7 @@ function _plot_overview_data(surrogate_prediction, fault_index, fault_data, exs)
 end
 
 """
-    function visualize_training(input_params_file::String; skip = 1)
+    function visualize_training(input_params_file::String, iterations_to_visualize)
 
 Visualize a single training by generating plots. Every `skip` recorded training points will be plotted. 
 # NOTE: this functions assumes that the file resides in `input_data` directory and that there is a corresponding `output_data` directory with the training outputs. 
@@ -154,11 +154,8 @@ Visualize a single training by generating plots. Every `skip` recorded training 
 visualize_training("train_1.json")
 ````
 """
-function visualize_training(input_params_file::String; skip = 1, new_base_path = nothing)
+function visualize_training(input_params_file::String, iterations_to_visualize)
     params = TrainParams(input_params_file)
-    if new_base_path !== nothing
-        _rebase_path!(params, new_base_path)
-    end
     path_to_output = joinpath(input_params_file, "..", "..", "output_data", params.train_id)
     output_dict =
         JSON3.read(read(joinpath(path_to_output, "high_level_outputs")), Dict{String, Any})
@@ -174,7 +171,7 @@ function visualize_training(input_params_file::String; skip = 1, new_base_path =
     p = _visualize_validation_loss(path_to_output)
     Plots.png(p, joinpath(path_to_output, "validation_loss"))
 
-    plots_pred = _visualize_predictions(params, path_to_output, skip)
+    plots_pred = _visualize_predictions(params, path_to_output, iterations_to_visualize)
     for (i, p) in enumerate(plots_pred)
         Plots.png(p, joinpath(path_to_output, string("_pred_", i)))
     end
@@ -230,7 +227,7 @@ function _visualize_validation_loss(path_to_output)
     end
 end
 
-function _visualize_predictions(params, path_to_output, skip)
+function _visualize_predictions(params, path_to_output, iterations_to_visualize)
     output_dict =
         JSON3.read(read(joinpath(path_to_output, "high_level_outputs")), Dict{String, Any})
     recorded_iterations = output_dict["recorded_iterations"]
@@ -239,7 +236,7 @@ function _visualize_predictions(params, path_to_output, skip)
     exs = _build_exogenous_input_functions(params.train_data, train_dataset)
     plots_pred = []
     for (j, i) in enumerate(recorded_iterations)
-        if mod(j, skip) == 0
+        if j in iterations_to_visualize
             surrogate_prediction = df_predictions[j, "surrogate_solution"]
             fault_index = df_predictions[j, "fault_index"]
             p = plot_overview(surrogate_prediction, fault_index, train_dataset, exs)
@@ -249,7 +246,8 @@ function _visualize_predictions(params, path_to_output, skip)
     return plots_pred
 end
 
-function _rebase_path!(params, new_base_path)
+function rebase_path!(input_params_file, new_base_path)
+    params = TrainParams(input_params_file)
     params.base_path = new_base_path
     params.system_path = joinpath(
         new_base_path,
@@ -293,6 +291,7 @@ function _rebase_path!(params, new_base_path)
     )
     params.output_data_path =
         joinpath(new_base_path, splitpath(params.output_data_path)[end])
+    serialize(params, input_params_file)
 end
 
 function read_arrow_file_to_dataframe(file::AbstractString)
@@ -305,7 +304,7 @@ end
     function animate_training(input_params_file::String; skip=10, fps = 10)
 
 Visualize a single training by generating animation of the training process. Saves a gif in `output_data` for predictions and observations.
-- `skip`: number of training iterations to skip between frames of the animation. 
+- `iterations_to_visualize`:  index of recorded iterations to visualize in the animation.
 - `fps`: frames per second in the output gif
 
 # Examples:
@@ -313,26 +312,13 @@ Visualize a single training by generating animation of the training process. Sav
 animate_training("train_1.json", skip=10, fps = 10)
 ````
 """
-function animate_training(
-    input_params_file::String;
-    skip = 10,
-    fps = 10,
-    new_base_path = nothing,
-)
-    _animate_training(input_params_file, skip = skip, fps = fps, new_base_path = nothing)
+function animate_training(input_params_file::String, iterations_to_visualize; fps = 10)
+    _animate_training(input_params_file, iterations_to_visualize; fps = fps)
     GC.gc()
 end
 
-function _animate_training(
-    input_params_file::String;
-    skip = 10,
-    fps = 10,
-    new_base_path = nothing,
-)
+function _animate_training(input_params_file::String, iterations_to_visualize; fps = 10)
     params = TrainParams(input_params_file)
-    if new_base_path !== nothing
-        _rebase_path!(params, new_base_path)
-    end
     path_to_output = joinpath(input_params_file, "..", "..", "output_data", params.train_id)
     output_dict =
         JSON3.read(read(joinpath(path_to_output, "high_level_outputs")), Dict{String, Any})
@@ -342,7 +328,7 @@ function _animate_training(
     println("TOTAL ITERATIONS: ", output_dict["total_iterations"])
     println("FINAL LOSS: ", output_dict["final_loss"])
     println("--------------------------------")
-    plots_pred = _visualize_predictions(params, path_to_output, skip)
+    plots_pred = _visualize_predictions(params, path_to_output, iterations_to_visualize)
     anim_preds = Plots.Animation()
     for p in plots_pred
         p = Plots.plot(p)

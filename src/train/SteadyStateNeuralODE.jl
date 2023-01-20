@@ -149,12 +149,7 @@ function (s::SteadyStateNeuralODE)(
             p,
         ),
     )
-    ss_solution = SteadyStateDiffEq.solve(
-        prob_ss,
-        s.ss_solver;
-        abstol = s.args[2],
-        maxiters = s.args[1],
-    )
+    ss_solution = SteadyStateDiffEq.solve(prob_ss, s.ss_solver; abstol = s.args[1])
     #=     display(s.args[1])
         display(ss_solution.original)
         display(dudt_ss(u0_pred, p, 0.0))
