@@ -166,12 +166,30 @@ function _single_perturbation_to_function_of_time(
     return (Vr_func, Vi_func)
 end
 
+"""
+    function evaluate_loss(
+        sys,
+        θ,
+        groundtruth_dataset,
+        data_params,
+        data_collection_location,
+        model_params,
+    )
+
+# Fields
+- `sys`: System with surrogate already included (usually the modified validation system)
+- `θ`: New surrogate parameters to evaluate loss for
+- `groundtruth_dataset`: ground truth data for evaluating loss.
+- `data_params`: the parameters used to generate `groundtruth_dataset`
+- `data_collection_location::Vector{Tuple{String, Symbol}}`: the data collection location for generating data. A vector of Tuples of branch name and either `:to` or `:from` for interpreting the polarity of data from those branches.
+- `model_params`: model params of the surrogate. 
+"""
 function evaluate_loss(
     sys,
     θ,
     groundtruth_dataset,
     data_params,
-    connecting_branches,
+    data_collection_location,
     model_params,
 )
     parameterize_surrogate_psid!(sys, θ, model_params)
@@ -184,7 +202,9 @@ function evaluate_loss(
         sys,
         perturbations,
         operating_points,
-        PSIDS.SteadyStateNODEDataParams(location_of_data_collection = connecting_branches),
+        PSIDS.SteadyStateNODEDataParams(
+            location_of_data_collection = data_collection_location,
+        ),
         generate_data_params,
         dataset_aux = groundtruth_dataset,
     )
@@ -319,12 +339,33 @@ function calculate_scaling_extrema(train_dataset)
     return scaling_parameters
 end
 
+"""
+    function visualize_loss(
+        sys,
+        θ,
+        groundtruth_dataset,
+        data_params,
+        data_collection_location,
+        model_params,
+    )
+
+# Returns
+- A vector of plots for each entry in the dataset.
+
+# Fields
+- `sys`: System with surrogate already included (usually the modified validation system)
+- `θ`: New surrogate parameters to evaluate loss for
+- `groundtruth_dataset`: ground truth data for evaluating loss.
+- `data_params`: the parameters used to generate `groundtruth_dataset`
+- `data_collection_location::Vector{Tuple{String, Symbol}}`: the data collection location for generating data. A vector of Tuples of branch name and either `:to` or `:from` for interpreting the polarity of data from those branches.
+- `model_params`: model params of the surrogate. 
+"""
 function visualize_loss(
     sys,
     θ,
     groundtruth_dataset,
     data_params,
-    connecting_branches,
+    data_collection_location,
     model_params,
 )
     parameterize_surrogate_psid!(sys, θ, model_params)
@@ -337,7 +378,9 @@ function visualize_loss(
         sys,
         perturbations,
         operating_points,
-        PSIDS.SteadyStateNODEDataParams(location_of_data_collection = connecting_branches),
+        PSIDS.SteadyStateNODEDataParams(
+            location_of_data_collection = data_collection_location,
+        ),
         generate_data_params,
         dataset_aux = groundtruth_dataset,
     )
@@ -466,16 +509,22 @@ function parameterize_surrogate_psid!(
     PSY.set_D!(shaft, D)
 end
 
-function _check_dimensionality(connecting_branches, model_params::ClassicGenParams)
-    @assert length(connecting_branches) == 1
+function _check_dimensionality(data_collection_location, model_params::ClassicGenParams)
+    @assert length(data_collection_location) == 1
 end
 
-function _check_dimensionality(connecting_branches, model_params::SteadyStateNODEParams)
-    @assert model_params.n_ports == length(connecting_branches)
+function _check_dimensionality(
+    data_collection_location,
+    model_params::SteadyStateNODEParams,
+)
+    @assert model_params.n_ports == length(data_collection_location)
 end
 
-function _check_dimensionality(connecting_branches, model_params::SteadyStateNODEObsParams)
-    @assert model_params.n_ports == length(connecting_branches)
+function _check_dimensionality(
+    data_collection_location,
+    model_params::SteadyStateNODEObsParams,
+)
+    @assert model_params.n_ports == length(data_collection_location)
 end
 
 """
@@ -492,7 +541,8 @@ function train(params::TrainParams)
     train_dataset = Serialization.deserialize(params.train_data_path)
     validation_dataset = Serialization.deserialize(params.validation_data_path)
     test_dataset = Serialization.deserialize(params.test_data_path)
-    connecting_branches = Serialization.deserialize(params.data_collection_location_path)[2]
+    data_collection_location_validation =
+        Serialization.deserialize(params.data_collection_location_path)[2]
     @info "Length of possible training conditions (number of fault/operating point combinations):",
     length(train_dataset)
     @info "Length of actual training dataset (stable conditions):",
@@ -509,7 +559,7 @@ function train(params::TrainParams)
     @info "length(tstops) in first train condition: $(length(train_dataset[1].tstops))"
     @info "length(tsteps) in first train condition: $(length(train_dataset[1].tsteps))"
 
-    _check_dimensionality(connecting_branches, params.model_params)
+    _check_dimensionality(data_collection_location_validation, params.model_params)
 
     output = _initialize_training_output_dict(params.model_params)
     θ = Float32[]
@@ -539,7 +589,6 @@ function train(params::TrainParams)
         if isempty(params.p_start)
             p_full, _ = Flux.destructure(surrogate)
         else
-            @assert length(p_train) == length(params.p_start)
             p_full = params.p_start
         end
         total_time = @elapsed begin
@@ -572,7 +621,7 @@ function train(params::TrainParams)
                         p_fixed,
                         p_map,
                         surrogate,
-                        connecting_branches,
+                        data_collection_location_validation,
                         train_dataset,
                         validation_dataset,
                         sys_validation,
@@ -598,7 +647,7 @@ function train(params::TrainParams)
             p_full,
             validation_dataset,
             params.validation_data,
-            connecting_branches,
+            data_collection_location_validation,
             params.model_params,
         )
 
@@ -616,7 +665,7 @@ function _train(
     p_fixed::Vector{Float32},
     p_map::Vector{Int64},
     surrogate::Union{SteadyStateNeuralODE, ClassicGen},
-    connecting_branches::Vector{Tuple{String, Symbol}},
+    data_collection_location::Vector{Tuple{String, Symbol}},
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     validation_dataset::Vector{PSIDS.SteadyStateNODEData},
     sys_validation::PSY.System,
@@ -665,19 +714,19 @@ function _train(
         params,
         validation_dataset,
         sys_validation,
-        connecting_branches,
+        data_collection_location,
         surrogate,
         p_fixed,
         p_map,
         opt_ix,
     )
 
-    #Calculate loss before training - useful code for debugging changes to make sure forward pass works before checking train
-    loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index_vector =
-        outer_loss_function(p_train, [(1, 1)])
-    @warn loss
-    @warn loss_initialization
-    @warn loss_dynamic
+    #Calculate loss before training - useful code for debugging changes to make sure forward pass and callback works before checking train
+    #=     loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index_vector =
+            outer_loss_function(p_train, [(1, 1)])
+        @warn loss
+        @warn loss_initialization
+        @warn loss_dynamic 
     cb(
         p_train,
         loss,
@@ -686,6 +735,7 @@ function _train(
         surrogate_solution,
         fault_index_vector,
     )
+    =#
 
     @warn "Starting full train: \n # of iterations per epoch: $(length(group)) \n # of epochs per solve: $per_solve_max_epochs \n max # of iterations for solve: $(per_solve_max_epochs*length(group))"
     timing_stats = @timed Optimization.solve(

@@ -205,7 +205,6 @@ function instantiate_surrogate_flux(
     dynamic_reltol = params.dynamic_solver.reltol
     dynamic_abstol = params.dynamic_solver.abstol
     dynamic_maxiters = params.dynamic_solver.maxiters
-    steadystate_maxiters = params.steady_state_solver.maxiters
     steadystate_abstol = params.steady_state_solver.abstol
 
     return SteadyStateNeuralODE(
@@ -214,7 +213,6 @@ function instantiate_surrogate_flux(
         model_observation,
         steadystate_solver,
         dynamic_solver,
-        steadystate_maxiters,
         steadystate_abstol;
         abstol = dynamic_abstol,
         reltol = dynamic_reltol,
@@ -232,13 +230,11 @@ function instantiate_surrogate_flux(
     dynamic_reltol = params.dynamic_solver.reltol
     dynamic_abstol = params.dynamic_solver.abstol
     dynamic_maxiters = params.dynamic_solver.maxiters
-    steadystate_maxiters = params.steady_state_solver.maxiters
     steadystate_abstol = params.steady_state_solver.abstol
 
     return ClassicGen(
         steadystate_solver,
         dynamic_solver,
-        steadystate_maxiters,
         steadystate_abstol;
         abstol = dynamic_abstol,
         reltol = dynamic_reltol,
@@ -726,13 +722,12 @@ function _outer_loss_function(
         imag_current = train_dataset[fault_index].imag_current
         imag_current_subset = imag_current[:, index_subset]
         tsteps_subset = tsteps[index_subset]
-        #tstops_subset = tstops[index_subset]   #TODO - does it matter if we pass the entire tstops (outside of the range?) --> test on simple ODE
         surrogate_solution = surrogate(
             V,
             [vr0, vi0],
             [ir0, ii0],
             tsteps_subset,
-            tstops,
+            tstops,     #if entry in tstops is outside of tspan, will be ignored.
             p_fixed,
             p_train,
             p_map,
@@ -769,7 +764,7 @@ function instantiate_cb!(
     params,
     validation_dataset,
     sys_validation,
-    connecting_branches,
+    data_collection_location,
     surrogate,
     p_fixed,
     p_map,
@@ -794,7 +789,7 @@ function instantiate_cb!(
             print_loss,
             validation_dataset,
             sys_validation,
-            connecting_branches,
+            data_collection_location,
             surrogate,
             p_fixed,
             p_map,
@@ -814,7 +809,7 @@ function _cb!(
     print_loss,
     validation_dataset,
     sys_validation,
-    connecting_branches,
+    data_collection_location,
     surrogate,
     p_fixed,
     p_map,
@@ -856,7 +851,7 @@ function _cb!(
             vcat(p_fixed, p_train)[p_map],
             validation_dataset,
             params.validation_data,
-            connecting_branches,
+            data_collection_location,
             params.model_params,
         )
 
