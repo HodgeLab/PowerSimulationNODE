@@ -466,6 +466,18 @@ function parameterize_surrogate_psid!(
     PSY.set_D!(shaft, D)
 end
 
+function _check_dimensionality(connecting_branches, model_params::ClassicGenParams)
+    @assert length(connecting_branches) == 1
+end
+
+function _check_dimensionality(connecting_branches, model_params::SteadyStateNODEParams)
+    @assert model_params.n_ports == length(connecting_branches)
+end
+
+function _check_dimensionality(connecting_branches, model_params::SteadyStateNODEObsParams)
+    @assert model_params.n_ports == length(connecting_branches)
+end
+
 """
     train(params::TrainParams)
 
@@ -497,9 +509,7 @@ function train(params::TrainParams)
     @info "length(tstops) in first train condition: $(length(train_dataset[1].tstops))"
     @info "length(tsteps) in first train condition: $(length(train_dataset[1].tsteps))"
 
-    #TODO - add a function which checks dimensionality of connecting_branches and the type of surrogate match up...
-    #@assert params.model_params.n_ports == length(connecting_branches)  (for Data driven surrogates)
-    #@assert length(connecting_branches) == 1 (for physics based models)
+    _check_dimensionality(connecting_branches, params.model_params)
 
     output = _initialize_training_output_dict(params.model_params)
     θ = Float32[]
