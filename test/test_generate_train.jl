@@ -10,7 +10,7 @@ function generate_and_train_test(p)
     input_param_file = joinpath(p.base_path, "input_data", "input_test1.json")
     PowerSimulationNODE.serialize(p, input_param_file)
     visualize_training(input_param_file, [1, 2, 3])
-    #animate_training(input_param_file, [1,2,3,4,5])       #TODO - internal bug in animation
+    animate_training(input_param_file, [1, 2, 3])
     a = generate_summary(joinpath(p.base_path, "output_data"))
     pp = visualize_summary(a)
     print_high_level_output_overview(a, p.base_path)

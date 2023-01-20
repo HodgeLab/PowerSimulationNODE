@@ -726,7 +726,7 @@ function _outer_loss_function(
         imag_current = train_dataset[fault_index].imag_current
         imag_current_subset = imag_current[:, index_subset]
         tsteps_subset = tsteps[index_subset]
-        #tstops_subset = tstops[index_subset]   #TODO - does it matter if we pass the entire tstops (outside of the range?)
+        #tstops_subset = tstops[index_subset]   #TODO - does it matter if we pass the entire tstops (outside of the range?) --> test on simple ODE
         surrogate_solution = surrogate(
             V,
             [vr0, vi0],

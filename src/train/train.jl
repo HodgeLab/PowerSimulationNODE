@@ -531,7 +531,8 @@ function train(params::TrainParams)
             _build_exogenous_input_functions(params.train_data, train_dataset)    #can build ex from the components in params.train_data or from the dataset values by interpolating
 
         @assert length(train_dataset) == length(exogenous_input_functions)
-        stable_fault_indices = indexin(filter(x -> x.stable == true, train_dataset), train_dataset)    #Only train on stable faults from train_dataset
+        stable_fault_indices =
+            indexin(filter(x -> x.stable == true, train_dataset), train_dataset)    #Only train on stable faults from train_dataset
         n_samples = length(filter(x -> x.stable == true, train_dataset))
         @info "\n number of stable training samples: $n_samples"
 

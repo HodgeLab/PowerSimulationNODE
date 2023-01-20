@@ -312,12 +312,12 @@ Visualize a single training by generating animation of the training process. Sav
 animate_training("train_1.json", skip=10, fps = 10)
 ````
 """
-function animate_training(input_params_file::String, iterations_to_visualize, fps = 10)
-    _animate_training(input_params_file, iterations_to_visualize, fps = fps)
+function animate_training(input_params_file::String, iterations_to_visualize; fps = 10)
+    _animate_training(input_params_file, iterations_to_visualize; fps = fps)
     GC.gc()
 end
 
-function _animate_training(input_params_file::String; iterations_to_visualize, fps = 10)
+function _animate_training(input_params_file::String, iterations_to_visualize; fps = 10)
     params = TrainParams(input_params_file)
     path_to_output = joinpath(input_params_file, "..", "..", "output_data", params.train_id)
     output_dict =
