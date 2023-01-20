@@ -528,11 +528,10 @@ function train(params::TrainParams)
         output["train_id"] = params.train_id
         output["n_params_surrogate"] = n_parameters
         exogenous_input_functions =
-            _build_exogenous_input_functions(params.train_data, train_dataset)    #can build ex from the components in params.train_data or from the dataset values by interpolating...
-        #want to test how this impacts the speed of a single train iteration (the interpolation)
+            _build_exogenous_input_functions(params.train_data, train_dataset)    #can build ex from the components in params.train_data or from the dataset values by interpolating
 
         @assert length(train_dataset) == length(exogenous_input_functions)
-        fault_indices = collect(1:length(train_dataset))    #TODO - should this be filtered for only stable faults? 
+        stable_fault_indices = indexin(filter(x -> x.stable == true, train_dataset), train_dataset)    #Only train on stable faults from train_dataset
         n_samples = length(filter(x -> x.stable == true, train_dataset))
         @info "\n number of stable training samples: $n_samples"
 
@@ -549,7 +548,7 @@ function train(params::TrainParams)
                 train_details = opt.curriculum_timespans
                 timespan_indices = collect(1:length(opt.curriculum_timespans))
                 train_groups = _generate_training_groups(
-                    fault_indices,
+                    stable_fault_indices,
                     timespan_indices,
                     opt.curriculum,
                 )
