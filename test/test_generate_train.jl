@@ -210,8 +210,8 @@ end
                 P_scale = 1.0,
                 Q_scale = 1.0,
             )],
-            perturbations = [
-                [PSIDS.Chirp(;
+            perturbations = [[
+                PSIDS.Chirp(;
                     source_name = "source_1",  #when building training system, sources are named source_$(ix) for each port
                     ω1 = 1.0,
                     ω2 = 2.0,
@@ -219,15 +219,15 @@ end
                     N = 1.0,
                     V_amp = 0.1,
                     ω_amp = 0.1,
-                ),]
-            ],
+                ),
+            ]],
             params = PSIDS.GenerateDataParams(
                 solver = "Rodas5",
                 formulation = "MassMatrix",
                 solver_tols = (reltol = 1e-4, abstol = 1e-4),
                 tspan = (0.0, 1.0),
                 tstops = [0.0, 0.5, 1.0], #issue with tstop at 0.0 with dynamic lines? 
-                tsave = [], 
+                tsave = [],
                 all_lines_dynamic = false,
                 all_branches_dynamic = false,   #Can't do dynamic transformers? 
                 seed = 1,
@@ -436,7 +436,7 @@ end
                 ),
             ),
         ],
-        p_start = [],  #Float32[0.01, 0.4995, 0.5087, 4.148, 1.0],
+        p_start = [], #Float32[0.01, 0.4995, 0.5087, 4.148, 1.0],
         validation_loss_every_n = 20,
         output_mode_skip = 1,
     )
