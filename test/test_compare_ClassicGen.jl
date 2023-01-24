@@ -191,7 +191,7 @@ plot!(p4, θ2, label = "θ2 - psid")
 #NOTE: i_surrogate = - i_source
 plot!(p1, Ir[1], -1 * Ir[2], label = "real current -psid", legend = :topright)
 plot!(p2, Ii[1], -1 * Ii[2], label = "imag current -psid", legend = :topright)
-display(plot(p1, p2, p3, p4, size = (1000, 1000)))
+display(plot(p1, p2, p3, p4, size = (1000, 1000), title = "compare_ClassicGen"))
 
 #@test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <= 0.0014
 #@test LinearAlgebra.norm(Ii[2] .* -1 .- surrogate_sol.i_series[2, :], Inf) <= 0.0022
