@@ -117,3 +117,12 @@ end
 function ClassicGenParams(; type = "ClassicGenParams", name = "surrogate-ClassicGen")
     ClassicGenParams(type, name)
 end
+
+struct FullGenParams <: SurrogateModelParams
+    type::String
+    name::String
+end
+
+function FullGenParams(; type = "FullGenParams", name = "surrogate-FullGenParams")
+    FullGenParams(type, name)
+end

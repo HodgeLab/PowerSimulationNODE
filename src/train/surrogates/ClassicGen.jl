@@ -20,7 +20,7 @@ struct ClassicGen{PT, PF, PM, SS, DS, A, K} <: ClassicGenLayer
         kwargs...,
     )
         if p === nothing
-            p = Float32[0.0, 0.2995, 0.7087, 3.148, 2.0] #default starting parameters
+            p = Float32[0.0, 0.2995, 0.7087, 3.148, 2.0] #default starting parameters 
         end
         new{
             typeof(p),

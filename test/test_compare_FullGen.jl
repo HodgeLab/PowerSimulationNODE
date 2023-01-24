@@ -41,7 +41,7 @@
     p = TrainParams(
         base_path = joinpath(pwd(), "test"),
         surrogate_buses = [2],
-        model_params = ClassicGenParams(name = "source_surrogate"), 
+        model_params = ClassicGenParams(name = "source_surrogate"), #Change this!
         train_data = (
             id = "1",
             operating_points = PSIDS.SurrogateOperatingPoint[PSIDS.GenerationLoadScale()],
