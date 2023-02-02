@@ -177,6 +177,48 @@ function add_surrogate_psid!(
     PSY.add_component!(sys, dynamic_injector, static_injector)
 end
 
+function add_surrogate_psid!(
+    sys::PSY.System,
+    model_params::GFLParams,
+    ::Vector{PSIDS.SteadyStateNODEData},   #Won't be used in this dispatch 
+)
+    source = PSY.get_component(PSY.Source, sys, model_params.name) #Note: hardcoded for single port surrogate 
+    P_ref = PSY.get_active_power(source)
+    Q_ref = PSY.get_reactive_power(source)
+    b = PSY.get_bus(source)
+    PSY.remove_component!(sys, source)
+    static_injector = PSY.ThermalStandard(
+        name = model_params.name,
+        available = true,
+        status = true,
+        bus = b,
+        active_power = P_ref,
+        reactive_power = 0.0,
+        rating = 2.0,
+        active_power_limits = (min = 0.0, max = 2.0),
+        reactive_power_limits = (min = -1.5, max = 1.5),
+        time_limits = nothing,
+        ramp_limits = nothing,
+        operation_cost = PSY.ThreePartCost((0.0, 4000.0), 0.0, 4.0, 2.0),   #unused 
+        base_power = 100.0,
+    )
+    PSY.add_component!(sys, static_injector)
+    dynamic_injector = PSY.DynamicInverter(
+        name = model_params.name,
+        ω_ref = 1.0,
+        converter = PSY.AverageConverter(0.0, 0.0),
+        outer_control = PSY.OuterControl(
+            PSY.ActivePowerPI(0.0, 0.0, 0.0, 0.0),
+            PSY.ReactivePowerPI(0.0, 0.0, 0.0, 0.0, 0.0),
+        ),
+        inner_control = PSY.CurrentModeControl(0.0, 0.0, 0.0),
+        dc_source = PSY.FixedDCSource(0.0),
+        freq_estimator = PSY.ReducedOrderPLL(0.0, 0.0, 0.0),
+        filter = PSY.LCLFilter(0.0, 0.0, 0.0, 0.0, 0.0),
+    )
+    PSY.add_component!(sys, dynamic_injector, static_injector)
+end
+
 function instantiate_surrogate_flux(
     params::TrainParams,
     model_params::Union{SteadyStateNODEParams, SteadyStateNODEObsParams},
@@ -233,6 +275,28 @@ function instantiate_surrogate_flux(
     steadystate_abstol = params.steady_state_solver.abstol
 
     return ClassicGen(
+        steadystate_solver,
+        dynamic_solver,
+        steadystate_abstol;
+        abstol = dynamic_abstol,
+        reltol = dynamic_reltol,
+        maxiters = dynamic_maxiters,
+    )
+end
+
+function instantiate_surrogate_flux(
+    params::TrainParams,
+    model_params::GFLParams,
+    train_dataset::Vector{PSIDS.SteadyStateNODEData},
+)
+    steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
+    dynamic_solver = instantiate_solver(params.dynamic_solver)
+    dynamic_reltol = params.dynamic_solver.reltol
+    dynamic_abstol = params.dynamic_solver.abstol
+    dynamic_maxiters = params.dynamic_solver.maxiters
+    steadystate_abstol = params.steady_state_solver.abstol
+
+    return GFL(
         steadystate_solver,
         dynamic_solver,
         steadystate_abstol;
@@ -651,7 +715,7 @@ function _inner_loss_function(
 end
 
 function instantiate_outer_loss_function(
-    surrogate::Union{SteadyStateNeuralODE, ClassicGen},
+    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL},
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     exogenous_input_functions,
     train_details::Vector{
@@ -660,7 +724,7 @@ function instantiate_outer_loss_function(
             Tuple{Tuple{Float64, Float64}, Float64},
         },
     },
-    p_fixed::Vector{Float32},
+    p_fixed::Union{Vector{Float64}, Vector{Float32}},
     p_map::Vector{Int64},
     params::TrainParams,
     opt_ix::Int64,
@@ -682,7 +746,7 @@ end
 function _outer_loss_function(
     p_train,
     vector_fault_timespan_index::Vector{Tuple{Int64, Int64}},
-    surrogate::Union{SteadyStateNeuralODE, ClassicGen},
+    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL},
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     exogenous_input_functions,
     train_details::Vector{
@@ -691,7 +755,7 @@ function _outer_loss_function(
             Tuple{Tuple{Float64, Float64}, Float64},
         },
     },
-    p_fixed::Vector{Float32},
+    p_fixed::Union{Vector{Float64}, Vector{Float32}},
     p_map::Vector{Int64},
     params::TrainParams,
     opt_ix::Int64,

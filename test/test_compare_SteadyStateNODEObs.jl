@@ -184,7 +184,7 @@
     #SIMULATE AND PLOT
     sim = Simulation!(MassMatrixModel, sys_train, pwd(), (0.0, 1.0))
     show_states_initial_value(sim)
-    execute!(sim, Rodas5(), abstol = 1e-9, reltol = 1e-9)
+    execute!(sim, Rodas5(), saveat = 0.0:0.001:1.0, abstol = 1e-12, reltol = 1e-12)
     results = read_results(sim)
     Vm2 = get_voltage_magnitude_series(results, 2)
     θ2 = get_voltage_angle_series(results, 2)
@@ -197,7 +197,8 @@
     plot!(p2, Ii[1], -1 .* Ii[2], label = "imag current -psid", legend = :topright)
     display(plot(p1, p2, p3, p4, size = (1000, 1000), title = "compare_SteadyStateNODEObs"))
 
-    #@test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <= 5e-4
+    @test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <= 0.00015
+    @test LinearAlgebra.norm(Ii[2] .* -1 .- surrogate_sol.i_series[2, :], Inf) <= 0.0000050
 
     #See the distribution of the parameters
     #= p_params = scatter(θ[(train_surrogate.len + 1):(train_surrogate.len + train_surrogate.len2)], label = "node params")

@@ -493,10 +493,11 @@ end
 
 function parameterize_surrogate_psid!(
     sys::PSY.System,
-    θ::Union{Vector{Float32}, Vector{Float64}},
+    θ::Vector{Float64},
     model_params::ClassicGenParams,
 )
-    R, Xd_p, eq_p, H, D = θ
+    R, Xd_p, eq_p = θ[1:3]  #machine parameters 
+    H, D = θ[4:5]   #shaft parameters 
 
     surrogate = PSY.get_component(PSY.DynamicInjection, sys, model_params.name)
     machine = PSY.get_machine(surrogate)
@@ -509,7 +510,63 @@ function parameterize_surrogate_psid!(
     PSY.set_D!(shaft, D)
 end
 
+function parameterize_surrogate_psid!(
+    sys::PSY.System,
+    θ::Vector{Float64},
+    model_params::GFLParams,
+)
+    #NOTE: don't need to parameterize references -- they are set during initialization 
+    rated_voltage, rated_current = θ[1:2] #converter parameters 
+    Kp_p, Ki_p, ωz, Kp_q, Ki_q, ωf = θ[3:8] #outer_control parameters 
+    kpc, kic, kffv = θ[9:11]  #inner_control parameters 
+    voltage = θ[12] #dc_source parameters
+    ω_lp, kp_pll, ki_pll = θ[13:15]  #freq_estimator parameters
+    lf, rf, cf, lg, rg = θ[16:20] #filter parameters 
+
+    surrogate = PSY.get_component(PSY.DynamicInjection, sys, model_params.name)
+    converter = PSY.get_converter(surrogate)
+    PSY.set_rated_voltage!(converter, rated_voltage)
+    PSY.set_rated_current!(converter, rated_current)
+
+    active_power = PSY.get_active_power(PSY.get_outer_control(surrogate))
+    PSY.set_Kp_p!(active_power, Kp_p)
+    PSY.set_Ki_p!(active_power, Ki_p)
+    PSY.set_ωz!(active_power, ωz)
+    #PSY.set_P_ref!(active_power, P_ref)
+
+    reactive_power = PSY.get_reactive_power(PSY.get_outer_control(surrogate))
+    PSY.set_Kp_q!(reactive_power, Kp_q)
+    PSY.set_Ki_q!(reactive_power, Ki_q)
+    PSY.set_ωf!(reactive_power, ωf)
+    #PSY.set_V_ref!(reactive_power, V_ref)
+    #PSY.set_Q_ref!(reactive_power, Q_ref)
+
+    inner_control = PSY.get_inner_control(surrogate)
+    PSY.set_kpc!(inner_control, kpc)
+    PSY.set_kic!(inner_control, kic)
+    PSY.set_kffv!(inner_control, kffv)
+
+    dc_source = PSY.get_dc_source(surrogate)
+    PSY.set_voltage!(dc_source, voltage)
+
+    freq_estimator = PSY.get_freq_estimator(surrogate)
+    PSY.set_ω_lp!(freq_estimator, ω_lp)
+    PSY.set_kp_pll!(freq_estimator, kp_pll)
+    PSY.set_ki_pll!(freq_estimator, ki_pll)
+
+    filter = PSY.get_filter(surrogate)
+    PSY.set_lf!(filter, lf)
+    PSY.set_rf!(filter, rf)
+    PSY.set_cf!(filter, cf)
+    PSY.set_lg!(filter, lg)
+    PSY.set_rg!(filter, rg)
+end
+
 function _check_dimensionality(data_collection_location, model_params::ClassicGenParams)
+    @assert length(data_collection_location) == 1
+end
+
+function _check_dimensionality(data_collection_location, model_params::GFLParams)
     @assert length(data_collection_location) == 1
 end
 
@@ -562,7 +619,6 @@ function train(params::TrainParams)
     _check_dimensionality(data_collection_location_validation, params.model_params)
 
     output = _initialize_training_output_dict(params.model_params)
-    θ = Float32[]
     try
         sys_validation = node_load_system(params.surrogate_system_path)
         add_surrogate_psid!(sys_validation, params.model_params, train_dataset)
@@ -656,15 +712,15 @@ function train(params::TrainParams)
     catch e
         @error "Error in try block of train(): " exception = (e, catch_backtrace())
         _capture_output(output, params.output_data_path, params.train_id)
-        return false, θ
+        return false, []
     end
 end
 
 function _train(
-    p_train::Vector{Float32},
-    p_fixed::Vector{Float32},
+    p_train::Union{Vector{Float32}, Vector{Float64}},
+    p_fixed::Union{Vector{Float32}, Vector{Float64}},
     p_map::Vector{Int64},
-    surrogate::Union{SteadyStateNeuralODE, ClassicGen},
+    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL},
     data_collection_location::Vector{Tuple{String, Symbol}},
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     validation_dataset::Vector{PSIDS.SteadyStateNODEData},
@@ -806,13 +862,13 @@ end
 
 function _initialize_params(
     p_fixed::Vector{Symbol},
-    p_full::Vector{Float32},
+    p_full::Vector{Float64},
     surrogate::ClassicGen,
 )
     @assert !(nothing in indexin(p_fixed, [:R, :Xd_p, :eq_p, :H, :D]))  #ensure given p_fixed is a valid parameter
     @info "original parameter vector: $p_full"
-    p_fix = Float32[]
-    p_train = Float32[]
+    p_fix = Float64[]
+    p_train = Float64[]
     fixed_indices = []
     train_indices = []
     for i in 1:length(p_full)
@@ -825,6 +881,87 @@ function _initialize_params(
         end
     end
     p_map = Vector{Int64}(undef, 5)
+    for (ix, i) in enumerate(fixed_indices)
+        p_map[i] = ix
+    end
+    for (ix, i) in enumerate(train_indices)
+        p_map[i] = ix + length(fixed_indices)
+    end
+    @info "remapped parameter vector: $(vcat(p_fix, p_train)[p_map])"
+    return p_fix, p_train, p_map
+end
+
+function _initialize_params(
+    p_fixed::Vector{Symbol},
+    p_full::Vector{Float64},
+    surrogate::GFL,
+)
+    @assert !(
+        nothing in indexin(
+            p_fixed,
+            [
+                :rated_voltage,
+                :rated_current,
+                :Kp_p,
+                :Ki_p,
+                :ωz,
+                :Kp_q,
+                :Ki_q,
+                :ωf,
+                :kpc,
+                :kic,
+                :kffv,
+                :voltage,
+                :ω_lp,
+                :kp_pll,
+                :ki_pll,
+                :lf,
+                :rf,
+                :cf,
+                :lg,
+                :rg,
+            ],
+        )
+    )  #ensure given p_fixed is a valid parameter
+    @info "original parameter vector: $p_full"
+    p_fix = Float64[]
+    p_train = Float64[]
+    fixed_indices = []
+    train_indices = []
+    for i in 1:length(p_full)
+        if i in indexin(
+            p_fixed,
+            [
+                :rated_voltage,
+                :rated_current,
+                :Kp_p,
+                :Ki_p,
+                :ωz,
+                :Kp_q,
+                :Ki_q,
+                :ωf,
+                :kpc,
+                :kic,
+                :kffv,
+                :voltage,
+                :ω_lp,
+                :kp_pll,
+                :ki_pll,
+                :lf,
+                :rf,
+                :cf,
+                :lg,
+                :rg,
+            ],
+        )
+            push!(p_fix, p_full[i])
+            push!(fixed_indices, i)
+        else
+            push!(p_train, p_full[i])
+            push!(train_indices, i)
+        end
+    end
+    p_map = Vector{Int64}(undef, 20)
     for (ix, i) in enumerate(fixed_indices)
         p_map[i] = ix
     end
@@ -899,7 +1036,7 @@ function _initialize_training_output_dict(
     )
 end
 
-function _initialize_training_output_dict(::ClassicGenParams)
+function _initialize_training_output_dict(::Union{ClassicGenParams, GFLParams})
     return Dict{String, Any}(
         "loss" => DataFrames.DataFrame(
             Loss_initialization = Float64[],
