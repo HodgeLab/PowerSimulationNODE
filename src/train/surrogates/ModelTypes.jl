@@ -126,3 +126,12 @@ end
 function GFLParams(; type = "GFLParams", name = "surrogate-GFLParams")
     GFLParams(type, name)
 end
+
+struct GFMParams <: SurrogateModelParams
+    type::String
+    name::String
+end
+
+function GFMParams(; type = "GFMParams", name = "surrogate-GFMParams")
+    GFMParams(type, name)
+end

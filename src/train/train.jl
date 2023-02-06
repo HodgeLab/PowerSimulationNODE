@@ -516,50 +516,89 @@ function parameterize_surrogate_psid!(
     model_params::GFLParams,
 )
     #NOTE: don't need to parameterize references -- they are set during initialization 
-    rated_voltage, rated_current = θ[1:2] #converter parameters 
-    Kp_p, Ki_p, ωz, Kp_q, Ki_q, ωf = θ[3:8] #outer_control parameters 
-    kpc, kic, kffv = θ[9:11]  #inner_control parameters 
-    voltage = θ[12] #dc_source parameters
-    ω_lp, kp_pll, ki_pll = θ[13:15]  #freq_estimator parameters
-    lf, rf, cf, lg, rg = θ[16:20] #filter parameters 
-
     surrogate = PSY.get_component(PSY.DynamicInjection, sys, model_params.name)
     converter = PSY.get_converter(surrogate)
-    PSY.set_rated_voltage!(converter, rated_voltage)
-    PSY.set_rated_current!(converter, rated_current)
+    PSY.set_rated_voltage!(converter, θ[gfl_indices[:params][:rated_voltage]])
+    PSY.set_rated_current!(converter, θ[gfl_indices[:params][:rated_current]])
 
     active_power = PSY.get_active_power(PSY.get_outer_control(surrogate))
-    PSY.set_Kp_p!(active_power, Kp_p)
-    PSY.set_Ki_p!(active_power, Ki_p)
-    PSY.set_ωz!(active_power, ωz)
+    PSY.set_Kp_p!(active_power, θ[gfl_indices[:params][:Kp_p]])
+    PSY.set_Ki_p!(active_power, θ[gfl_indices[:params][:Ki_p]])
+    PSY.set_ωz!(active_power, θ[gfl_indices[:params][:ωz]])
     #PSY.set_P_ref!(active_power, P_ref)
 
     reactive_power = PSY.get_reactive_power(PSY.get_outer_control(surrogate))
-    PSY.set_Kp_q!(reactive_power, Kp_q)
-    PSY.set_Ki_q!(reactive_power, Ki_q)
-    PSY.set_ωf!(reactive_power, ωf)
+    PSY.set_Kp_q!(reactive_power, θ[gfl_indices[:params][:Kp_q]])
+    PSY.set_Ki_q!(reactive_power, θ[gfl_indices[:params][:Ki_q]])
+    PSY.set_ωf!(reactive_power, θ[gfl_indices[:params][:ωf]])
     #PSY.set_V_ref!(reactive_power, V_ref)
     #PSY.set_Q_ref!(reactive_power, Q_ref)
 
     inner_control = PSY.get_inner_control(surrogate)
-    PSY.set_kpc!(inner_control, kpc)
-    PSY.set_kic!(inner_control, kic)
-    PSY.set_kffv!(inner_control, kffv)
+    PSY.set_kpc!(inner_control, θ[gfl_indices[:params][:kpc]])
+    PSY.set_kic!(inner_control, θ[gfl_indices[:params][:kic]])
+    PSY.set_kffv!(inner_control, θ[gfl_indices[:params][:kffv]])
 
     dc_source = PSY.get_dc_source(surrogate)
-    PSY.set_voltage!(dc_source, voltage)
+    PSY.set_voltage!(dc_source, θ[gfl_indices[:params][:voltage]])
 
     freq_estimator = PSY.get_freq_estimator(surrogate)
-    PSY.set_ω_lp!(freq_estimator, ω_lp)
-    PSY.set_kp_pll!(freq_estimator, kp_pll)
-    PSY.set_ki_pll!(freq_estimator, ki_pll)
+    PSY.set_ω_lp!(freq_estimator, θ[gfl_indices[:params][:ω_lp]])
+    PSY.set_kp_pll!(freq_estimator, θ[gfl_indices[:params][:kp_pll]])
+    PSY.set_ki_pll!(freq_estimator, θ[gfl_indices[:params][:ki_pll]])
 
     filter = PSY.get_filter(surrogate)
-    PSY.set_lf!(filter, lf)
-    PSY.set_rf!(filter, rf)
-    PSY.set_cf!(filter, cf)
-    PSY.set_lg!(filter, lg)
-    PSY.set_rg!(filter, rg)
+    PSY.set_lf!(filter, θ[gfl_indices[:params][:lf]])
+    PSY.set_rf!(filter, θ[gfl_indices[:params][:rf]])
+    PSY.set_cf!(filter, θ[gfl_indices[:params][:cf]])
+    PSY.set_lg!(filter, θ[gfl_indices[:params][:lg]])
+    PSY.set_rg!(filter, θ[gfl_indices[:params][:rg]])
+end
+
+function parameterize_surrogate_psid!(
+    sys::PSY.System,
+    θ::Vector{Float64},
+    model_params::GFMParams,
+)
+    #NOTE: don't need to parameterize references -- they are set during initialization 
+    surrogate = PSY.get_component(PSY.DynamicInjection, sys, model_params.name)
+    converter = PSY.get_converter(surrogate)
+    PSY.set_rated_voltage!(converter, θ[gfm_indices[:params][:rated_voltage]])
+    PSY.set_rated_current!(converter, θ[gfm_indices[:params][:rated_current]])
+
+    active_power = PSY.get_active_power(PSY.get_outer_control(surrogate))
+    PSY.set_Rp!(active_power, θ[gfm_indices[:params][:Rp]])
+    PSY.set_ωz!(active_power, θ[gfm_indices[:params][:ωz]])
+    #PSY.set_P_ref!(active_power, P_ref)
+
+    reactive_power = PSY.get_reactive_power(PSY.get_outer_control(surrogate))
+    PSY.set_kq!(reactive_power, θ[gfm_indices[:params][:kq]])
+    PSY.set_ωf!(reactive_power, θ[gfm_indices[:params][:ωf]])
+    #PSY.set_V_ref!(reactive_power, V_ref)
+
+    inner_control = PSY.get_inner_control(surrogate)
+    PSY.set_kpv!(inner_control, θ[gfm_indices[:params][:kpv]])
+    PSY.set_kiv!(inner_control, θ[gfm_indices[:params][:kiv]])
+    PSY.set_kffv!(inner_control, θ[gfm_indices[:params][:kffv]])
+    PSY.set_rv!(inner_control, θ[gfm_indices[:params][:rv]])
+    PSY.set_lv!(inner_control, θ[gfm_indices[:params][:lv]])
+    PSY.set_kpc!(inner_control, θ[gfm_indices[:params][:kpc]])
+    PSY.set_kic!(inner_control, θ[gfm_indices[:params][:kic]])
+    PSY.set_kffi!(inner_control, θ[gfm_indices[:params][:kffi]])
+    PSY.set_ωad!(inner_control, θ[gfm_indices[:params][:ωad]])
+    PSY.set_kad!(inner_control, θ[gfm_indices[:params][:kad]])
+
+    dc_source = PSY.get_dc_source(surrogate)
+    PSY.set_voltage!(dc_source, θ[gfm_indices[:params][:voltage]])
+
+    freq_estimator = PSY.get_freq_estimator(surrogate)
+
+    filter = PSY.get_filter(surrogate)
+    PSY.set_lf!(filter, θ[gfm_indices[:params][:lf]])
+    PSY.set_rf!(filter, θ[gfm_indices[:params][:rf]])
+    PSY.set_cf!(filter, θ[gfm_indices[:params][:cf]])
+    PSY.set_lg!(filter, θ[gfm_indices[:params][:lg]])
+    PSY.set_rg!(filter, θ[gfm_indices[:params][:rg]])
 end
 
 function _check_dimensionality(data_collection_location, model_params::ClassicGenParams)
@@ -567,6 +606,10 @@ function _check_dimensionality(data_collection_location, model_params::ClassicGe
 end
 
 function _check_dimensionality(data_collection_location, model_params::GFLParams)
+    @assert length(data_collection_location) == 1
+end
+
+function _check_dimensionality(data_collection_location, model_params::GFMParams)
     @assert length(data_collection_location) == 1
 end
 
@@ -720,7 +763,7 @@ function _train(
     p_train::Union{Vector{Float32}, Vector{Float64}},
     p_fixed::Union{Vector{Float32}, Vector{Float64}},
     p_map::Vector{Int64},
-    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL},
+    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL, GFM},
     data_collection_location::Vector{Tuple{String, Symbol}},
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     validation_dataset::Vector{PSIDS.SteadyStateNODEData},
@@ -782,16 +825,15 @@ function _train(
             outer_loss_function(p_train, [(1, 1)])
         @warn loss
         @warn loss_initialization
-        @warn loss_dynamic 
-    cb(
-        p_train,
-        loss,
-        loss_initialization,
-        loss_dynamic,
-        surrogate_solution,
-        fault_index_vector,
-    )
-    =#
+        @warn loss_dynamic
+        cb(
+            p_train,
+            loss,
+            loss_initialization,
+            loss_dynamic,
+            surrogate_solution,
+            fault_index_vector,
+        ) =#
 
     @warn "Starting full train: \n # of iterations per epoch: $(length(group)) \n # of epochs per solve: $per_solve_max_epochs \n max # of iterations for solve: $(per_solve_max_epochs*length(group))"
     timing_stats = @timed Optimization.solve(
@@ -896,64 +938,36 @@ function _initialize_params(
     p_full::Vector{Float64},
     surrogate::GFL,
 )
-    @assert !(
-        nothing in indexin(
-            p_fixed,
-            [
-                :rated_voltage,
-                :rated_current,
-                :Kp_p,
-                :Ki_p,
-                :ωz,
-                :Kp_q,
-                :Ki_q,
-                :ωf,
-                :kpc,
-                :kic,
-                :kffv,
-                :voltage,
-                :ω_lp,
-                :kp_pll,
-                :ki_pll,
-                :lf,
-                :rf,
-                :cf,
-                :lg,
-                :rg,
-            ],
-        )
-    )  #ensure given p_fixed is a valid parameter
+    ordered_param_symbols = [
+        :rated_voltage,
+        :rated_current,
+        :Kp_p,
+        :Ki_p,
+        :ωz,
+        :Kp_q,
+        :Ki_q,
+        :ωf,
+        :kpc,
+        :kic,
+        :kffv,
+        :voltage,
+        :ω_lp,
+        :kp_pll,
+        :ki_pll,
+        :lf,
+        :rf,
+        :cf,
+        :lg,
+        :rg,
+    ]
+    @assert !(nothing in indexin(p_fixed, ordered_param_symbols))  #ensure given p_fixed is a valid parameter
     @info "original parameter vector: $p_full"
     p_fix = Float64[]
     p_train = Float64[]
     fixed_indices = []
     train_indices = []
     for i in 1:length(p_full)
-        if i in indexin(
-            p_fixed,
-            [
-                :rated_voltage,
-                :rated_current,
-                :Kp_p,
-                :Ki_p,
-                :ωz,
-                :Kp_q,
-                :Ki_q,
-                :ωf,
-                :kpc,
-                :kic,
-                :kffv,
-                :voltage,
-                :ω_lp,
-                :kp_pll,
-                :ki_pll,
-                :lf,
-                :rf,
-                :cf,
-                :lg,
-                :rg,
-            ],
-        )
+        if i in indexin(p_fixed, ordered_param_symbols)
             push!(p_fix, p_full[i])
             push!(fixed_indices, i)
         else
@@ -961,7 +975,62 @@ function _initialize_params(
             push!(train_indices, i)
         end
     end
-    p_map = Vector{Int64}(undef, 20)
+    p_map = Vector{Int64}(undef, length(ordered_param_symbols))
+    for (ix, i) in enumerate(fixed_indices)
+        p_map[i] = ix
+    end
+    for (ix, i) in enumerate(train_indices)
+        p_map[i] = ix + length(fixed_indices)
+    end
+    @info "remapped parameter vector: $(vcat(p_fix, p_train)[p_map])"
+    return p_fix, p_train, p_map
+end
+
+function _initialize_params(
+    p_fixed::Vector{Symbol},
+    p_full::Vector{Float64},
+    surrogate::GFM,
+)
+    ordered_param_symbols = [
+        :rated_voltage,
+        :rated_current,
+        :Rp,
+        :ωz,
+        :kq,
+        :ωf,
+        :kpv7,
+        :kiv8,
+        :kffv,
+        :rv,
+        :lv,
+        :set_kpc,
+        :kic,
+        :kffi,
+        :ωad,
+        :kad,
+        :voltage,
+        :lf,
+        :rf,
+        :cf,
+        :lg,
+        :rg,
+    ]
+    @assert !(nothing in indexin(p_fixed, ordered_param_symbols))  #ensure given p_fixed is a valid parameter
+    @info "original parameter vector: $p_full"
+    p_fix = Float64[]
+    p_train = Float64[]
+    fixed_indices = []
+    train_indices = []
+    for i in 1:length(p_full)
+        if i in indexin(p_fixed, ordered_param_symbols)
+            push!(p_fix, p_full[i])
+            push!(fixed_indices, i)
+        else
+            push!(p_train, p_full[i])
+            push!(train_indices, i)
+        end
+    end
+    p_map = Vector{Int64}(undef, length(ordered_param_symbols))
     for (ix, i) in enumerate(fixed_indices)
         p_map[i] = ix
     end
@@ -1036,7 +1105,7 @@ function _initialize_training_output_dict(
     )
 end
 
-function _initialize_training_output_dict(::Union{ClassicGenParams, GFLParams})
+function _initialize_training_output_dict(::Union{ClassicGenParams, GFLParams, GFMParams})
     return Dict{String, Any}(
         "loss" => DataFrames.DataFrame(
             Loss_initialization = Float64[],

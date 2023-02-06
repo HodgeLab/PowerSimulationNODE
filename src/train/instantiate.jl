@@ -15,6 +15,7 @@ function steadystate_solver_map(solver, tols)
     d = Dict(
         "Rodas4" => SteadyStateDiffEq.DynamicSS(OrdinaryDiffEq.Rodas4()),
         "Rodas5" => SteadyStateDiffEq.DynamicSS(OrdinaryDiffEq.Rodas5()),
+        "Rodas5P" => SteadyStateDiffEq.DynamicSS(OrdinaryDiffEq.Rodas5P()),
         #"TRBDF2" => OrdinaryDiffEq.TRBDF2,
         "Tsit5" => SteadyStateDiffEq.DynamicSS(OrdinaryDiffEq.Tsit5()),
         "SSRootfind" => SteadyStateDiffEq.SSRootfind(),
@@ -26,6 +27,7 @@ function solver_map(key)
     d = Dict(
         "Rodas4" => OrdinaryDiffEq.Rodas4,
         "Rodas5" => OrdinaryDiffEq.Rodas5,
+        "Rodas5P" => OrdinaryDiffEq.Rodas5P,
         "TRBDF2" => OrdinaryDiffEq.TRBDF2,
         "Tsit5" => OrdinaryDiffEq.Tsit5,
     )
@@ -219,6 +221,59 @@ function add_surrogate_psid!(
     PSY.add_component!(sys, dynamic_injector, static_injector)
 end
 
+function add_surrogate_psid!(
+    sys::PSY.System,
+    model_params::GFMParams,
+    ::Vector{PSIDS.SteadyStateNODEData},   #Won't be used in this dispatch 
+)
+    source = PSY.get_component(PSY.Source, sys, model_params.name) #Note: hardcoded for single port surrogate 
+    P_ref = PSY.get_active_power(source)
+    Q_ref = PSY.get_reactive_power(source)
+    b = PSY.get_bus(source)
+    PSY.remove_component!(sys, source)
+    static_injector = PSY.ThermalStandard(
+        name = model_params.name,
+        available = true,
+        status = true,
+        bus = b,
+        active_power = P_ref,
+        reactive_power = 0.0,
+        rating = 2.0,
+        active_power_limits = (min = 0.0, max = 2.0),
+        reactive_power_limits = (min = -1.5, max = 1.5),
+        time_limits = nothing,
+        ramp_limits = nothing,
+        operation_cost = PSY.ThreePartCost((0.0, 4000.0), 0.0, 4.0, 2.0),   #unused 
+        base_power = 100.0,
+    )
+    PSY.add_component!(sys, static_injector)
+    dynamic_injector = PSY.DynamicInverter(
+        name = model_params.name,
+        ω_ref = 1.0,
+        converter = PSY.AverageConverter(0.0, 0.0),
+        outer_control = PSY.OuterControl(
+            PSY.ActivePowerDroop(0.0, 0.0, 0.0),
+            PSY.ReactivePowerDroop(0.0, 0.0, 0.0),
+        ),
+        inner_control = PSY.VoltageModeControl(
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+        ),
+        dc_source = PSY.FixedDCSource(0.0),
+        freq_estimator = PSY.FixedFrequency(),
+        filter = PSY.LCLFilter(0.0, 0.0, 0.0, 0.0, 0.0),
+    )
+    PSY.add_component!(sys, dynamic_injector, static_injector)
+end
+
 function instantiate_surrogate_flux(
     params::TrainParams,
     model_params::Union{SteadyStateNODEParams, SteadyStateNODEObsParams},
@@ -297,6 +352,28 @@ function instantiate_surrogate_flux(
     steadystate_abstol = params.steady_state_solver.abstol
 
     return GFL(
+        steadystate_solver,
+        dynamic_solver,
+        steadystate_abstol;
+        abstol = dynamic_abstol,
+        reltol = dynamic_reltol,
+        maxiters = dynamic_maxiters,
+    )
+end
+
+function instantiate_surrogate_flux(
+    params::TrainParams,
+    model_params::GFMParams,
+    train_dataset::Vector{PSIDS.SteadyStateNODEData},
+)
+    steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
+    dynamic_solver = instantiate_solver(params.dynamic_solver)
+    dynamic_reltol = params.dynamic_solver.reltol
+    dynamic_abstol = params.dynamic_solver.abstol
+    dynamic_maxiters = params.dynamic_solver.maxiters
+    steadystate_abstol = params.steady_state_solver.abstol
+
+    return GFM(
         steadystate_solver,
         dynamic_solver,
         steadystate_abstol;
@@ -715,7 +792,7 @@ function _inner_loss_function(
 end
 
 function instantiate_outer_loss_function(
-    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL},
+    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL, GFM},
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     exogenous_input_functions,
     train_details::Vector{
@@ -746,7 +823,7 @@ end
 function _outer_loss_function(
     p_train,
     vector_fault_timespan_index::Vector{Tuple{Int64, Int64}},
-    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL},
+    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL, GFM},
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     exogenous_input_functions,
     train_details::Vector{

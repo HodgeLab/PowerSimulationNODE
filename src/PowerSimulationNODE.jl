@@ -29,6 +29,7 @@ export SteadyStateNODEParams
 export SteadyStateNODEObsParams
 export ClassicGenParams
 export GFLParams
+export GFMParams
 
 import Arrow
 import Dates
@@ -74,6 +75,7 @@ include(joinpath("train", "surrogates", "ModelTypes.jl"))
 include(joinpath("train", "surrogates", "SteadyStateNeuralODE.jl"))
 include(joinpath("train", "surrogates", "ClassicGen.jl"))
 include(joinpath("train", "surrogates", "GFL.jl"))
+include(joinpath("train", "surrogates", "GFM.jl"))
 include(joinpath("train", "TrainParams.jl"))
 include("constants.jl")
 include(joinpath("train", "HPCTrain.jl"))

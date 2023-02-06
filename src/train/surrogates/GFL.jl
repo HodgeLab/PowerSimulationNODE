@@ -465,7 +465,7 @@ function initialize_inner!(device_states, inner_vars, references, params, v0, i0
     return
 end
 
-function device!(output_ode, device_states, p, references, inner_vars, V, t, s)
+function device!(output_ode, device_states, p, references, inner_vars, V, t, s::GFL)
     #Obtain global vars
     sys_ω = 1.0 #global_vars[GLOBAL_VAR_SYS_FREQ_INDEX]
 

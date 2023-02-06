@@ -20,7 +20,7 @@
     - `operating_points::Vector{PSIDS.SurrogateOperatingPoint}`:  
     - `perturbations::Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}}`:  
     - `params::PSIDS.GenerateDataParams`: 
-- `model_params::Union{SteadyStateNODEParams, SteadyStateNODEObsParams, ClassicGenParams, GFLParams}`: The type of surrogate model to train. Could be data-driven, physics-based, or a combination.
+- `model_params::Union{SteadyStateNODEParams, SteadyStateNODEObsParams, ClassicGenParams, GFLParams, GFMParams}`: The type of surrogate model to train. Could be data-driven, physics-based, or a combination.
 - `steady_state_solver::NamedTuple{(:solver, :abstol)}`: Solver for finding initial conditions.
     - `solver::String`: the solver name from DifferentialEquations.jl
     - `abstol::Float64`: absolute tolerance of the solve. 
@@ -194,6 +194,7 @@ StructTypes.subtypes(::Type{SurrogateModelParams}) = (
     SteadyStateNODEObsParams = SteadyStateNODEObsParams,
     ClassicGenParams = ClassicGenParams,
     GFLParams = GFLParams,
+    GFMParams = GFMParams,
 )
 
 function TrainParams(;
