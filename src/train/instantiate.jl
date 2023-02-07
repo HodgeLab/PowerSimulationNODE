@@ -274,6 +274,54 @@ function add_surrogate_psid!(
     PSY.add_component!(sys, dynamic_injector, static_injector)
 end
 
+function add_surrogate_psid!(
+    sys::PSY.System,
+    model_params::ZIPParams,
+    ::Vector{PSIDS.SteadyStateNODEData},   #Won't be used in this dispatch 
+)
+    source = PSY.get_component(PSY.Source, sys, model_params.name) #Note: hardcoded for single port surrogate 
+    P_ref = PSY.get_active_power(source)
+    Q_ref = PSY.get_reactive_power(source)
+    b = PSY.get_bus(source)
+    PSY.remove_component!(sys, source)
+    load_Z = PSY.PowerLoad(
+        name = string(model_params.name, "_Z"),
+        available = true,
+        bus = b,
+        model = PSY.LoadModels.ConstantImpedance,
+        active_power = 0.0,
+        reactive_power = 0.0,
+        base_power = 100.0,
+        max_active_power = 1.0,
+        max_reactive_power = 1.0,
+    )
+    load_I = PSY.PowerLoad(
+        name = string(model_params.name, "_I"),
+        available = true,
+        bus = b,
+        model = PSY.LoadModels.ConstantCurrent,
+        active_power = 0.0,
+        reactive_power = 0.0,
+        base_power = 100.0,
+        max_active_power = 1.0,
+        max_reactive_power = 1.0,
+    )
+    load_P = PSY.PowerLoad(
+        name = string(model_params.name, "_P"),
+        available = true,
+        bus = b,
+        model = PSY.LoadModels.ConstantPower,
+        active_power = 0.0,
+        reactive_power = 0.0,
+        base_power = 100.0,
+        max_active_power = 1.0,
+        max_reactive_power = 1.0,
+    )
+    PSY.add_component!(sys, load_Z)
+    PSY.add_component!(sys, load_I)
+    PSY.add_component!(sys, load_P)
+end
+
 function instantiate_surrogate_flux(
     params::TrainParams,
     model_params::Union{SteadyStateNODEParams, SteadyStateNODEObsParams},
@@ -374,6 +422,28 @@ function instantiate_surrogate_flux(
     steadystate_abstol = params.steady_state_solver.abstol
 
     return GFM(
+        steadystate_solver,
+        dynamic_solver,
+        steadystate_abstol;
+        abstol = dynamic_abstol,
+        reltol = dynamic_reltol,
+        maxiters = dynamic_maxiters,
+    )
+end
+
+function instantiate_surrogate_flux(
+    params::TrainParams,
+    model_params::ZIPParams,
+    train_dataset::Vector{PSIDS.SteadyStateNODEData},
+)
+    steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
+    dynamic_solver = instantiate_solver(params.dynamic_solver)
+    dynamic_reltol = params.dynamic_solver.reltol
+    dynamic_abstol = params.dynamic_solver.abstol
+    dynamic_maxiters = params.dynamic_solver.maxiters
+    steadystate_abstol = params.steady_state_solver.abstol
+
+    return ZIP(
         steadystate_solver,
         dynamic_solver,
         steadystate_abstol;
@@ -792,7 +862,7 @@ function _inner_loss_function(
 end
 
 function instantiate_outer_loss_function(
-    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL, GFM},
+    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL, GFM, ZIP},
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     exogenous_input_functions,
     train_details::Vector{
@@ -823,7 +893,7 @@ end
 function _outer_loss_function(
     p_train,
     vector_fault_timespan_index::Vector{Tuple{Int64, Int64}},
-    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL, GFM},
+    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL, GFM, ZIP},
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     exogenous_input_functions,
     train_details::Vector{

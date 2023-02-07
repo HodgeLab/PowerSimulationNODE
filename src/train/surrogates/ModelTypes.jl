@@ -135,3 +135,12 @@ end
 function GFMParams(; type = "GFMParams", name = "surrogate-GFMParams")
     GFMParams(type, name)
 end
+
+struct ZIPParams <: SurrogateModelParams
+    type::String
+    name::String
+end
+
+function ZIPParams(; type = "ZIPParams", name = "surrogate-ZIPParams")
+    ZIPParams(type, name)
+end

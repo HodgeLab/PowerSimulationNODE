@@ -601,6 +601,30 @@ function parameterize_surrogate_psid!(
     PSY.set_rg!(filter, θ[gfm_indices[:params][:rg]])
 end
 
+function parameterize_surrogate_psid!(
+    sys::PSY.System,
+    θ::Vector{Float64},
+    model_params::ZIPParams,
+)
+    load_Z = PSY.get_component(PSY.PowerLoad, sys, string(model_params.name, "_Z"))
+    PSY.set_active_power!(load_Z, θ[zip_indices[:params][:max_active_power_Z]])
+    PSY.set_reactive_power!(load_Z, θ[zip_indices[:params][:max_reactive_power_Z]])
+    PSY.set_max_active_power!(load_Z, θ[zip_indices[:params][:max_active_power_Z]])
+    PSY.set_max_reactive_power!(load_Z, θ[zip_indices[:params][:max_reactive_power_Z]])
+
+    load_I = PSY.get_component(PSY.PowerLoad, sys, string(model_params.name, "_I"))
+    PSY.set_max_active_power!(load_I, θ[zip_indices[:params][:max_active_power_I]])
+    PSY.set_max_reactive_power!(load_I, θ[zip_indices[:params][:max_reactive_power_I]])
+    PSY.set_active_power!(load_I, θ[zip_indices[:params][:max_active_power_I]])
+    PSY.set_reactive_power!(load_I, θ[zip_indices[:params][:max_reactive_power_I]])
+
+    load_P = PSY.get_component(PSY.PowerLoad, sys, string(model_params.name, "_P"))
+    PSY.set_max_active_power!(load_P, θ[zip_indices[:params][:max_active_power_P]])
+    PSY.set_max_reactive_power!(load_P, θ[zip_indices[:params][:max_reactive_power_P]])
+    PSY.set_active_power!(load_P, θ[zip_indices[:params][:max_active_power_P]])
+    PSY.set_reactive_power!(load_P, θ[zip_indices[:params][:max_reactive_power_P]])
+end
+
 function _check_dimensionality(data_collection_location, model_params::ClassicGenParams)
     @assert length(data_collection_location) == 1
 end
@@ -610,6 +634,10 @@ function _check_dimensionality(data_collection_location, model_params::GFLParams
 end
 
 function _check_dimensionality(data_collection_location, model_params::GFMParams)
+    @assert length(data_collection_location) == 1
+end
+
+function _check_dimensionality(data_collection_location, model_params::ZIPParams)
     @assert length(data_collection_location) == 1
 end
 
@@ -763,7 +791,7 @@ function _train(
     p_train::Union{Vector{Float32}, Vector{Float64}},
     p_fixed::Union{Vector{Float32}, Vector{Float64}},
     p_map::Vector{Int64},
-    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL, GFM},
+    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL, GFM, ZIP},
     data_collection_location::Vector{Tuple{String, Symbol}},
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     validation_dataset::Vector{PSIDS.SteadyStateNODEData},
@@ -1041,6 +1069,45 @@ function _initialize_params(
     return p_fix, p_train, p_map
 end
 
+function _initialize_params(
+    p_fixed::Vector{Symbol},
+    p_full::Vector{Float64},
+    surrogate::ZIP,
+)
+    ordered_param_symbols = [
+        :max_active_power_Z,
+        :max_active_power_I,
+        :max_active_power_P,
+        :max_reactive_power_Z,
+        :max_reactive_power_I,
+        :max_reactive_power_P,
+    ]
+    @assert !(nothing in indexin(p_fixed, ordered_param_symbols))  #ensure given p_fixed is a valid parameter
+    @info "original parameter vector: $p_full"
+    p_fix = Float64[]
+    p_train = Float64[]
+    fixed_indices = []
+    train_indices = []
+    for i in 1:length(p_full)
+        if i in indexin(p_fixed, ordered_param_symbols)
+            push!(p_fix, p_full[i])
+            push!(fixed_indices, i)
+        else
+            push!(p_train, p_full[i])
+            push!(train_indices, i)
+        end
+    end
+    p_map = Vector{Int64}(undef, length(ordered_param_symbols))
+    for (ix, i) in enumerate(fixed_indices)
+        p_map[i] = ix
+    end
+    for (ix, i) in enumerate(train_indices)
+        p_map[i] = ix + length(fixed_indices)
+    end
+    @info "remapped parameter vector: $(vcat(p_fix, p_train)[p_map])"
+    return p_fix, p_train, p_map
+end
+
 function _generate_training_groups(fault_index, timespan_index, curriculum)
     if curriculum == "individual faults"
         x = [[(f, t)] for f in fault_index, t in timespan_index]
@@ -1105,7 +1172,9 @@ function _initialize_training_output_dict(
     )
 end
 
-function _initialize_training_output_dict(::Union{ClassicGenParams, GFLParams, GFMParams})
+function _initialize_training_output_dict(
+    ::Union{ClassicGenParams, GFLParams, GFMParams, ZIPParams},
+)
     return Dict{String, Any}(
         "loss" => DataFrames.DataFrame(
             Loss_initialization = Float64[],
