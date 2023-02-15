@@ -25,9 +25,6 @@ export generate_validation_data
 export generate_test_data
 export evaluate_loss
 export visualize_loss
-export SteadyStateNODEParams
-export SteadyStateNODEObsParams
-export ClassicGenParams
 
 import Arrow
 import Dates
@@ -68,9 +65,14 @@ const PSID = PowerSimulationsDynamics
 const PSIDS = PowerSimulationsDynamicsSurrogates
 
 # Split up code and use Requires strategically to improve load times? (especially the instantiate functions)
-include(joinpath("train", "ModelTypes.jl"))
-include(joinpath("train", "SteadyStateNeuralODE.jl"))
-include(joinpath("train", "ClassicGen.jl"))
+include(joinpath("train", "surrogates", "common_control_overloads.jl"))
+include(joinpath("train", "surrogates", "solution_structs.jl"))
+include(joinpath("train", "surrogates", "SteadyStateNeuralODE.jl"))
+include(joinpath("train", "surrogates", "ClassicGen.jl"))
+include(joinpath("train", "surrogates", "GFL.jl"))
+include(joinpath("train", "surrogates", "GFM.jl"))
+include(joinpath("train", "surrogates", "ZIP.jl"))
+include(joinpath("train", "surrogates", "MultiDevice.jl"))
 include(joinpath("train", "TrainParams.jl"))
 include("constants.jl")
 include(joinpath("train", "HPCTrain.jl"))

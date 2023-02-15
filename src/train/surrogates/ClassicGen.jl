@@ -1,6 +1,5 @@
 using Flux
 abstract type ClassicGenLayer <: Function end
-basic_tgrad(u, p, t) = zero(u) #??? 
 Flux.trainable(m::ClassicGenLayer) = (p = m.p,)
 
 struct ClassicGen{PT, PF, PM, SS, DS, A, K} <: ClassicGenLayer
@@ -20,7 +19,7 @@ struct ClassicGen{PT, PF, PM, SS, DS, A, K} <: ClassicGenLayer
         kwargs...,
     )
         if p === nothing
-            p = Float32[0.0, 0.2995, 0.7087, 3.148, 2.0] #default starting parameters
+            p = Float64[0.0, 0.2995, 0.7087, 3.148, 2.0] #default starting parameters 
         end
         new{
             typeof(p),
@@ -69,18 +68,12 @@ function (s::ClassicGen)(
     τm0 = real(V_complex * conj(I_complex))
     u0_pred = [δ0, τm0, 1.0]
 
-    #
-    #TODO - call a subfunction for each device connected to the bus (strategy for combining them...?)
-    #All the devices are independent and can't impact the voltage... 
-    #First n states = device 1, next m states = device 2, etc. 
-    #TODO - split up the current according to a parameter (% of Ir, Ii for each device)
-
-    #This is the full NLSolve function! - can we try with one NLsolve call? 
+    #TODO - organize like the GFL, the classical gen was just a proof of concept 
+    #TODO - eq_p shouldn't be a parameter  
     function dudt_ss(u, p, t)
         R, Xd_p, eq_p, H, D = p
-        δ = u[1]
-        τm = u[2]
-        Vf0 = u[3]
+        δ, τm, Vf0 = u
+
         ri_dq = [sin(δ) -cos(δ); cos(δ) sin(δ)]
         V_dq = ri_dq * V(0.0)
         i_d = (1.0 / (R^2 + Xd_p^2)) * (Xd_p * (Vf0 - V_dq[2]) - R * V_dq[1])  #15.36 # (1.0 / (R^2 + Xd_p^2)) *
@@ -96,8 +89,8 @@ function (s::ClassicGen)(
     #This is the dynamics i.e. dx/dt = f(x)
     function dudt_dyn(u, p, t)
         R, Xd_p, _, H, D = p
-        δ = u[1]
-        ω = u[2]
+        δ, ω = u
+
         τm0 = refs[1]
         eq_p = refs[2]
         ri_dq = [sin(δ) -cos(δ); cos(δ) sin(δ)]
@@ -145,7 +138,6 @@ function (s::ClassicGen)(
             (tsteps[1], tsteps[end]),
             p_ordered;
             tstops = tstops,
-            # saveat = tsteps,
         )
 
         function f_saving(u, t, integrator)
@@ -179,12 +171,4 @@ function (s::ClassicGen)(
     else
         return PhysicalModel_solution(tsteps, [], res, true)
     end
-end
-
-#Note: got rid of types to work with ForwardDiff
-struct PhysicalModel_solution
-    t_series::Any
-    i_series::Any
-    res::Any
-    converged::Bool
 end

@@ -207,6 +207,7 @@ function evaluate_loss(
         ),
         generate_data_params,
         dataset_aux = groundtruth_dataset,
+        surrogate_params = model_params,
     )
     @assert length(surrogate_dataset) == length(groundtruth_dataset)
     mae_ir = Float64[]
@@ -383,6 +384,7 @@ function visualize_loss(
         ),
         generate_data_params,
         dataset_aux = groundtruth_dataset,
+        surrogate_params = model_params,
     )
     @assert length(surrogate_dataset) == length(groundtruth_dataset)
     plots = []
@@ -457,7 +459,9 @@ end
 function parameterize_surrogate_psid!(
     sys::PSY.System,
     θ::Vector{Float32},
-    model_params::SteadyStateNODEParams,
+    model_params::PSIDS.SteadyStateNODEParams;
+    max_P = 1.0,
+    max_Q = 1.0,
 )
     surrogate = PSY.get_component(PSIDS.SteadyStateNODE, sys, model_params.name)
     n_params_initializer = _calculate_n_params(surrogate.initializer_structure)
@@ -473,7 +477,9 @@ end
 function parameterize_surrogate_psid!(
     sys::PSY.System,
     θ::Vector{Float32},
-    model_params::SteadyStateNODEObsParams,
+    model_params::PSIDS.SteadyStateNODEObsParams;
+    max_P = 1.0,
+    max_Q = 1.0,
 )
     surrogate = PSY.get_component(PSIDS.SteadyStateNODEObs, sys, model_params.name)
     n_params_initializer = _calculate_n_params(surrogate.initializer_structure)
@@ -493,10 +499,17 @@ end
 
 function parameterize_surrogate_psid!(
     sys::PSY.System,
-    θ::Union{Vector{Float32}, Vector{Float64}},
-    model_params::ClassicGenParams,
+    θ::Vector{Float64},
+    model_params::PSIDS.ClassicGenParams;
+    max_P = 1.0,
+    max_Q = 1.0,
 )
-    R, Xd_p, eq_p, H, D = θ
+    static = PSY.get_component(PSY.StaticInjection, sys, model_params.name)
+    PSY.set_active_power_limits!(static, (min = -max_P, max = max_P))
+    PSY.set_reactive_power_limits!(static, (min = -max_Q, max = max_Q))
+
+    R, Xd_p, eq_p = θ[1:3]  #machine parameters 
+    H, D = θ[4:5]   #shaft parameters 
 
     surrogate = PSY.get_component(PSY.DynamicInjection, sys, model_params.name)
     machine = PSY.get_machine(surrogate)
@@ -509,20 +522,286 @@ function parameterize_surrogate_psid!(
     PSY.set_D!(shaft, D)
 end
 
-function _check_dimensionality(data_collection_location, model_params::ClassicGenParams)
+function parameterize_surrogate_psid!(
+    sys::PSY.System,
+    θ::Vector{Float64},
+    model_params::PSIDS.GFLParams;
+    max_P = 1.0,
+    max_Q = 1.0,
+)
+    static = PSY.get_component(PSY.StaticInjection, sys, model_params.name)
+    PSY.set_active_power_limits!(static, (min = -max_P, max = max_P))
+    PSY.set_reactive_power_limits!(static, (min = -max_Q, max = max_Q))
+
+    #NOTE: references are set during initialization 
+    surrogate = PSY.get_component(PSY.DynamicInjection, sys, model_params.name)
+    converter = PSY.get_converter(surrogate)
+    PSY.set_rated_voltage!(converter, θ[gfl_indices[:params][:rated_voltage_gfl]])
+    PSY.set_rated_current!(converter, θ[gfl_indices[:params][:rated_current_gfl]])
+
+    active_power = PSY.get_active_power(PSY.get_outer_control(surrogate))
+    PSY.set_Kp_p!(active_power, θ[gfl_indices[:params][:Kp_p]])
+    PSY.set_Ki_p!(active_power, θ[gfl_indices[:params][:Ki_p]])
+    PSY.set_ωz!(active_power, θ[gfl_indices[:params][:ωz_gfl]])
+    #PSY.set_P_ref!(active_power, P_ref)
+
+    reactive_power = PSY.get_reactive_power(PSY.get_outer_control(surrogate))
+    PSY.set_Kp_q!(reactive_power, θ[gfl_indices[:params][:Kp_q]])
+    PSY.set_Ki_q!(reactive_power, θ[gfl_indices[:params][:Ki_q]])
+    PSY.set_ωf!(reactive_power, θ[gfl_indices[:params][:ωf_gfl]])
+    #PSY.set_V_ref!(reactive_power, V_ref)
+    #PSY.set_Q_ref!(reactive_power, Q_ref)
+
+    inner_control = PSY.get_inner_control(surrogate)
+    PSY.set_kpc!(inner_control, θ[gfl_indices[:params][:kpc_gfl]])
+    PSY.set_kic!(inner_control, θ[gfl_indices[:params][:kic_gfl]])
+    PSY.set_kffv!(inner_control, θ[gfl_indices[:params][:kffv_gfl]])
+
+    dc_source = PSY.get_dc_source(surrogate)
+    PSY.set_voltage!(dc_source, θ[gfl_indices[:params][:voltage_gfl]])
+
+    freq_estimator = PSY.get_freq_estimator(surrogate)
+    PSY.set_ω_lp!(freq_estimator, θ[gfl_indices[:params][:ω_lp]])
+    PSY.set_kp_pll!(freq_estimator, θ[gfl_indices[:params][:kp_pll]])
+    PSY.set_ki_pll!(freq_estimator, θ[gfl_indices[:params][:ki_pll]])
+
+    filter = PSY.get_filter(surrogate)
+    PSY.set_lf!(filter, θ[gfl_indices[:params][:lf_gfl]])
+    PSY.set_rf!(filter, θ[gfl_indices[:params][:rf_gfl]])
+    PSY.set_cf!(filter, θ[gfl_indices[:params][:cf_gfl]])
+    PSY.set_lg!(filter, θ[gfl_indices[:params][:lg_gfl]])
+    PSY.set_rg!(filter, θ[gfl_indices[:params][:rg_gfl]])
+end
+
+function parameterize_surrogate_psid!(
+    sys::PSY.System,
+    θ::Vector{Float64},
+    model_params::PSIDS.GFMParams;
+    max_P = 1.0,
+    max_Q = 1.0,
+)
+    static = PSY.get_component(PSY.StaticInjection, sys, model_params.name)
+    PSY.set_active_power_limits!(static, (min = -max_P, max = max_P))
+    PSY.set_reactive_power_limits!(static, (min = -max_Q, max = max_Q))
+
+    #NOTE: references are set during initialization 
+    surrogate = PSY.get_component(PSY.DynamicInjection, sys, model_params.name)
+    converter = PSY.get_converter(surrogate)
+    PSY.set_rated_voltage!(converter, θ[gfm_indices[:params][:rated_voltage_gfm]])
+    PSY.set_rated_current!(converter, θ[gfm_indices[:params][:rated_current_gfm]])
+
+    active_power = PSY.get_active_power(PSY.get_outer_control(surrogate))
+    PSY.set_Rp!(active_power, θ[gfm_indices[:params][:Rp]])
+    PSY.set_ωz!(active_power, θ[gfm_indices[:params][:ωz_gfm]])
+    #PSY.set_P_ref!(active_power, P_ref)
+
+    reactive_power = PSY.get_reactive_power(PSY.get_outer_control(surrogate))
+    PSY.set_kq!(reactive_power, θ[gfm_indices[:params][:kq]])
+    PSY.set_ωf!(reactive_power, θ[gfm_indices[:params][:ωf_gfm]])
+    #PSY.set_V_ref!(reactive_power, V_ref)
+
+    inner_control = PSY.get_inner_control(surrogate)
+    PSY.set_kpv!(inner_control, θ[gfm_indices[:params][:kpv]])
+    PSY.set_kiv!(inner_control, θ[gfm_indices[:params][:kiv]])
+    PSY.set_kffv!(inner_control, θ[gfm_indices[:params][:kffv_gfm]])
+    PSY.set_rv!(inner_control, θ[gfm_indices[:params][:rv]])
+    PSY.set_lv!(inner_control, θ[gfm_indices[:params][:lv]])
+    PSY.set_kpc!(inner_control, θ[gfm_indices[:params][:kpc_gfm]])
+    PSY.set_kic!(inner_control, θ[gfm_indices[:params][:kic_gfm]])
+    PSY.set_kffi!(inner_control, θ[gfm_indices[:params][:kffi]])
+    PSY.set_ωad!(inner_control, θ[gfm_indices[:params][:ωad]])
+    PSY.set_kad!(inner_control, θ[gfm_indices[:params][:kad]])
+
+    dc_source = PSY.get_dc_source(surrogate)
+    PSY.set_voltage!(dc_source, θ[gfm_indices[:params][:voltage_gfm]])
+
+    freq_estimator = PSY.get_freq_estimator(surrogate)
+
+    filter = PSY.get_filter(surrogate)
+    PSY.set_lf!(filter, θ[gfm_indices[:params][:lf_gfm]])
+    PSY.set_rf!(filter, θ[gfm_indices[:params][:rf_gfm]])
+    PSY.set_cf!(filter, θ[gfm_indices[:params][:cf_gfm]])
+    PSY.set_lg!(filter, θ[gfm_indices[:params][:lg_gfm]])
+    PSY.set_rg!(filter, θ[gfm_indices[:params][:rg_gfm]])
+end
+
+function parameterize_surrogate_psid!(
+    sys::PSY.System,
+    θ::Vector{Float64},
+    model_params::PSIDS.ZIPParams;
+    max_P = 1.0,
+    max_Q = 1.0,
+)
+    #Distributed max_P and max_Q according to the zip specific parameters. 
+    P_total =
+        θ[zip_indices[:params][:max_active_power_Z]] +
+        θ[zip_indices[:params][:max_active_power_I]] +
+        θ[zip_indices[:params][:max_active_power_P]]
+    Q_total =
+        θ[zip_indices[:params][:max_reactive_power_Z]] +
+        θ[zip_indices[:params][:max_reactive_power_I]] +
+        θ[zip_indices[:params][:max_reactive_power_P]]
+    load_Z = PSY.get_component(PSY.PowerLoad, sys, string(model_params.name, "_Z"))
+    PSY.set_max_active_power!(
+        load_Z,
+        max_P * θ[zip_indices[:params][:max_active_power_Z]] / P_total,
+    )
+    PSY.set_max_reactive_power!(
+        load_Z,
+        max_Q * θ[zip_indices[:params][:max_reactive_power_Z]] / Q_total,
+    )
+
+    load_I = PSY.get_component(PSY.PowerLoad, sys, string(model_params.name, "_I"))
+    PSY.set_max_active_power!(
+        load_I,
+        max_P * θ[zip_indices[:params][:max_active_power_I]] / P_total,
+    )
+    PSY.set_max_reactive_power!(
+        load_I,
+        max_Q * θ[zip_indices[:params][:max_reactive_power_I]] / Q_total,
+    )
+
+    load_P = PSY.get_component(PSY.PowerLoad, sys, string(model_params.name, "_P"))
+    PSY.set_active_power!(
+        load_P,
+        max_P * θ[zip_indices[:params][:max_active_power_P]] / P_total,
+    )
+    PSY.set_reactive_power!(
+        load_P,
+        max_Q * θ[zip_indices[:params][:max_reactive_power_P]] / Q_total,
+    )
+    PSY.set_max_active_power!(
+        load_P,
+        max_P * θ[zip_indices[:params][:max_active_power_P]] / P_total,
+    )
+    PSY.set_max_reactive_power!(
+        load_P,
+        max_Q * θ[zip_indices[:params][:max_reactive_power_P]] / Q_total,
+    )
+end
+
+function parameterize_surrogate_psid!(
+    sys::PSY.System,
+    θ::Vector{Float64},
+    model_params::PSIDS.MultiDeviceParams;
+    max_P = 1.0,
+    max_Q = 1.0,
+)
+    n_maxpowers_params =
+        2 * (length(model_params.static_devices) + length(model_params.dynamic_devices))
+    θ_maxpowers = θ[1:n_maxpowers_params]
+    θ_devices = θ[(n_maxpowers_params + 1):end]
+
+    ix_maxpowers = 1
+    ix_devices_start = 1
+    for s in model_params.static_devices
+        ix_devices_end = ix_devices_start + n_params(s) - 1
+        parameterize_surrogate_psid!(
+            sys,
+            θ_devices[ix_devices_start:ix_devices_end],
+            s;
+            max_P = θ_maxpowers[ix_maxpowers],
+            max_Q = θ_maxpowers[ix_maxpowers + 1],
+        )
+        ix_maxpowers += 2
+        ix_devices_start = ix_devices_end + 1
+    end
+    for s in model_params.dynamic_devices
+        ix_devices_end = ix_devices_start + n_params(s) - 1
+        parameterize_surrogate_psid!(
+            sys,
+            θ_devices[ix_devices_start:ix_devices_end],
+            s;
+            max_P = θ_maxpowers[ix_maxpowers],
+            max_Q = θ_maxpowers[ix_maxpowers + 1],
+        )
+        ix_maxpowers += 2
+        ix_devices_start = ix_devices_end + 1
+    end
+end
+
+#= function parameterize_surrogate_psid!(
+    sys::PSY.System,
+    θ::Vector{Float64},
+    model_params::PSIDS.MultiDeviceLineParams;
+    max_P = 1.0,
+    max_Q = 1.0,
+)
+    n_maxpowers_params =
+        2 * (length(model_params.static_devices) + length(model_params.dynamic_devices))
+    θ_maxpowers = θ[4:(3 + n_maxpowers_params)]
+    θ_line = θ[1:3] #θ[(n_maxpowers_params + 1):(n_maxpowers_params + 3)]
+    θ_devices = θ[(n_maxpowers_params + 4):end]
+
+    line = PSY.get_component(PSY.Component, sys, string(model_params.name, "-line"))
+    PSY.set_r!(line, θ_line[1])
+    PSY.set_x!(line, θ_line[2])
+    PSY.set_b!(line, (from = θ_line[3], to = θ_line[3]))
+
+    ix_maxpowers = 1
+    ix_devices_start = 1
+    for s in model_params.static_devices
+        ix_devices_end = ix_devices_start + n_params(s) - 1
+        parameterize_surrogate_psid!(
+            sys,
+            θ_devices[ix_devices_start:ix_devices_end],
+            s;
+            max_P = θ_maxpowers[ix_maxpowers],
+            max_Q = θ_maxpowers[ix_maxpowers + 1],
+        )
+        ix_maxpowers += 2
+        ix_devices_start = ix_devices_end + 1
+    end
+    for s in model_params.dynamic_devices
+        ix_devices_end = ix_devices_start + n_params(s) - 1
+        parameterize_surrogate_psid!(
+            sys,
+            θ_devices[ix_devices_start:ix_devices_end],
+            s;
+            max_P = θ_maxpowers[ix_maxpowers],
+            max_Q = θ_maxpowers[ix_maxpowers + 1],
+        )
+        ix_maxpowers += 2
+        ix_devices_start = ix_devices_end + 1
+    end
+end =#
+
+function _check_dimensionality(
+    data_collection_location,
+    model_params::PSIDS.ClassicGenParams,
+)
+    @assert length(data_collection_location) == 1
+end
+
+function _check_dimensionality(data_collection_location, model_params::PSIDS.GFLParams)
+    @assert length(data_collection_location) == 1
+end
+
+function _check_dimensionality(data_collection_location, model_params::PSIDS.GFMParams)
+    @assert length(data_collection_location) == 1
+end
+
+function _check_dimensionality(data_collection_location, model_params::PSIDS.ZIPParams)
     @assert length(data_collection_location) == 1
 end
 
 function _check_dimensionality(
     data_collection_location,
-    model_params::SteadyStateNODEParams,
+    model_params::PSIDS.MultiDeviceParams,
+)
+    @assert length(data_collection_location) == 1
+end
+
+function _check_dimensionality(
+    data_collection_location,
+    model_params::PSIDS.SteadyStateNODEParams,
 )
     @assert model_params.n_ports == length(data_collection_location)
 end
 
 function _check_dimensionality(
     data_collection_location,
-    model_params::SteadyStateNODEObsParams,
+    model_params::PSIDS.SteadyStateNODEObsParams,
 )
     @assert model_params.n_ports == length(data_collection_location)
 end
@@ -562,7 +841,6 @@ function train(params::TrainParams)
     _check_dimensionality(data_collection_location_validation, params.model_params)
 
     output = _initialize_training_output_dict(params.model_params)
-    θ = Float32[]
     try
         sys_validation = node_load_system(params.surrogate_system_path)
         add_surrogate_psid!(sys_validation, params.model_params, train_dataset)
@@ -656,15 +934,15 @@ function train(params::TrainParams)
     catch e
         @error "Error in try block of train(): " exception = (e, catch_backtrace())
         _capture_output(output, params.output_data_path, params.train_id)
-        return false, θ
+        return false, []
     end
 end
 
 function _train(
-    p_train::Vector{Float32},
-    p_fixed::Vector{Float32},
+    p_train::Union{Vector{Float32}, Vector{Float64}},
+    p_fixed::Union{Vector{Float32}, Vector{Float64}},
     p_map::Vector{Int64},
-    surrogate::Union{SteadyStateNeuralODE, ClassicGen},
+    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL, GFM, ZIP, MultiDevice},
     data_collection_location::Vector{Tuple{String, Symbol}},
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     validation_dataset::Vector{PSIDS.SteadyStateNODEData},
@@ -726,16 +1004,15 @@ function _train(
             outer_loss_function(p_train, [(1, 1)])
         @warn loss
         @warn loss_initialization
-        @warn loss_dynamic 
-    cb(
-        p_train,
-        loss,
-        loss_initialization,
-        loss_dynamic,
-        surrogate_solution,
-        fault_index_vector,
-    )
-    =#
+        @warn loss_dynamic
+        cb(
+            p_train,
+            loss,
+            loss_initialization,
+            loss_dynamic,
+            surrogate_solution,
+            fault_index_vector,
+        ) =#
 
     @warn "Starting full train: \n # of iterations per epoch: $(length(group)) \n # of epochs per solve: $per_solve_max_epochs \n max # of iterations for solve: $(per_solve_max_epochs*length(group))"
     timing_stats = @timed Optimization.solve(
@@ -806,13 +1083,13 @@ end
 
 function _initialize_params(
     p_fixed::Vector{Symbol},
-    p_full::Vector{Float32},
+    p_full::Vector{Float64},
     surrogate::ClassicGen,
 )
     @assert !(nothing in indexin(p_fixed, [:R, :Xd_p, :eq_p, :H, :D]))  #ensure given p_fixed is a valid parameter
     @info "original parameter vector: $p_full"
-    p_fix = Float32[]
-    p_train = Float32[]
+    p_fix = Float64[]
+    p_train = Float64[]
     fixed_indices = []
     train_indices = []
     for i in 1:length(p_full)
@@ -825,6 +1102,146 @@ function _initialize_params(
         end
     end
     p_map = Vector{Int64}(undef, 5)
+    for (ix, i) in enumerate(fixed_indices)
+        p_map[i] = ix
+    end
+    for (ix, i) in enumerate(train_indices)
+        p_map[i] = ix + length(fixed_indices)
+    end
+    @info "remapped parameter vector: $(vcat(p_fix, p_train)[p_map])"
+    return p_fix, p_train, p_map
+end
+
+function _initialize_params(
+    p_fixed::Vector{Symbol},
+    p_full::Vector{Float64},
+    surrogate::GFL,
+)
+    param_symbols = ordered_param_symbols(surrogate)
+    @assert !(nothing in indexin(p_fixed, param_symbols))  #ensure given p_fixed is a valid parameter
+    @info "original parameter vector: $p_full"
+    p_fix = Float64[]
+    p_train = Float64[]
+    fixed_indices = []
+    train_indices = []
+    for i in 1:length(p_full)
+        if i in indexin(p_fixed, param_symbols)
+            push!(p_fix, p_full[i])
+            push!(fixed_indices, i)
+        else
+            push!(p_train, p_full[i])
+            push!(train_indices, i)
+        end
+    end
+    p_map = Vector{Int64}(undef, length(param_symbols))
+    for (ix, i) in enumerate(fixed_indices)
+        p_map[i] = ix
+    end
+    for (ix, i) in enumerate(train_indices)
+        p_map[i] = ix + length(fixed_indices)
+    end
+    @info "remapped parameter vector: $(vcat(p_fix, p_train)[p_map])"
+    return p_fix, p_train, p_map
+end
+
+function _initialize_params(
+    p_fixed::Vector{Symbol},
+    p_full::Vector{Float64},
+    surrogate::GFM,
+)
+    param_symbols = ordered_param_symbols(surrogate)
+    @assert !(nothing in indexin(p_fixed, param_symbols))  #ensure given p_fixed is a valid parameter
+    @info "original parameter vector: $p_full"
+    p_fix = Float64[]
+    p_train = Float64[]
+    fixed_indices = []
+    train_indices = []
+    for i in 1:length(p_full)
+        if i in indexin(p_fixed, param_symbols)
+            push!(p_fix, p_full[i])
+            push!(fixed_indices, i)
+        else
+            push!(p_train, p_full[i])
+            push!(train_indices, i)
+        end
+    end
+    p_map = Vector{Int64}(undef, length(param_symbols))
+    for (ix, i) in enumerate(fixed_indices)
+        p_map[i] = ix
+    end
+    for (ix, i) in enumerate(train_indices)
+        p_map[i] = ix + length(fixed_indices)
+    end
+    @info "remapped parameter vector: $(vcat(p_fix, p_train)[p_map])"
+    return p_fix, p_train, p_map
+end
+
+function _initialize_params(
+    p_fixed::Vector{Symbol},
+    p_full::Vector{Float64},
+    surrogate::ZIP,
+)
+    param_symbols = ordered_param_symbols(surrogate)
+    @assert !(nothing in indexin(p_fixed, param_symbols))  #ensure given p_fixed is a valid parameter
+    @info "original parameter vector: $p_full"
+    p_fix = Float64[]
+    p_train = Float64[]
+    fixed_indices = []
+    train_indices = []
+    for i in 1:length(p_full)
+        if i in indexin(p_fixed, param_symbols)
+            push!(p_fix, p_full[i])
+            push!(fixed_indices, i)
+        else
+            push!(p_train, p_full[i])
+            push!(train_indices, i)
+        end
+    end
+    p_map = Vector{Int64}(undef, length(param_symbols))
+    for (ix, i) in enumerate(fixed_indices)
+        p_map[i] = ix
+    end
+    for (ix, i) in enumerate(train_indices)
+        p_map[i] = ix + length(fixed_indices)
+    end
+    @info "remapped parameter vector: $(vcat(p_fix, p_train)[p_map])"
+    return p_fix, p_train, p_map
+end
+
+function _initialize_params(
+    p_fixed::Vector{Symbol},
+    p_full::Vector{Float64},
+    surrogate::MultiDevice,
+)
+    param_symbols = Symbol[]
+    for (i, s) in enumerate(vcat(surrogate.static_devices, surrogate.dynamic_devices))
+        push!(param_symbols, Symbol("P_fraction_", i))
+        push!(param_symbols, Symbol("Q_fraction_", i))
+    end
+    for s in surrogate.static_devices
+        param_symbols = vcat(param_symbols, ordered_param_symbols(s))
+    end
+    for d in surrogate.dynamic_devices
+        param_symbols = vcat(param_symbols, ordered_param_symbols(d))
+    end
+
+    @assert length(param_symbols) == length(unique(param_symbols))  #all parameters should be unique
+    @assert !(nothing in indexin(p_fixed, param_symbols))  #ensure given p_fixed is a valid parameter
+    @info "original parameter vector: $p_full"
+    p_fix = Float64[]
+    p_train = Float64[]
+    fixed_indices = []
+    train_indices = []
+    for i in 1:length(p_full)
+        if i in indexin(p_fixed, param_symbols)
+            push!(p_fix, p_full[i])
+            push!(fixed_indices, i)
+        else
+            push!(p_train, p_full[i])
+            push!(train_indices, i)
+        end
+    end
+    p_map = Vector{Int64}(undef, length(param_symbols))
     for (ix, i) in enumerate(fixed_indices)
         p_map[i] = ix
     end
@@ -869,7 +1286,7 @@ function _generate_training_groups(fault_index, timespan_index, curriculum)
 end
 
 function _initialize_training_output_dict(
-    ::Union{SteadyStateNODEObsParams, SteadyStateNODEParams},
+    ::Union{PSIDS.SteadyStateNODEObsParams, PSIDS.SteadyStateNODEParams},
 )
     return Dict{String, Any}(
         "loss" => DataFrames.DataFrame(
@@ -899,7 +1316,15 @@ function _initialize_training_output_dict(
     )
 end
 
-function _initialize_training_output_dict(::ClassicGenParams)
+function _initialize_training_output_dict(
+    ::Union{
+        PSIDS.ClassicGenParams,
+        PSIDS.GFLParams,
+        PSIDS.GFMParams,
+        PSIDS.ZIPParams,
+        PSIDS.MultiDeviceParams,
+    },
+)
     return Dict{String, Any}(
         "loss" => DataFrames.DataFrame(
             Loss_initialization = Float64[],

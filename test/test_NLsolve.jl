@@ -9,7 +9,7 @@
         p = TrainParams(
             base_path = joinpath(pwd(), "test"),
             surrogate_buses = [2],
-            model_params = SteadyStateNODEObsParams(
+            model_params = PSIDS.SteadyStateNODEObsParams(
                 name = "test-source",
                 dynamic_layer_type = "dense",
                 dynamic_hidden_states = h,

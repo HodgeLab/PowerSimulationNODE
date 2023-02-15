@@ -1,6 +1,5 @@
 using Flux
 abstract type SteadyStateNeuralODELayer <: Function end
-basic_tgrad(u, p, t) = zero(u) #? 
 Flux.trainable(m::SteadyStateNeuralODELayer) = (p = m.p,)
 
 """
@@ -194,16 +193,6 @@ function (s::SteadyStateNeuralODE)(
             false,
         )
     end
-end
-
-struct SteadyStateNeuralODE_solution{T}
-    r0_pred::AbstractArray{T}
-    r0::AbstractArray{T}
-    t_series::AbstractArray{T}
-    r_series::AbstractArray{T}
-    i_series::AbstractArray{T}
-    res::AbstractArray{T}
-    converged::Bool
 end
 
 #This was for comparing the initializer network with learning the initial conditions directly.
