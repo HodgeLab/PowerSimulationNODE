@@ -1,4 +1,5 @@
-@testset "Compare SteadyStateNODE and Training Surrogate - FrequencyChirp" begin
+
+@testset "Compare MultiDevice in Flux and PSID - FrequencyChirp" begin
     #READ SYSTEM WITHOUT GENS 
     sys = System(joinpath(TEST_FILES_DIR, "system_data/2bus_nogens.raw"))
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
@@ -32,7 +33,6 @@
             add_component!(sys, l)
         end
     end
-
     #SERIALIZE TO SYSTEM
     to_json(sys, joinpath(pwd(), "test", "system_data", "test.json"), force = true)
 
@@ -40,15 +40,7 @@
     p = TrainParams(
         base_path = joinpath(pwd(), "test"),
         surrogate_buses = [2],
-        model_params = PSIDS.SteadyStateNODEParams(
-            name = "source_surrogate",
-            dynamic_layer_type = "dense",
-            dynamic_hidden_states = 3,
-            dynamic_n_layer = 1,
-            dynamic_width_layers = 4,
-            dynamic_activation = "hardtanh",
-            dynamic_σ2_initialization = 0.1,
-        ),
+        model_params = PSIDS.MultiDeviceParams(name = "source_surrogate"),
         train_data = (
             id = "1",
             operating_points = PSIDS.SurrogateOperatingPoint[PSIDS.GenerationLoadScale()],
@@ -59,8 +51,8 @@
                     ω2 = 2 * pi * 3,
                     tstart = 0.1,
                     N = 0.5,
-                    V_amp = 0.2,
-                    ω_amp = 0.2,
+                    V_amp = 0.02,
+                    ω_amp = 0.02,
                 ),
             ]],
             params = PSIDS.GenerateDataParams(
@@ -85,15 +77,17 @@
             maxiters = 1e5,
             force_tstops = true,
         ),
+        p_start = Float64[1.0, 1.0, 1.0, 1.0, 1.0],
     )
 
     build_subsystems(p)
     mkpath(joinpath(p.base_path, PowerSimulationNODE.INPUT_FOLDER_NAME))
     generate_train_data(p)
+
     Random.seed!(p.rng_seed) #Seed call usually happens at start of train()
     train_dataset = Serialization.deserialize(p.train_data_path)
-    #sys_validation = System(p.surrogate_system_path)
     sys_train = System(p.train_system_path)
+
     exs = PowerSimulationNODE._build_exogenous_input_functions(p.train_data, train_dataset)
     v0 = [
         train_dataset[1].surrogate_real_voltage[1],
@@ -117,6 +111,7 @@
         PowerSimulationNODE.instantiate_surrogate_flux(p, p.model_params, train_dataset)
 
     surrogate_sol = train_surrogate(exs[1], v0, i0, tsteps, tstops)
+
     p1 = plot(
         surrogate_sol.t_series,
         surrogate_sol.i_series[1, :],
@@ -142,14 +137,13 @@
     )
     add_component!(sys_train, source_surrogate)
 
-    #SET THE PARAMETERS OF THE PSID SURROGATE FROM THE FLUX ONE 
     θ, _ = Flux.destructure(train_surrogate)
 
     PowerSimulationNODE.add_surrogate_psid!(sys_train, p.model_params, train_dataset)
-
     PowerSimulationNODE.parameterize_surrogate_psid!(sys_train, θ, p.model_params)
+    display(sys_train)
 
-    #ADD THE SURROGATE COMPONENT 
+    #Add the  Frequency Chirp
     for s in get_components(Source, sys_train)
         if get_name(s) == "source_1"
             chirp = FrequencyChirpVariableSource(
@@ -160,40 +154,64 @@
                 ω2 = 2 * pi * 3,
                 tstart = 0.1,
                 N = 0.5,
-                V_amp = 0.2,
-                ω_amp = 0.2,
+                V_amp = 0.02,
+                ω_amp = 0.02,
             )
-
             add_component!(sys_train, chirp, s)
         end
     end
 
     #Remove the true model (the PowerLoad)
-    for P in get_components(PowerLoad, sys_train)
+    for P in get_components(PowerLoad, sys_train, x -> PSY.get_name(x) == "Load_2")
         remove_component!(sys_train, P)
     end
+
+    #Match the operating point by defining a dummy dataset with initial current and voltage
+    b = get_component(Bus, sys_train, "BUS 2")
+    Vm0 = PSY.get_magnitude(b)
+    θ0 = PSY.get_angle(b)
+    Vr0 = Vm0 * cos(θ0)
+    Vi0 = Vm0 * sin(θ0)
+    Ir0, Ii0 = PowerSimulationNODE.PQV_to_I(-1.0, -0.1, [Vr0, Vi0])
+    data_aux = SteadyStateNODEData(;
+        real_current = [Ir0],
+        imag_current = [Ii0],
+        surrogate_real_voltage = [Vr0],
+        surrogate_imag_voltage = [Vi0],
+    )
+    PSIDS.match_operating_point(sys_train, data_aux, p.model_params)
 
     #Set reactive power of the Chirp Source to be 0.1
     set_reactive_power!(get_component(Source, sys_train, "source_1"), 0.1)
 
     #SIMULATE AND PLOT
-    sim = Simulation!(MassMatrixModel, sys_train, pwd(), (0.0, 1.0))
+    sim = Simulation!(
+        MassMatrixModel,
+        sys_train,
+        pwd(),
+        (0.0, 1.0),
+        frequency_reference = ConstantFrequency(),
+        all_lines_dynamic = true,
+    )
     show_states_initial_value(sim)
-    execute!(sim, Rodas5(), saveat = 0.0:0.001:1.0, abstol = 1e-12, reltol = 1e-12)
+
+    execute!(sim, Rodas5(), saveat = 0.0:0.001:1.0, abstol = 1e-9, reltol = 1e-9)
     results = read_results(sim)
     Vm2 = get_voltage_magnitude_series(results, 2)
     θ2 = get_voltage_angle_series(results, 2)
     Ir = get_real_current_series(results, "source_1")
     Ii = get_imaginary_current_series(results, "source_1")
+
     plot!(p3, Vm2, label = "Vm2 - psid")
     plot!(p4, θ2, label = "θ2 - psid")
-    #NOTE: i_surrogate = - i_source
-    plot!(p1, Ir[1], -1 .* Ir[2], label = "real current -psid", legend = :topright)
-    plot!(p2, Ii[1], -1 .* Ii[2], label = "imag current -psid", legend = :topright)
-    display(plot(p1, p2, p3, p4, size = (1000, 1000), title = "compare_SteadyStateNODE"))
 
-    @test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <= 0.000094
-    @test LinearAlgebra.norm(Ii[2] .* -1 .- surrogate_sol.i_series[2, :], Inf) <= 0.000014
+    #NOTE: i_surrogate = - i_source
+    plot!(p1, Ir[1], -1 * Ir[2], label = "real current -psid", legend = :topright)
+    plot!(p2, Ii[1], -1 * Ii[2], label = "imag current -psid", legend = :topright)
+    display(plot(p1, p2, p3, p4, size = (1000, 1000), title = "compare_MultiDevice"))
+
+    @test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <= 0.00031
+    @test LinearAlgebra.norm(Ii[2] .* -1 .- surrogate_sol.i_series[2, :], Inf) <= 0.00021
     #See the distribution of the parameters
     #= p_params = scatter(θ[(train_surrogate.len + 1):(train_surrogate.len + train_surrogate.len2)], label = "node params")
     scatter!(p_params, θ[1:(train_surrogate.len)], label = "init params")

@@ -33,6 +33,7 @@ with_logger(logger) do
     include("test_compare_GFL.jl")
     include("test_compare_GFM.jl")
     include("test_compare_ZIP.jl")
+    include("test_compare_MultiDevice.jl")
     include("test_NLsolve.jl")
     include("test_hpc.jl")
     include("test_serialize.jl")

@@ -98,7 +98,7 @@ end
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
 
     p = TrainParams(
-        model_params = SteadyStateNODEObsParams(
+        model_params = PSIDS.SteadyStateNODEObsParams(
             name = "source_BUS 3",
             dynamic_layer_type = "dense",
             dynamic_hidden_states = 5,
@@ -229,7 +229,7 @@ end
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
 
     p = TrainParams(
-        model_params = SteadyStateNODEParams(
+        model_params = PSIDS.SteadyStateNODEParams(
             name = "source_BUS 3",
             dynamic_layer_type = "dense",
             dynamic_hidden_states = 5,

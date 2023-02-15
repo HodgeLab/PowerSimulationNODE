@@ -26,7 +26,7 @@
                 model = LoadModels.ConstantImpedance,
                 bus = b,
                 active_power = 1.0,
-                reactive_power = 1.0,
+                reactive_power = 0.1,
                 max_active_power = 2.0,
                 max_reactive_power = 2.0,
             )
@@ -41,7 +41,7 @@
     p = TrainParams(
         base_path = joinpath(pwd(), "test"),
         surrogate_buses = [2],
-        model_params = ZIPParams(name = "source_surrogate"),
+        model_params = PSIDS.ZIPParams(name = "source_surrogate"),
         train_data = (
             id = "1",
             operating_points = PSIDS.SurrogateOperatingPoint[PSIDS.GenerationLoadScale()],
@@ -83,9 +83,9 @@
     build_subsystems(p)
     mkpath(joinpath(p.base_path, PowerSimulationNODE.INPUT_FOLDER_NAME))
     generate_train_data(p)
+
     Random.seed!(p.rng_seed) #Seed call usually happens at start of train()
     train_dataset = Serialization.deserialize(p.train_data_path)
-    #sys_validation = System(p.surrogate_system_path)
     sys_train = System(p.train_system_path)
     exs = PowerSimulationNODE._build_exogenous_input_functions(p.train_data, train_dataset)
     v0 = [
@@ -136,15 +136,12 @@
     )
     add_component!(sys_train, source_surrogate)
 
-    for b in get_components(PSY.Bus, sys_train)
-        @warn get_bustype(b)
-    end
     θ, _ = Flux.destructure(train_surrogate)
 
     PowerSimulationNODE.add_surrogate_psid!(sys_train, p.model_params, train_dataset)
-
     PowerSimulationNODE.parameterize_surrogate_psid!(sys_train, θ, p.model_params)
     display(sys_train)
+
     #Add the  Frequency Chirp
     for s in get_components(Source, sys_train)
         if get_name(s) == "source_1"
@@ -168,8 +165,23 @@
         remove_component!(sys_train, P)
     end
 
+    #Match the operating point by defining a dummy dataset with initial current and voltage
+    b = get_component(Bus, sys_train, "BUS 2")
+    Vm0 = PSY.get_magnitude(b)
+    θ0 = PSY.get_angle(b)
+    Vr0 = Vm0 * cos(θ0)
+    Vi0 = Vm0 * sin(θ0)
+    Ir0, Ii0 = PowerSimulationNODE.PQV_to_I(-1.0, -0.1, [Vr0, Vi0])
+    data_aux = SteadyStateNODEData(;
+        real_current = [Ir0],
+        imag_current = [Ii0],
+        surrogate_real_voltage = [Vr0],
+        surrogate_imag_voltage = [Vi0],
+    )
+    PSIDS.match_operating_point(sys_train, data_aux, p.model_params)
+
     #Set reactive power of the Chirp Source to be 0.1
-    #set_reactive_power!(get_component(Source, sys_train, "source_1"), 0.1)
+    set_reactive_power!(get_component(Source, sys_train, "source_1"), 0.1)
 
     #SIMULATE AND PLOT
     sim = Simulation!(
@@ -187,13 +199,11 @@
     θ2 = get_voltage_angle_series(results, 2)
     Ir = get_real_current_series(results, "source_1")
     Ii = get_imaginary_current_series(results, "source_1")
-    P = get_activepower_series(results, "source_1")
-    Q = get_reactivepower_series(results, "source_1")
-    #Ir = get_state_series(results, ("source_surrogate", :δ))
-    #Ii = get_state_series(results, ("source_surrogate", :ω))
+
     plot!(p3, Vm2, label = "Vm2 - psid")
     plot!(p4, θ2, label = "θ2 - psid")
-    #NOTE: i_surrogate = - i_source
+
+    #NOTE: i_surrogate =  i_source (for load)
     plot!(p1, Ir[1], Ir[2], label = "real current -psid", legend = :topright)
     plot!(p2, Ii[1], Ii[2], label = "imag current -psid", legend = :topright)
     display(plot(p1, p2, p3, p4, size = (1000, 1000), title = "compare_ZIP"))

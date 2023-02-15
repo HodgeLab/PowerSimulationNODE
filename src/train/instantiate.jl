@@ -73,7 +73,7 @@ end
 
 function add_surrogate_psid!(
     sys::PSY.System,
-    model_params::SteadyStateNODEObsParams,
+    model_params::PSIDS.SteadyStateNODEObsParams,
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
 )
     n_ports = model_params.n_ports
@@ -110,7 +110,7 @@ end
 
 function add_surrogate_psid!(
     sys::PSY.System,
-    model_params::SteadyStateNODEParams,
+    model_params::PSIDS.SteadyStateNODEParams,
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
 )
     n_ports = model_params.n_ports
@@ -143,7 +143,12 @@ end
 
 function add_surrogate_psid!(
     sys::PSY.System,
-    model_params::ClassicGenParams,
+    model_params::Union{
+        PSIDS.ClassicGenParams,
+        PSIDS.GFLParams,
+        PSIDS.GFMParams,
+        PSIDS.ZIPParams,
+    },
     ::Vector{PSIDS.SteadyStateNODEData},   #Won't be used in this dispatch 
 )
     source = PSY.get_component(PSY.Source, sys, model_params.name) #Note: hardcoded for single port surrogate 
@@ -151,6 +156,79 @@ function add_surrogate_psid!(
     Q_ref = PSY.get_reactive_power(source)
     b = PSY.get_bus(source)
     PSY.remove_component!(sys, source)
+    _add_physics_surrogate_device!(sys, b, P_ref, Q_ref, model_params)
+end
+
+function add_surrogate_psid!(
+    sys::PSY.System,
+    model_params::PSIDS.MultiDeviceParams,
+    ::Vector{PSIDS.SteadyStateNODEData},   #Won't be used in this dispatch 
+)
+    source = PSY.get_component(PSY.Source, sys, model_params.name) #Note: hardcoded for single port surrogate 
+    P_ref = PSY.get_active_power(source)
+    Q_ref = PSY.get_reactive_power(source)
+    b = PSY.get_bus(source)
+    PSY.remove_component!(sys, source)
+    for s in model_params.static_devices
+        _add_physics_surrogate_device!(sys, b, P_ref, Q_ref, s)    #do we need to pass in P_ref, Q_ref here? - should happen in initialization
+    end
+    for s in model_params.dynamic_devices
+        _add_physics_surrogate_device!(sys, b, P_ref, Q_ref, s)     #do we need to pass in P_ref, Q_ref here? - should happen in initialization 
+    end
+end
+
+#= function add_surrogate_psid!(
+    sys::PSY.System,
+    model_params::PSIDS.MultiDeviceLineParams,
+    ::Vector{PSIDS.SteadyStateNODEData},   #Won't be used in this dispatch 
+)
+    display(sys)
+    source = PSY.get_component(PSY.Source, sys, model_params.name) #Note: hardcoded for single port surrogate 
+    P_ref = PSY.get_active_power(source)
+    Q_ref = PSY.get_reactive_power(source)
+    b = PSY.get_bus(source)
+    PSY.remove_component!(sys, source)
+    b_new = PSY.Bus(
+        number = 0,
+        name = string(model_params.name, "-bus"),
+        bustype = PSY.BusTypes.PQ,
+        angle = 0.0,    #doesn't matter (PQ bus)
+        magnitude = 1.0, #doesn't matter (PQ bus)
+        voltage_limits = (0.0, 2.0),
+        base_voltage = 230,
+    )
+    PSY.add_component!(sys, b_new)
+    a_new = PSY.Arc(from = b_new, to = b)
+    PSY.add_component!(sys, a_new)
+    l_new = PSY.Line(
+        name = string(model_params.name, "-line"),
+        available = true,
+        active_power_flow = 0.0,
+        reactive_power_flow = 0.0,
+        arc = a_new,
+        r = 0.0, #parameterized later
+        x = 0.0, # parameterized later
+        b = (from = 0.0, to = 0.0), #parameterized later
+        rate = 0.0,
+        angle_limits = (min = -pi / 2, max = pi / 2),
+    )
+    PSY.add_component!(sys, l_new)
+    display(sys)
+    for s in model_params.static_devices
+        _add_physics_surrogate_device!(sys, b_new, P_ref, Q_ref, s)    #do we need to pass in P_ref, Q_ref here? - should happen in initialization
+    end
+    for s in model_params.dynamic_devices
+        _add_physics_surrogate_device!(sys, b_new, P_ref, Q_ref, s)     #do we need to pass in P_ref, Q_ref here? - should happen in initialization 
+    end
+end =#
+
+function _add_physics_surrogate_device!(
+    sys,
+    b,
+    P_ref,
+    Q_ref,
+    model_params::PSIDS.ClassicGenParams,
+)
     static_injector = PSY.ThermalStandard(
         name = model_params.name,
         available = true,
@@ -178,17 +256,7 @@ function add_surrogate_psid!(
     )
     PSY.add_component!(sys, dynamic_injector, static_injector)
 end
-
-function add_surrogate_psid!(
-    sys::PSY.System,
-    model_params::GFLParams,
-    ::Vector{PSIDS.SteadyStateNODEData},   #Won't be used in this dispatch 
-)
-    source = PSY.get_component(PSY.Source, sys, model_params.name) #Note: hardcoded for single port surrogate 
-    P_ref = PSY.get_active_power(source)
-    Q_ref = PSY.get_reactive_power(source)
-    b = PSY.get_bus(source)
-    PSY.remove_component!(sys, source)
+function _add_physics_surrogate_device!(sys, b, P_ref, Q_ref, model_params::PSIDS.GFLParams)
     static_injector = PSY.ThermalStandard(
         name = model_params.name,
         available = true,
@@ -197,7 +265,7 @@ function add_surrogate_psid!(
         active_power = P_ref,
         reactive_power = 0.0,
         rating = 2.0,
-        active_power_limits = (min = 0.0, max = 2.0),
+        active_power_limits = (min = -2.0, max = 2.0),
         reactive_power_limits = (min = -1.5, max = 1.5),
         time_limits = nothing,
         ramp_limits = nothing,
@@ -221,16 +289,7 @@ function add_surrogate_psid!(
     PSY.add_component!(sys, dynamic_injector, static_injector)
 end
 
-function add_surrogate_psid!(
-    sys::PSY.System,
-    model_params::GFMParams,
-    ::Vector{PSIDS.SteadyStateNODEData},   #Won't be used in this dispatch 
-)
-    source = PSY.get_component(PSY.Source, sys, model_params.name) #Note: hardcoded for single port surrogate 
-    P_ref = PSY.get_active_power(source)
-    Q_ref = PSY.get_reactive_power(source)
-    b = PSY.get_bus(source)
-    PSY.remove_component!(sys, source)
+function _add_physics_surrogate_device!(sys, b, P_ref, Q_ref, model_params::PSIDS.GFMParams)
     static_injector = PSY.ThermalStandard(
         name = model_params.name,
         available = true,
@@ -239,7 +298,7 @@ function add_surrogate_psid!(
         active_power = P_ref,
         reactive_power = 0.0,
         rating = 2.0,
-        active_power_limits = (min = 0.0, max = 2.0),
+        active_power_limits = (min = -2.0, max = 2.0),
         reactive_power_limits = (min = -1.5, max = 1.5),
         time_limits = nothing,
         ramp_limits = nothing,
@@ -274,16 +333,7 @@ function add_surrogate_psid!(
     PSY.add_component!(sys, dynamic_injector, static_injector)
 end
 
-function add_surrogate_psid!(
-    sys::PSY.System,
-    model_params::ZIPParams,
-    ::Vector{PSIDS.SteadyStateNODEData},   #Won't be used in this dispatch 
-)
-    source = PSY.get_component(PSY.Source, sys, model_params.name) #Note: hardcoded for single port surrogate 
-    P_ref = PSY.get_active_power(source)
-    Q_ref = PSY.get_reactive_power(source)
-    b = PSY.get_bus(source)
-    PSY.remove_component!(sys, source)
+function _add_physics_surrogate_device!(sys, b, P_ref, Q_ref, model_params::PSIDS.ZIPParams)
     load_Z = PSY.PowerLoad(
         name = string(model_params.name, "_Z"),
         available = true,
@@ -324,7 +374,7 @@ end
 
 function instantiate_surrogate_flux(
     params::TrainParams,
-    model_params::Union{SteadyStateNODEParams, SteadyStateNODEObsParams},
+    model_params::Union{PSIDS.SteadyStateNODEParams, PSIDS.SteadyStateNODEObsParams},
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
 )
     n_ports = model_params.n_ports
@@ -367,7 +417,7 @@ end
 
 function instantiate_surrogate_flux(
     params::TrainParams,
-    model_params::ClassicGenParams,
+    model_params::PSIDS.ClassicGenParams,
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
 )
     steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
@@ -389,7 +439,7 @@ end
 
 function instantiate_surrogate_flux(
     params::TrainParams,
-    model_params::GFLParams,
+    model_params::PSIDS.GFLParams,
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
 )
     steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
@@ -411,7 +461,7 @@ end
 
 function instantiate_surrogate_flux(
     params::TrainParams,
-    model_params::GFMParams,
+    model_params::PSIDS.GFMParams,
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
 )
     steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
@@ -433,7 +483,7 @@ end
 
 function instantiate_surrogate_flux(
     params::TrainParams,
-    model_params::ZIPParams,
+    model_params::PSIDS.ZIPParams,
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
 )
     steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
@@ -444,6 +494,30 @@ function instantiate_surrogate_flux(
     steadystate_abstol = params.steady_state_solver.abstol
 
     return ZIP(
+        steadystate_solver,
+        dynamic_solver,
+        steadystate_abstol;
+        abstol = dynamic_abstol,
+        reltol = dynamic_reltol,
+        maxiters = dynamic_maxiters,
+    )
+end
+
+function instantiate_surrogate_flux(
+    params::TrainParams,
+    model_params::PSIDS.MultiDeviceParams,
+    train_dataset::Vector{PSIDS.SteadyStateNODEData},
+)
+    steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
+    dynamic_solver = instantiate_solver(params.dynamic_solver)
+    dynamic_reltol = params.dynamic_solver.reltol
+    dynamic_abstol = params.dynamic_solver.abstol
+    dynamic_maxiters = params.dynamic_solver.maxiters
+    steadystate_abstol = params.steady_state_solver.abstol
+
+    return MultiDevice(
+        model_params.static_devices,
+        model_params.dynamic_devices,
         steadystate_solver,
         dynamic_solver,
         steadystate_abstol;
@@ -698,7 +772,7 @@ function _instantiate_model_observation(m, n_ports, scaling_extrema; flux = true
     target_min = scaling_extrema["target_min"]
     target_max = scaling_extrema["target_max"]
     vector_layers = []
-    if typeof(m) == SteadyStateNODEParams
+    if typeof(m) == PSIDS.SteadyStateNODEParams
         if flux == true
             push!(vector_layers, (x) -> (x[1:(n_ports * SURROGATE_OUTPUT_DIM), :]))
             push!(
@@ -712,7 +786,7 @@ function _instantiate_model_observation(m, n_ports, scaling_extrema; flux = true
             @error "DirectObservation incompatible with instantiating observation for PSID"
             @assert false
         end
-    elseif typeof(m) == SteadyStateNODEObsParams
+    elseif typeof(m) == PSIDS.SteadyStateNODEObsParams
         if flux == true
             activation = activation_map(m.observation_activation)
         else
@@ -862,7 +936,7 @@ function _inner_loss_function(
 end
 
 function instantiate_outer_loss_function(
-    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL, GFM, ZIP},
+    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL, GFM, ZIP, MultiDevice},
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     exogenous_input_functions,
     train_details::Vector{
@@ -893,7 +967,7 @@ end
 function _outer_loss_function(
     p_train,
     vector_fault_timespan_index::Vector{Tuple{Int64, Int64}},
-    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL, GFM, ZIP},
+    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL, GFM, ZIP, MultiDevice},
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     exogenous_input_functions,
     train_details::Vector{

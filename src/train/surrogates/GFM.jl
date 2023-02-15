@@ -1,15 +1,5 @@
-#= gfm
-Recipe for adding new surrogate model from PSID model.
-    * Copy individual initialization and device functions.
-    * Modify any parameters or values that come from PSID devices.
-    * Add non-zero mass matrix time constants to the appropriate RHS equations. 
-    * Change powerflow devices to be derived from v0, i0, not quantities from the device. 
-    * Make a constant dictionary (e.g. gfm_indices) with all of the location indices within the vectors (constant per device).
- =#
-
 using Flux
 abstract type GFMLayer <: Function end
-basic_tgrad(du, u, p, t) = zero(u)
 Flux.trainable(m::GFMLayer) = (p = m.p,)
 
 struct GFM{PT, PF, PM, SS, DS, A, K} <: GFMLayer
@@ -29,30 +19,7 @@ struct GFM{PT, PF, PM, SS, DS, A, K} <: GFMLayer
         kwargs...,
     )
         if p === nothing
-            p = Float64[
-                690.0,  #rated_voltage
-                2.75,   #rated_current
-                0.05,    #Rp 
-                2 * pi * 5,   #ωz
-                2.0,    #Kq 
-                1000.0,  #ωf
-                0.59,   #kpv
-                736.0,   #kiv 
-                0.0,    #kffv (fix)
-                0.0,   #rv
-                0.2,    #lv
-                1.27,   #kpc
-                14.3,   #kic
-                0.0,    #kffi
-                50.0,   #ωad
-                0.2,    #kad
-                600.0,  #voltage
-                0.08,  #lf 
-                0.003,  #rf
-                0.074,    #cf
-                0.2,  #lg
-                0.01,  #rg 
-            ]
+            p = default_params(PSIDS.GFMParams())
         end
         new{
             typeof(p),
@@ -93,15 +60,26 @@ function (s::GFM)(
     x0 = zeros(typeof(p_ordered[1]), 15)
     inner_vars = repeat(PSID.ACCEPTED_REAL_TYPES[0.0], 25)
     refs = zeros(typeof(p_ordered[1]), 3)
-
-    converged = initialize_dynamic_device!(x0, inner_vars, refs, p_ordered, v0, i0, s)  #modifies first three args
+    ss_solver = s.ss_solver
+    ss_tol = s.args[1]
+    converged = initialize_dynamic_device!(
+        x0,
+        inner_vars,
+        refs,
+        p_ordered,
+        v0,
+        i0,
+        ss_solver,
+        ss_tol,
+        s,
+    )
 
     if converged
         function dudt_dyn!(du, u, p, t)
-            device!(du, u, p, refs, inner_vars, V, t, s)
+            device!(du, u, p, refs, inner_vars, V(t)[1], V(t)[2], s)
         end
 
-        ff = OrdinaryDiffEq.ODEFunction{true}(dudt_dyn!; tgrad = basic_tgrad)   #TODO - what does passing 0 as time gradient do?
+        ff = OrdinaryDiffEq.ODEFunction{true}(dudt_dyn!; tgrad = basic_tgrad_inplace)
         prob_dyn = OrdinaryDiffEq.ODEProblem{true}(
             ff,
             x0,
@@ -122,38 +100,108 @@ function (s::GFM)(
     end
 end
 
-#Note: got rid of types to work with ForwardDiff
-struct PhysicalModel_solution
-    t_series::Any
-    i_series::Any
-    res::Any
-    converged::Bool
+function default_params(::PSIDS.GFMParams)
+    return Float64[
+        690.0,  #rated_voltage
+        2.75,   #rated_current
+        0.05,    #Rp 
+        2 * pi * 5,   #ωz
+        2.0,    #Kq 
+        1000.0,  #ωf
+        0.59,   #kpv
+        736.0,   #kiv 
+        0.0,    #kffv (fix)
+        0.0,   #rv
+        0.2,    #lv
+        1.27,   #kpc
+        14.3,   #kic
+        0.0,    #kffi
+        50.0,   #ωad
+        0.2,    #kad
+        600.0,  #voltage
+        0.08,  #lf 
+        0.003,  #rf
+        0.074,    #cf
+        0.2,  #lg
+        0.01,  #rg 
+    ]
+end
+
+function ordered_param_symbols(::Union{GFM, PSIDS.GFMParams})
+    return [
+        :rated_voltage_gfm,
+        :rated_current_gfm,
+        :Rp,
+        :ωz_gfm,
+        :kq,
+        :ωf_gfm,
+        :kpv,
+        :kiv,
+        :kffv_gfm,
+        :rv,
+        :lv,
+        :kpc_gfm,
+        :kic_gfm,
+        :kffi,
+        :ωad,
+        :kad,
+        :voltage_gfm,
+        :lf_gfm,
+        :rf_gfm,
+        :cf_gfm,
+        :lg_gfm,
+        :rg_gfm,
+    ]
+end
+
+function n_states(::Union{GFM, PSIDS.GFMParams})
+    return 15
+end
+
+function n_inner_vars(::Union{GFM, PSIDS.GFMParams})
+    return 25
+end
+
+function n_refs(::Union{GFM, PSIDS.GFMParams})
+    return 3
+end
+
+function n_params(::Union{GFM, PSIDS.GFMParams})
+    return 22
+end
+
+function real_current_index(::Union{GFM, PSIDS.GFMParams})
+    return 14
+end
+
+function imag_current_index(::Union{GFM, PSIDS.GFMParams})
+    return 15
 end
 
 const gfm_indices = Dict{Symbol, Dict{Symbol, Int64}}(
     :params => Dict{Symbol, Int64}(
-        :rated_voltage => 1,
-        :rated_current => 2,
+        :rated_voltage_gfm => 1,
+        :rated_current_gfm => 2,
         :Rp => 3,
-        :ωz => 4,
+        :ωz_gfm => 4,
         :kq => 5,
-        :ωf => 6,
+        :ωf_gfm => 6,
         :kpv => 7,
         :kiv => 8,
-        :kffv => 9,
+        :kffv_gfm => 9,
         :rv => 10,
         :lv => 11,
-        :kpc => 12,
-        :kic => 13,
+        :kpc_gfm => 12,
+        :kic_gfm => 13,
         :kffi => 14,
         :ωad => 15,
         :kad => 16,
-        :voltage => 17,
-        :lf => 18,
-        :rf => 19,
-        :cf => 20,
-        :lg => 21,
-        :rg => 22,
+        :voltage_gfm => 17,
+        :lf_gfm => 18,
+        :rf_gfm => 19,
+        :cf_gfm => 20,
+        :lg_gfm => 21,
+        :rg_gfm => 22,
     ),
     :states => Dict{Symbol, Int64}(
         :θ_oc => 1,
@@ -182,42 +230,96 @@ function initialize_dynamic_device!(
     parameters,
     v0,
     i0,
-    s::GFM,
+    ss_solver,
+    ss_tol,
+    s::Union{GFM, PSIDS.GFMParams},
 )
-    #=     println("before")
-        println(device_states)
-        println(inner_vars)
-        println(references)
-        println(parameters)
-        println(v0)
-        println(i0) =#
-
-    initialize_filter!(device_states, inner_vars, references, parameters, v0, i0, s)
-    initialize_frequency_estimator!(
+    filter_converged = initialize_filter!(
         device_states,
         inner_vars,
         references,
         parameters,
         v0,
         i0,
+        ss_solver,
+        ss_tol,
         s,
     )
-    initialize_outer!(device_states, inner_vars, references, parameters, v0, i0, s)
-    initialize_DCside!(device_states, inner_vars, references, parameters, v0, i0, s)
-    initialize_converter!(device_states, inner_vars, references, parameters, v0, i0, s)
-    initialize_inner!(device_states, inner_vars, references, parameters, v0, i0, s)
+    frequency_estimator_converged = initialize_frequency_estimator!(
+        device_states,
+        inner_vars,
+        references,
+        parameters,
+        v0,
+        i0,
+        ss_solver,
+        ss_tol,
+        s,
+    )
+    outer_converged = initialize_outer!(
+        device_states,
+        inner_vars,
+        references,
+        parameters,
+        v0,
+        i0,
+        ss_solver,
+        ss_tol,
+        s,
+    )
+    DCside_converged = initialize_DCside!(
+        device_states,
+        inner_vars,
+        references,
+        parameters,
+        v0,
+        i0,
+        ss_solver,
+        ss_tol,
+        s,
+    )
+    converter_converged = initialize_converter!(
+        device_states,
+        inner_vars,
+        references,
+        parameters,
+        v0,
+        i0,
+        ss_solver,
+        ss_tol,
+        s,
+    )
+    inner_converged = initialize_inner!(
+        device_states,
+        inner_vars,
+        references,
+        parameters,
+        v0,
+        i0,
+        ss_solver,
+        ss_tol,
+        s,
+    )
 
-    #=     println("after")
-        println(device_states)
-        println(inner_vars)
-        println(references)
-        println(parameters)
-        println(v0)
-        println(i0) =#
-    return true     #TODO - return if converged or not. If the initialization fails somewhere, return false 
+    return filter_converged &&
+           frequency_estimator_converged &&
+           outer_converged &&
+           DCside_converged &&
+           converter_converged &&
+           inner_converged
 end
 
-function initialize_filter!(device_states, inner_vars, references, params, v0, i0, s::GFM)
+function initialize_filter!(
+    device_states,
+    inner_vars,
+    references,
+    params,
+    v0,
+    i0,
+    ss_solver,
+    ss_tol,
+    s::Union{GFM, PSIDS.GFMParams},
+)
     V_R = v0[1]
     V_I = v0[2]
     Ir_filter = i0[1]
@@ -225,11 +327,11 @@ function initialize_filter!(device_states, inner_vars, references, params, v0, i
 
     #Get Parameters
     #filter = PSY.get_filter(dynamic_device)
-    lf = params[gfm_indices[:params][:lf]]
-    rf = params[gfm_indices[:params][:rf]]
-    cf = params[gfm_indices[:params][:cf]]
-    lg = params[gfm_indices[:params][:lg]]
-    rg = params[gfm_indices[:params][:rg]]
+    lf = params[gfm_indices[:params][:lf_gfm]]
+    rf = params[gfm_indices[:params][:rf_gfm]]
+    cf = params[gfm_indices[:params][:cf_gfm]]
+    lg = params[gfm_indices[:params][:lg_gfm]]
+    rg = params[gfm_indices[:params][:rg_gfm]]
 
     #Set parameters
     ω_sys = 1.0
@@ -263,10 +365,11 @@ function initialize_filter!(device_states, inner_vars, references, params, v0, i
     prob_ss = SteadyStateDiffEq.SteadyStateProblem(
         OrdinaryDiffEq.ODEProblem{true}(ff_ss, x0, (zero(x0[1]), one(x0[1]) * 100), params),
     )
-    sol = SteadyStateDiffEq.solve(prob_ss, s.ss_solver; abstol = s.args[1]).original    #difference in tolerances?
+    sol = SteadyStateDiffEq.solve(prob_ss, ss_solver; abstol = ss_tol).original
 
     if !NLsolve.converged(sol)
         @warn("Initialization in Filter failed")
+        false
     else
         sol_x0 = sol.zero
         #Update terminal voltages
@@ -291,7 +394,7 @@ function initialize_filter!(device_states, inner_vars, references, params, v0, i
         device_states[gfm_indices[:states][:ir_filter]] = Ir_filter
         device_states[gfm_indices[:states][:ii_filter]] = Ii_filter
     end
-    return
+    return true
 end
 
 function initialize_converter!(
@@ -301,8 +404,12 @@ function initialize_converter!(
     params,
     v0,
     i0,
-    s::GFM,
-) end
+    ss_solver,
+    ss_tol,
+    s::Union{GFM, PSIDS.GFMParams},
+)
+    return true
+end
 
 function initialize_frequency_estimator!(
     device_states,
@@ -311,14 +418,26 @@ function initialize_frequency_estimator!(
     params,
     v0,
     i0,
-    s::GFM,
+    ss_solver,
+    ss_tol,
+    s::Union{GFM, PSIDS.GFMParams},
 )
     #Update guess of frequency estimator
     inner_vars[PSID.ω_freq_estimator_var] = 1.0
-    return
+    return true
 end
 
-function initialize_outer!(device_states, inner_vars, references, params, v0, i0, s::GFM)
+function initialize_outer!(
+    device_states,
+    inner_vars,
+    references,
+    params,
+    v0,
+    i0,
+    ss_solver,
+    ss_tol,
+    s::Union{GFM, PSIDS.GFMParams},
+)
     #Obtain external states inputs for component
     #Obtain external states inputs for component
     Vr_filter = device_states[gfm_indices[:states][:vr_filter]]
@@ -348,13 +467,35 @@ function initialize_outer!(device_states, inner_vars, references, params, v0, i0
     #Update Q_ref. Initialization assumes q_ref = q_elec_out of PF solution
     references[gfm_indices[:references][:P_ref]] = p_elec_out
     references[gfm_indices[:references][:Q_ref]] = q_elec_out
+    return true
 end
 
-function initialize_DCside!(device_states, inner_vars, references, params, v0, i0, s::GFM)
-    inner_vars[PSID.Vdc_var] = params[gfm_indices[:params][:voltage]]
+function initialize_DCside!(
+    device_states,
+    inner_vars,
+    references,
+    params,
+    v0,
+    i0,
+    ss_solver,
+    ss_tol,
+    s::Union{GFM, PSIDS.GFMParams},
+)
+    inner_vars[PSID.Vdc_var] = params[gfm_indices[:params][:voltage_gfm]]
+    return true
 end
 
-function initialize_inner!(device_states, inner_vars, references, params, v0, i0, s::GFM)
+function initialize_inner!(
+    device_states,
+    inner_vars,
+    references,
+    params,
+    v0,
+    i0,
+    ss_solver,
+    ss_tol,
+    s::Union{GFM, PSIDS.GFMParams},
+)
 
     #Obtain external states inputs for component
     Ir_filter = device_states[gfm_indices[:states][:ir_filter]]
@@ -377,14 +518,14 @@ function initialize_inner!(device_states, inner_vars, references, params, v0, i0
     kpv = params[gfm_indices[:params][:kpv]]
     kiv = params[gfm_indices[:params][:kiv]]
     kffi = params[gfm_indices[:params][:kffi]]
-    cf = params[gfm_indices[:params][:cf]]
+    cf = params[gfm_indices[:params][:cf_gfm]]
     rv = params[gfm_indices[:params][:rv]]
     lv = params[gfm_indices[:params][:lv]]
-    kpc = params[gfm_indices[:params][:kpc]]
-    kic = params[gfm_indices[:params][:kic]]
-    kffv = params[gfm_indices[:params][:kffv]]
-    lf = params[gfm_indices[:params][:lf]]
-    ωad = params[gfm_indices[:params][:ωad]]        #TODO - add from mass matrix! 
+    kpc = params[gfm_indices[:params][:kpc_gfm]]
+    kic = params[gfm_indices[:params][:kic_gfm]]
+    kffv = params[gfm_indices[:params][:kffv_gfm]]
+    lf = params[gfm_indices[:params][:lf_gfm]]
+    ωad = params[gfm_indices[:params][:ωad]]
     kad = params[gfm_indices[:params][:kad]]
 
     function f!(out, x, params, t)
@@ -448,10 +589,10 @@ function initialize_inner!(device_states, inner_vars, references, params, v0, i0
     prob_ss = SteadyStateDiffEq.SteadyStateProblem(
         OrdinaryDiffEq.ODEProblem{true}(ff_ss, x0, (zero(x0[1]), one(x0[1]) * 100), params),
     )
-    sol = SteadyStateDiffEq.solve(prob_ss, s.ss_solver; abstol = s.args[1]).original    #difference in tolerances?
-
+    sol = SteadyStateDiffEq.solve(prob_ss, ss_solver; abstol = ss_tol).original
     if !NLsolve.converged(sol)
         @warn("Initialization in Inner Control failed")
+        return false
     else
         sol_x0 = sol.zero
         #Update angle:
@@ -474,26 +615,53 @@ function initialize_inner!(device_states, inner_vars, references, params, v0, i0
         device_states[gfm_indices[:states][:ϕd_ic]] = sol_x0[7] #ϕ_d
         device_states[gfm_indices[:states][:ϕq_ic]] = sol_x0[8] #ϕ_q
     end
-    return
+    return true
 end
 
-function device!(output_ode, device_states, p, references, inner_vars, V, t, s::GFM)
+function device!(
+    output_ode,
+    device_states,
+    p,
+    references,
+    inner_vars,
+    Vr,
+    Vi,
+    s::Union{GFM, PSIDS.GFMParams},
+)
     #Obtain global vars
     sys_ω = 1.0 #global_vars[GLOBAL_VAR_SYS_FREQ_INDEX]
 
     #Update Voltage data
-    inner_vars[PSID.Vr_inv_var] = V(t)[1]
-    inner_vars[PSID.Vi_inv_var] = V(t)[2]
+    inner_vars[PSID.Vr_inv_var] = Vr#V(t)[1]
+    inner_vars[PSID.Vi_inv_var] = Vi#V(t)[2]
 
     #Is Vref used in GFM equations?
     #V_ref = get_V_ref(dynamic_device)
     #inner_vars[PSID.V_oc_var] = V_ref
 
     #Update current inner_vars
-    _update_inner_vars!(output_ode, device_states, p, references, inner_vars, V, t, s::GFM)
+    _update_inner_vars!(
+        output_ode,
+        device_states,
+        p,
+        references,
+        inner_vars,
+        Vr,
+        Vi,
+        s::Union{GFM, PSIDS.GFMParams},
+    )
 
     #Obtain ODES for DC side
-    mdl_DCside_ode!(output_ode, device_states, p, references, inner_vars, V, t, s::GFM)
+    mdl_DCside_ode!(
+        output_ode,
+        device_states,
+        p,
+        references,
+        inner_vars,
+        Vr,
+        Vi,
+        s::Union{GFM, PSIDS.GFMParams},
+    )
 
     #Obtain ODEs for PLL
     mdl_freq_estimator_ode!(
@@ -502,21 +670,57 @@ function device!(output_ode, device_states, p, references, inner_vars, V, t, s::
         p,
         references,
         inner_vars,
-        V,
-        t,
-        s::GFM,
+        Vr,
+        Vi,
+        s::Union{GFM, PSIDS.GFMParams},
     )
 
     #Obtain ODEs for OuterLoop
-    mdl_outer_ode!(output_ode, device_states, p, references, inner_vars, V, t, s::GFM)
+    mdl_outer_ode!(
+        output_ode,
+        device_states,
+        p,
+        references,
+        inner_vars,
+        Vr,
+        Vi,
+        s::Union{GFM, PSIDS.GFMParams},
+    )
 
     #Obtain inner controller ODEs and modulation commands
-    mdl_inner_ode!(output_ode, device_states, p, references, inner_vars, V, t, s::GFM)
+    mdl_inner_ode!(
+        output_ode,
+        device_states,
+        p,
+        references,
+        inner_vars,
+        Vr,
+        Vi,
+        s::Union{GFM, PSIDS.GFMParams},
+    )
 
     #Obtain converter relations
-    mdl_converter_ode!(output_ode, device_states, p, references, inner_vars, V, t, s::GFM)
+    mdl_converter_ode!(
+        output_ode,
+        device_states,
+        p,
+        references,
+        inner_vars,
+        Vr,
+        Vi,
+        s::Union{GFM, PSIDS.GFMParams},
+    )
 
-    mdl_filter_ode!(output_ode, device_states, p, references, inner_vars, V, t, s::GFM)
+    mdl_filter_ode!(
+        output_ode,
+        device_states,
+        p,
+        references,
+        inner_vars,
+        Vr,
+        Vi,
+        s::Union{GFM, PSIDS.GFMParams},
+    )
 
     return
 end
@@ -527,14 +731,23 @@ function _update_inner_vars!(
     p,
     references,
     inner_vars,
-    V,
-    t,
-    s::GFM,
+    Vr,
+    Vi,
+    s::Union{GFM, PSIDS.GFMParams},
 ) end
 
-function mdl_DCside_ode!(output_ode, device_states, p, references, inner_vars, V, t, s::GFM)
+function mdl_DCside_ode!(
+    output_ode,
+    device_states,
+    p,
+    references,
+    inner_vars,
+    Vr,
+    Vi,
+    s::Union{GFM, PSIDS.GFMParams},
+)
     #Update inner_vars
-    inner_vars[PSID.Vdc_var] = p[gfm_indices[:params][:voltage]]
+    inner_vars[PSID.Vdc_var] = p[gfm_indices[:params][:voltage_gfm]]
 end
 
 function mdl_freq_estimator_ode!(
@@ -543,9 +756,9 @@ function mdl_freq_estimator_ode!(
     p,
     references,
     inner_vars,
-    V,
-    t,
-    s::GFM,
+    Vr,
+    Vi,
+    s::Union{GFM, PSIDS.GFMParams},
 )
     #Update inner_vars
     #PLL frequency
@@ -553,7 +766,16 @@ function mdl_freq_estimator_ode!(
     return
 end
 
-function mdl_outer_ode!(output_ode, device_states, p, references, inner_vars, V, t, s::GFM)
+function mdl_outer_ode!(
+    output_ode,
+    device_states,
+    p,
+    references,
+    inner_vars,
+    Vr,
+    Vi,
+    s::Union{GFM, PSIDS.GFMParams},
+)
     Vr_filter = device_states[gfm_indices[:states][:vr_filter]]
     Vi_filter = device_states[gfm_indices[:states][:vi_filter]]
     Ir_filter = device_states[gfm_indices[:states][:ir_filter]]
@@ -561,12 +783,12 @@ function mdl_outer_ode!(output_ode, device_states, p, references, inner_vars, V,
 
     #Get Active Power Controller parameters
     Rp = p[gfm_indices[:params][:Rp]]
-    ωz = p[gfm_indices[:params][:ωz]]
+    ωz = p[gfm_indices[:params][:ωz_gfm]]
     ωb = 2 * pi * 60.0 #Rated angular frequency
 
     #Get Reactive Power Controller parameters
     kq = p[gfm_indices[:params][:kq]]
-    ωf = p[gfm_indices[:params][:ωf]]
+    ωf = p[gfm_indices[:params][:ωf_gfm]]
 
     #Obtain external parameters
     p_ref = references[gfm_indices[:references][:P_ref]]
@@ -607,7 +829,16 @@ function mdl_outer_ode!(output_ode, device_states, p, references, inner_vars, V,
     return
 end
 
-function mdl_inner_ode!(output_ode, device_states, p, references, inner_vars, V, t, s::GFM)
+function mdl_inner_ode!(
+    output_ode,
+    device_states,
+    p,
+    references,
+    inner_vars,
+    Vr,
+    Vi,
+    s::Union{GFM, PSIDS.GFMParams},
+)
     Ir_filter = device_states[gfm_indices[:states][:ir_filter]]
     Ii_filter = device_states[gfm_indices[:states][:ii_filter]]
     Ir_cnv = device_states[gfm_indices[:states][:ir_cnv]]
@@ -625,13 +856,13 @@ function mdl_inner_ode!(output_ode, device_states, p, references, inner_vars, V,
     kpv = p[gfm_indices[:params][:kpv]]
     kiv = p[gfm_indices[:params][:kiv]]
     kffi = p[gfm_indices[:params][:kffi]]
-    cf = p[gfm_indices[:params][:cf]]
+    cf = p[gfm_indices[:params][:cf_gfm]]
     rv = p[gfm_indices[:params][:rv]]
     lv = p[gfm_indices[:params][:lv]]
-    kpc = p[gfm_indices[:params][:kpc]]
-    kic = p[gfm_indices[:params][:kic]]
-    kffv = p[gfm_indices[:params][:kffv]]
-    lf = p[gfm_indices[:params][:lf]]
+    kpc = p[gfm_indices[:params][:kpc_gfm]]
+    kic = p[gfm_indices[:params][:kic_gfm]]
+    kffv = p[gfm_indices[:params][:kffv_gfm]]
+    lf = p[gfm_indices[:params][:lf_gfm]]
     ωad = p[gfm_indices[:params][:ωad]]
     kad = p[gfm_indices[:params][:kad]]
 
@@ -700,9 +931,9 @@ function mdl_converter_ode!(
     p,
     references,
     inner_vars,
-    V,
-    t,
-    s::GFM,
+    Vr,
+    Vi,
+    s::Union{GFM, PSIDS.GFMParams},
 )
     #Obtain inner variables for component
     md = inner_vars[PSID.md_var]
@@ -719,7 +950,16 @@ function mdl_converter_ode!(
     return
 end
 
-function mdl_filter_ode!(output_ode, device_states, p, references, inner_vars, V, t, s::GFM)
+function mdl_filter_ode!(
+    output_ode,
+    device_states,
+    p,
+    references,
+    inner_vars,
+    Vr,
+    Vi,
+    s::Union{GFM, PSIDS.GFMParams},
+)
     #external_ix = get_input_port_ix(dynamic_device, PSY.LCLFilter)
     #θ_oc = device_states[external_ix[1]]
 
@@ -733,11 +973,11 @@ function mdl_filter_ode!(output_ode, device_states, p, references, inner_vars, V
 
     #Get parameters
     ωb = 2 * pi * 60.0
-    lf = p[gfm_indices[:params][:lf]]
-    rf = p[gfm_indices[:params][:rf]]
-    cf = p[gfm_indices[:params][:cf]]
-    lg = p[gfm_indices[:params][:lg]]
-    rg = p[gfm_indices[:params][:rg]]
+    lf = p[gfm_indices[:params][:lf_gfm]]
+    rf = p[gfm_indices[:params][:rf_gfm]]
+    cf = p[gfm_indices[:params][:cf_gfm]]
+    lg = p[gfm_indices[:params][:lg_gfm]]
+    rg = p[gfm_indices[:params][:rg_gfm]]
 
     #Define internal states for filter
     Ir_cnv = device_states[gfm_indices[:states][:ir_cnv]]

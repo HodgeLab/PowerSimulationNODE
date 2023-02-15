@@ -41,7 +41,7 @@
     p = TrainParams(
         base_path = joinpath(pwd(), "test"),
         surrogate_buses = [2],
-        model_params = GFLParams(name = "source_surrogate"),
+        model_params = PSIDS.GFLParams(name = "source_surrogate"),
         train_data = (
             id = "1",
             operating_points = PSIDS.SurrogateOperatingPoint[PSIDS.GenerationLoadScale()],
@@ -167,6 +167,21 @@
     for P in get_components(PowerLoad, sys_train)
         remove_component!(sys_train, P)
     end
+
+    #Match the operating point by defining a dummy dataset with initial current and voltage
+    b = get_component(Bus, sys_train, "BUS 2")
+    Vm0 = PSY.get_magnitude(b)
+    θ0 = PSY.get_angle(b)
+    Vr0 = Vm0 * cos(θ0)
+    Vi0 = Vm0 * sin(θ0)
+    Ir0, Ii0 = PowerSimulationNODE.PQV_to_I(-1.0, -0.1, [Vr0, Vi0])
+    data_aux = SteadyStateNODEData(;
+        real_current = [Ir0],
+        imag_current = [Ii0],
+        surrogate_real_voltage = [Vr0],
+        surrogate_imag_voltage = [Vi0],
+    )
+    PSIDS.match_operating_point(sys_train, data_aux, p.model_params)
 
     #Set reactive power of the Chirp Source to be 0.1
     set_reactive_power!(get_component(Source, sys_train, "source_1"), 0.1)

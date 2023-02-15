@@ -1,15 +1,6 @@
-#= zip
-Recipe for adding new surrogate model from PSID model.
-    * Copy individual initialization and device functions.
-    * Modify any parameters or values that come from PSID devices.
-    * Add non-zero mass matrix time constants to the appropriate RHS equations. 
-    * Change powerflow devices to be derived from v0, i0, not quantities from the device. 
-    * Make a constant dictionary (e.g. zip_indices) with all of the location indices within the vectors (constant per device).
- =#
 
 using Flux
 abstract type ZIPLayer <: Function end
-basic_tgrad(du, u, p, t) = zero(u)
 Flux.trainable(m::ZIPLayer) = (p = m.p,)
 
 struct ZIP{PT, PF, PM, SS, DS, A, K} <: ZIPLayer
@@ -29,14 +20,7 @@ struct ZIP{PT, PF, PM, SS, DS, A, K} <: ZIPLayer
         kwargs...,
     )
         if p === nothing
-            p = Float64[
-                1 / 3,  # P_Z weight 
-                1 / 3,  # P_I weight 
-                1 / 3,  # P_P weight 
-                1 / 3,  # Q_Z weight 
-                1 / 3,  # Q_I weight 
-                1 / 3,  # Q_P weight 
-            ]
+            p = default_params(PSIDS.ZIPParams())
         end
         new{
             typeof(p),
@@ -73,20 +57,37 @@ function (s::ZIP)(
 )
     p = vcat(p_fixed, p_train)
     p_ordered = p[p_map]
-
+    refs = zeros(typeof(p_ordered[1]), n_refs(s))
+    initilize_static_device!(refs, p, v0, i0)
     i_series = Array{Float64}(undef, 2, length(tsteps))
     for i in eachindex(tsteps)
-        i_series[1, i], i_series[2, i] = device(v0, i0, p_ordered, V, tsteps[i], s::ZIP)
+        Vr, Vi = V(tsteps[i])
+        i_series[1, i], i_series[2, i] = device(p_ordered, refs, Vr, Vi, s)
     end
     return PhysicalModel_solution(tsteps, i_series, [], true)
 end
 
-#Note: got rid of types to work with ForwardDiff
-struct PhysicalModel_solution
-    t_series::Any
-    i_series::Any
-    res::Any
-    converged::Bool
+function default_params(::PSIDS.ZIPParams)
+    return Float64[1 / 3, 1 / 3, 1 / 3, 1 / 3, 1 / 3, 1 / 3]
+end
+
+function ordered_param_symbols(::Union{ZIP, PSIDS.ZIPParams})
+    return [
+        :max_active_power_Z,
+        :max_active_power_I,
+        :max_active_power_P,
+        :max_reactive_power_Z,
+        :max_reactive_power_I,
+        :max_reactive_power_P,
+    ]
+end
+
+function n_refs(::Union{ZIP, PSIDS.ZIPParams})
+    return 8
+end
+
+function n_params(::Union{ZIP, PSIDS.ZIPParams})
+    return 6
 end
 
 const zip_indices = Dict{Symbol, Dict{Symbol, Int64}}(
@@ -102,25 +103,10 @@ const zip_indices = Dict{Symbol, Dict{Symbol, Int64}}(
     :references => Dict{Symbol, Int64}(),
 )
 
-function device(v0, i0, p, V, t, s::ZIP)
-    Ir, Ii = mdl_zip_load(v0, i0, p, V, t, s::ZIP)  #takes
-    return Ir, Ii
-end
-
-function mdl_zip_load(v0, i0, p, V, t, s::ZIP)
-    # Read power flow voltages
-    #V0_mag_inv = 1.0 / get_V_ref(wrapper)
-    V0_mag_inv = 1.0 / sqrt(v0[1]^2 + v0[2]^2) # PSY.get_magnitude(PSY.get_bus(wrapper))
-    V0_mag_sq_inv = V0_mag_inv^2
+function initilize_static_device!(references, p, v0, i0)
     S0_total = (v0[1] + im * v0[2]) * conj(i0[1] + im * i0[2])
     P0_total = real(S0_total)
     Q0_total = imag(S0_total)
-
-    voltage_r = V(t)[1]
-    voltage_i = V(t)[2]
-    V_mag = sqrt(voltage_r^2 + voltage_i^2)
-    V_mag_inv = 1.0 / V_mag
-    V_mag_sq_inv = V_mag_inv^2
 
     # Load device parameters
     max_active_power_Z = p[zip_indices[:params][:max_active_power_Z]]
@@ -132,13 +118,42 @@ function mdl_zip_load(v0, i0, p, V, t, s::ZIP)
     max_reactive_power_P = p[zip_indices[:params][:max_reactive_power_P]]
     Q_base_total = max_reactive_power_Z + max_reactive_power_I + max_reactive_power_P
 
-    P_power = (P0_total / P_base_total) * max_active_power_P
-    P_current = (P0_total / P_base_total) * max_active_power_I
-    P_impedance = (P0_total / P_base_total) * max_active_power_Z
-    Q_power = (Q0_total / Q_base_total) * max_reactive_power_P
-    Q_current = (Q0_total / Q_base_total) * max_reactive_power_I
-    Q_impedance = (Q0_total / Q_base_total) * max_reactive_power_Z
+    references[1] = v0[1]
+    references[2] = v0[2]
+    references[3] = (P0_total / P_base_total) * max_active_power_P
+    references[4] = (P0_total / P_base_total) * max_active_power_I
+    references[5] = (P0_total / P_base_total) * max_active_power_Z
+    references[6] = (Q0_total / Q_base_total) * max_reactive_power_P
+    references[7] = (Q0_total / Q_base_total) * max_reactive_power_I
+    references[8] = (Q0_total / Q_base_total) * max_reactive_power_Z
+end
+function device(p_ordered, references, Vr, Vi, s::Union{ZIP, PSIDS.ZIPParams})
+    Ir, Ii = mdl_zip_load(p_ordered, references, Vr, Vi, s)
+    return Ir, Ii
+end
 
+function mdl_zip_load(
+    p_ordered,
+    references,
+    voltage_r,
+    voltage_i,
+    s::Union{ZIP, PSIDS.ZIPParams},
+)
+    Vr0 = references[1]
+    Vi0 = references[2]
+    V0_mag_inv = 1.0 / sqrt(Vr0^2 + Vi0^2)
+    V0_mag_sq_inv = V0_mag_inv^2
+
+    V_mag = sqrt(voltage_r^2 + voltage_i^2)
+    V_mag_inv = 1.0 / V_mag
+    V_mag_sq_inv = V_mag_inv^2
+
+    P_power = references[3]
+    P_current = references[4]
+    P_impedance = references[5]
+    Q_power = references[6]
+    Q_current = references[7]
+    Q_impedance = references[8]
     # Compute ZIP currents
     Iz_re = V0_mag_sq_inv * (voltage_r * P_impedance + voltage_i * Q_impedance)
     Iz_im = V0_mag_sq_inv * (voltage_i * P_impedance - voltage_r * Q_impedance)

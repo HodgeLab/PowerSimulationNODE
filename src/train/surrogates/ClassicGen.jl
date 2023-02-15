@@ -1,6 +1,5 @@
 using Flux
 abstract type ClassicGenLayer <: Function end
-basic_tgrad(u, p, t) = zero(u) #??? 
 Flux.trainable(m::ClassicGenLayer) = (p = m.p,)
 
 struct ClassicGen{PT, PF, PM, SS, DS, A, K} <: ClassicGenLayer
@@ -172,12 +171,4 @@ function (s::ClassicGen)(
     else
         return PhysicalModel_solution(tsteps, [], res, true)
     end
-end
-
-#Note: got rid of types to work with ForwardDiff
-struct PhysicalModel_solution
-    t_series::Any
-    i_series::Any
-    res::Any
-    converged::Bool
 end

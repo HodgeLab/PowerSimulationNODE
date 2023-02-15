@@ -20,7 +20,7 @@
     - `operating_points::Vector{PSIDS.SurrogateOperatingPoint}`:  
     - `perturbations::Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}}`:  
     - `params::PSIDS.GenerateDataParams`: 
-- `model_params::Union{SteadyStateNODEParams, SteadyStateNODEObsParams, ClassicGenParams, GFLParams, GFMParams, ZIPParams}`: The type of surrogate model to train. Could be data-driven, physics-based, or a combination.
+- `model_params::Union{PSIDS.SteadyStateNODEParams, PSIDS.SteadyStateNODEObsParams, PSIDS.ClassicGenParams, PSIDS.GFLParams, PSIDS.GFMParams, PSIDS.ZIPParams, PSIDS.MultiDeviceParams}`: The type of surrogate model to train. Could be data-driven, physics-based, or a combination.
 - `steady_state_solver::NamedTuple{(:solver, :abstol)}`: Solver for finding initial conditions.
     - `solver::String`: the solver name from DifferentialEquations.jl
     - `abstol::Float64`: absolute tolerance of the solve. 
@@ -96,7 +96,7 @@ mutable struct TrainParams
             PSIDS.GenerateDataParams,
         },
     }
-    model_params::SurrogateModelParams
+    model_params::PSIDS.SurrogateModelParams
     steady_state_solver::NamedTuple{(:solver, :abstol), Tuple{String, Float64}}
     dynamic_solver::NamedTuple{
         (:solver, :reltol, :abstol, :maxiters, :force_tstops),
@@ -174,10 +174,10 @@ StructTypes.StructType(::Type{PSIDS.RandomLoadChange}) = StructTypes.Struct()
 
 StructTypes.StructType(::Type{PSIDS.SurrogatePerturbation}) = StructTypes.AbstractType()
 StructTypes.StructType(::Type{PSIDS.SurrogateOperatingPoint}) = StructTypes.AbstractType()
-StructTypes.StructType(::Type{SurrogateModelParams}) = StructTypes.AbstractType()
+StructTypes.StructType(::Type{PSIDS.SurrogateModelParams}) = StructTypes.AbstractType()
 StructTypes.subtypekey(::Type{PSIDS.SurrogatePerturbation}) = :type
 StructTypes.subtypekey(::Type{PSIDS.SurrogateOperatingPoint}) = :type
-StructTypes.subtypekey(::Type{SurrogateModelParams}) = :type
+StructTypes.subtypekey(::Type{PSIDS.SurrogateModelParams}) = :type
 StructTypes.subtypes(::Type{PSIDS.SurrogatePerturbation}) = (
     PVS = PSIDS.PVS,
     Chirp = PSIDS.Chirp,
@@ -189,13 +189,14 @@ StructTypes.subtypes(::Type{PSIDS.SurrogatePerturbation}) = (
 StructTypes.subtypes(::Type{PSIDS.SurrogateOperatingPoint}) =
     (GenerationLoadScale = PSIDS.GenerationLoadScale, ScaleSource = PSIDS.ScaleSource)
 
-StructTypes.subtypes(::Type{SurrogateModelParams}) = (
-    SteadyStateNODEParams = SteadyStateNODEParams,
-    SteadyStateNODEObsParams = SteadyStateNODEObsParams,
-    ClassicGenParams = ClassicGenParams,
-    GFLParams = GFLParams,
-    GFMParams = GFMParams,
-    ZIPParams = ZIPParams,
+StructTypes.subtypes(::Type{PSIDS.SurrogateModelParams}) = (
+    SteadyStateNODEParams = PSIDS.SteadyStateNODEParams,
+    SteadyStateNODEObsParams = PSIDS.SteadyStateNODEObsParams,
+    ClassicGenParams = PSIDS.ClassicGenParams,
+    GFLParams = PSIDS.GFLParams,
+    GFMParams = PSIDS.GFMParams,
+    ZIPParams = PSIDS.ZIPParams,
+    MultiDeviceParams = PSIDS.MultiDeviceParams,
 )
 
 function TrainParams(;
@@ -220,7 +221,7 @@ function TrainParams(;
         perturbations = [[PSIDS.VStep(source_name = "InfBus")]],    #To do - make this a branch impedance double 
         params = PSIDS.GenerateDataParams(),
     ),
-    model_params = SteadyStateNODEObsParams(),
+    model_params = PSIDS.SteadyStateNODEObsParams(),
     steady_state_solver = (
         solver = "SSRootfind",
         abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
