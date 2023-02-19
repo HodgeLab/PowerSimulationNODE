@@ -42,27 +42,88 @@ function node_run_powerflow!(inputs...)
     end
 end
 
-"""
-    function build_params_list!(params_data, no_change_params, change_params)
+function build_grid_search!(base_option::TrainParams, args...)
+    grid_dimensions = [length(a[2]) for a in args]
+    grid_options = prod(grid_dimensions)
+    #Note: tried train_params = repeat(base_option, grid_options) but problem with references.
+    train_params = Vector{TrainParams}(undef, grid_options)
+    for i in 1:length(train_params)
+        train_params[i] = deepcopy(base_option)
+    end
 
-Generate an array of `TrainParams` by combinatorally iterating over `change_params`. If a parameter is excluded from `change_params` and `no_change_params` the default value is used. 
-"""
-function build_params_list!(params_data, no_change_params, change_params)
-    train_id = 1
-    starting_dict = no_change_params
-    dims = []
-    for (k, v) in change_params
-        push!(dims, length(v))
-    end
-    dims_tuple = tuple(dims...)
+    dims_tuple = tuple(grid_dimensions...)
     iterator = CartesianIndices(dims_tuple)
-    for i in iterator
-        for (j, (key, value)) in enumerate(change_params)
-            starting_dict[key] = value[i[j]]
+    for (ix_outer, i) in enumerate(iterator)
+        train_params[ix_outer].train_id = lpad(string(ix_outer), 3, "0")
+        for (ix_inner, j) in enumerate(Tuple(i))
+            _set_value!(train_params[ix_outer], args[ix_inner][1], args[ix_inner][2][j])
         end
-        starting_dict[:train_id] = lpad(train_id, 3, "0")
-        push!(params_data, TrainParams(; starting_dict...))
-        starting_dict = no_change_params
-        train_id += 1
     end
+    return train_params
+end
+
+function build_random_search!(base_option::TrainParams, total_runs::Int64, args...)
+    train_params = Vector{TrainParams}(undef, total_runs)
+    for i in 1:total_runs
+        train_params[i] = deepcopy(base_option)
+    end
+    for (i, tp) in enumerate(train_params)
+        train_params[i].train_id = lpad(string(i), 3, "0")
+        for a in args
+            min_value = a[2].min
+            max_value = a[2].max
+            type = typeof(a[2].min)
+            if type == Int64
+                rand_value = rand(min_value:max_value)
+            elseif type == Float64
+                rand_value = min_value + (max_value - min_value) * rand()
+            end
+            _set_value!(tp, a[1], rand_value)
+        end
+    end
+    return train_params
+end
+
+function _set_value!(TP, key, value)
+    #CASE WHERE KEY IS ONE OF THE FIELDNAMES OF TrainParams itself 
+    if key in fieldnames(TrainParams)
+        for field_name in fieldnames(TrainParams)
+            if key == field_name
+                setfield!(TP, field_name, value)
+                return
+            end
+        end
+    end
+    #CASE WHERE KEY IS A KEY IN THE NAMED TUPLE THAT SETS THE OPTIMIZERS 
+    #NOTE - changes the parameter in all of the optimizer stages (if more than one)
+    if key in [
+        :sensealg,
+        :algorithm,
+        :η,
+        :initial_stepnorm,
+        :maxiters,
+        :lb_loss,
+        :curriculum,
+        :curriculum_timespans,
+        :fix_params,
+        :loss_function,
+    ]
+        new_optimizer = []
+        for entry in TP.optimizer
+            push!(new_optimizer, merge(entry, [key => value]))
+        end
+        TP.optimizer = new_optimizer
+        return
+    end
+
+    #CASE WHERE THE KEY IS IN THE MODEL TYPE STRUCT 
+    if key in fieldnames(typeof(TP.model_params))
+        for field_name in fieldnames(typeof(TP.model_params))
+            if key == field_name
+                setfield!(TP.model_params, field_name, value)
+                return
+            end
+        end
+    end
+    @error "KEY NOT FOUND, NO CHANGES MADE, ADD THIS CASE TO _set_value!()"
 end
