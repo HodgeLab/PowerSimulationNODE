@@ -18,7 +18,8 @@ export visualize_training
 export animate_training
 export print_train_parameter_overview
 export print_high_level_output_overview
-export build_params_list!
+export build_grid_search!
+export build_random_search!
 export build_subsystems
 export generate_train_data
 export generate_validation_data
