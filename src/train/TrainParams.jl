@@ -42,14 +42,10 @@
         - `tspan::Tuple{Float64, Float64}`: timespan for a batch. 
         - `batching_sample_factor::Float64`: batching factor for a batch.  
     - `fix_params::Vector{Symbols}`: Valid options: `:initializer`, `:observation` (for data driven surrogates). `[]` will train all parameters for a given model. 
-    - `loss_function::NamedTuple{(:component_weights, :type_weights)}`:
-        - `component_weights::NamedTuple{(:initialization_weight, :dynamic_weight, :residual_penalty)}`
-            - `initialization_weight::Float64`: scales the portion of loss function penalizing the difference between predicted steady state and actual. 
-            - `dynamic_weight::Float64`: scales the portion of the loss function penalizing differences in the output time series.
-            - `residual_penalty::Float64`: scales the loss function if the implicit layer does not converge (if set to Inf, the loss is infinite anytime the implicit layer does not converge). 
-        - `type_weights::NamedTuple{(:rmse, :mae)}`: (sum to one)
-            - `rmse::Float64`: weight for root mean square error loss formulation.
-            - `mae::Float64`: weight for mean absolute error loss formulation.
+    - `loss_function::NamedTuple{(:α, :β, :residual_penalty)}`:
+        - `α::Float64`: scales...
+        - `β::Float64`: scales...
+        - `residual_penalty::Float64`: scales the loss function if the implicit layer does not converge (if set to Inf, the loss is infinite anytime the implicit layer does not converge). 
 - `p_start::AbstractArray`: Starting parameters (for initializer, dynamics, and observation together). By default is empty which starts with randomly initialized parameters (see `rng_seed`). 
 - `validation_loss_every_n::Int64`: Determines how often, during training, the surrogate is added to the full system and loss is evaluated. 
 - `rng_seed::Int64`: Seed for the random number generator used for initializing the NN for reproducibility across training runs.
@@ -131,16 +127,7 @@ mutable struct TrainParams
                     },
                 },
                 Vector{Symbol},
-                NamedTuple{
-                    (:component_weights, :type_weights),
-                    Tuple{
-                        NamedTuple{
-                            (:initialization_weight, :dynamic_weight, :residual_penalty),
-                            Tuple{Float64, Float64, Float64},
-                        },
-                        NamedTuple{(:rmse, :mae), Tuple{Float64, Float64}},
-                    },
-                },
+                NamedTuple{(:α, :β, :residual_penalty), Tuple{Float64, Float64, Float64}},
             },
         },
     }
@@ -244,14 +231,7 @@ function TrainParams(;
             curriculum = "individual faults",
             curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
             fix_params = [],
-            loss_function = (
-                component_weights = (
-                    initialization_weight = 1.0,
-                    dynamic_weight = 1.0,
-                    residual_penalty = 1.0e9,
-                ),
-                type_weights = (rmse = 1.0, mae = 0.0),
-            ),
+            loss_function = (α = 0.5, β = 1.0, residual_penalty = 1.0e9),
         ),
     ],
     p_start = Float32[],

@@ -155,27 +155,18 @@ end
             maxiters = 1e5,
             force_tstops = true,
         ),
-        optimizer = [
-            (
-                sensealg = "Zygote",
-                algorithm = "Adam", #"Bfgs", "Adam"
-                η = 0.0000000001,
-                initial_stepnorm = 0.0, #ignored for ADAM 
-                maxiters = 6,
-                lb_loss = 0.0,
-                curriculum = "simultaneous",
-                curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
-                fix_params = [:initializer, :observation],
-                loss_function = (
-                    component_weights = (
-                        initialization_weight = 1.0,
-                        dynamic_weight = 1.0,
-                        residual_penalty = 1.0e9,
-                    ),
-                    type_weights = (rmse = 1.0, mae = 0.0),
-                ),
-            ),
-        ],
+        optimizer = [(
+            sensealg = "Zygote",
+            algorithm = "Adam", #"Bfgs", "Adam"
+            η = 0.0000000001,
+            initial_stepnorm = 0.0, #ignored for ADAM 
+            maxiters = 6,
+            lb_loss = 0.0,
+            curriculum = "simultaneous",
+            curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
+            fix_params = [:initializer, :observation],
+            loss_function = (α = 0.5, β = 1.0, residual_penalty = 1.0e9),
+        )],
         p_start = [],
         validation_loss_every_n = 20,
         output_mode_skip = 1,
@@ -309,14 +300,7 @@ end
                 curriculum = "simultaneous",
                 curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
                 fix_params = [:initializer, :observation],
-                loss_function = (
-                    component_weights = (
-                        initialization_weight = 1.0,
-                        dynamic_weight = 1.0,
-                        residual_penalty = 1.0e9,
-                    ),
-                    type_weights = (rmse = 1.0, mae = 0.0),
-                ),
+                loss_function = (α = 0.5, β = 1.0, residual_penalty = 1.0e9),
             ),
         ],
         p_start = [],
@@ -426,14 +410,7 @@ end
                 curriculum = "simultaneous",
                 curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
                 fix_params = [],
-                loss_function = (
-                    component_weights = (
-                        initialization_weight = 1.0,
-                        dynamic_weight = 1.0,
-                        residual_penalty = 1.0e9,
-                    ),
-                    type_weights = (rmse = 1.0, mae = 0.0),
-                ),
+                loss_function = (α = 0.5, β = 1.0, residual_penalty = 1.0e9),
             ),
         ],
         p_start = [], #Float32[0.01, 0.4995, 0.5087, 4.148, 1.0],
@@ -543,14 +520,7 @@ end
                 curriculum = "simultaneous",
                 curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
                 fix_params = [],
-                loss_function = (
-                    component_weights = (
-                        initialization_weight = 1.0,
-                        dynamic_weight = 1.0,
-                        residual_penalty = 1.0e9,
-                    ),
-                    type_weights = (rmse = 1.0, mae = 0.0),
-                ),
+                loss_function = (α = 0.5, β = 1.0, residual_penalty = 1.0e9),
             ),
         ],
         p_start = Float64[],
@@ -659,14 +629,7 @@ end
                 curriculum = "simultaneous",
                 curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
                 fix_params = [],
-                loss_function = (
-                    component_weights = (
-                        initialization_weight = 1.0,
-                        dynamic_weight = 1.0,
-                        residual_penalty = 1.0e9,
-                    ),
-                    type_weights = (rmse = 1.0, mae = 0.0),
-                ),
+                loss_function = (α = 0.5, β = 1.0, residual_penalty = 1.0e9),
             ),
         ],
         p_start = Float64[],
@@ -775,14 +738,7 @@ end
                 curriculum = "simultaneous",
                 curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
                 fix_params = [],
-                loss_function = (
-                    component_weights = (
-                        initialization_weight = 1.0,
-                        dynamic_weight = 1.0,
-                        residual_penalty = 1.0e9,
-                    ),
-                    type_weights = (rmse = 1.0, mae = 0.0),
-                ),
+                loss_function = (α = 0.5, β = 1.0, residual_penalty = 1.0e9),
             ),
         ],
         p_start = Float64[],
