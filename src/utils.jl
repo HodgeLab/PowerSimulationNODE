@@ -73,7 +73,9 @@ function build_random_search!(base_option::TrainParams, total_runs::Int64, args.
             min_value = a[2].min
             max_value = a[2].max
             type = typeof(a[2].min)
-            if type == Int64
+            if haskey(a[2], :set)
+                rand_value = rand(a[2].set)
+            elseif type == Int64
                 rand_value = rand(min_value:max_value)
             elseif type == Float64
                 rand_value = min_value + (max_value - min_value) * rand()
@@ -107,10 +109,19 @@ function _set_value!(TP, key, value)
         :curriculum_timespans,
         :fix_params,
         :loss_function,
+        :α,
+        :β,
+        :residual_penalty, 
     ]
         new_optimizer = []
         for entry in TP.optimizer
-            push!(new_optimizer, merge(entry, [key => value]))
+            if key in [:α, :β, :residual_penalty] 
+               new_value = merge(entry.loss_function, [key => value])
+               new_key = :loss_function 
+               push!(new_optimizer, merge(entry, [new_key => new_value]))
+            else 
+                push!(new_optimizer, merge(entry, [key => value]))
+            end 
         end
         TP.optimizer = new_optimizer
         return
