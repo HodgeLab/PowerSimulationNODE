@@ -867,20 +867,15 @@ function _inner_loss_function(
     opt_ix,
 )
     ground_truth_subset = vcat(real_current_subset, imag_current_subset)
-    rmse_weight = params.optimizer[opt_ix].loss_function.type_weights.rmse
-    mae_weight = params.optimizer[opt_ix].loss_function.type_weights.mae
-    initialization_weight =
-        params.optimizer[opt_ix].loss_function.component_weights.initialization_weight
-    dynamic_weight = params.optimizer[opt_ix].loss_function.component_weights.dynamic_weight
-    residual_penalty =
-        params.optimizer[opt_ix].loss_function.component_weights.residual_penalty
+    α = params.optimizer[opt_ix].loss_function.α
+    β = params.optimizer[opt_ix].loss_function.β
+    residual_penalty = params.optimizer[opt_ix].loss_function.residual_penalty
     r0_pred = surrogate_solution.r0_pred
     r0 = surrogate_solution.r0
     i_series = surrogate_solution.i_series
     res = surrogate_solution.res
     loss_initialization =
-        initialization_weight *
-        (mae_weight * mae(r0_pred, r0) + rmse_weight * sqrt(mse(r0_pred, r0)))
+        (1 - α) * ((1 - β) * mae(r0_pred, r0) + β * sqrt(mse(r0_pred, r0)))
     #Note: A loss of 0.0 makes the NLsolve equations non-finite during training. Instead, set the loss to the tolerance of the NLsolve. 
     #if loss_initialization < params.steady_state_solver.abstol
     if loss_initialization == 0.0
@@ -888,15 +883,15 @@ function _inner_loss_function(
     end
     if size(ground_truth_subset) == size(i_series)
         loss_dynamic =
-            dynamic_weight * (
-                mae_weight * mae(ground_truth_subset, i_series) +
-                rmse_weight * sqrt(mse(ground_truth_subset, i_series))
+            α * (
+                (1 - β) * mae(ground_truth_subset, i_series) +
+                β * sqrt(mse(ground_truth_subset, i_series))
             )
     else
         loss_dynamic =
             residual_penalty * (
-                mae_weight * mae(res, zeros(length(res))) +
-                rmse_weight * sqrt(mse(res, zeros(length(res))))
+                (1 - β) * mae(res, zeros(length(res))) +
+                β * sqrt(mse(res, zeros(length(res))))
             )
     end
     return loss_initialization, loss_dynamic
@@ -910,26 +905,22 @@ function _inner_loss_function(
     opt_ix,
 )
     ground_truth_subset = vcat(real_current_subset, imag_current_subset)
-    rmse_weight = params.optimizer[opt_ix].loss_function.type_weights.rmse
-    mae_weight = params.optimizer[opt_ix].loss_function.type_weights.mae
-    initialization_weight =
-        params.optimizer[opt_ix].loss_function.component_weights.initialization_weight
-    dynamic_weight = params.optimizer[opt_ix].loss_function.component_weights.dynamic_weight
-    residual_penalty =
-        params.optimizer[opt_ix].loss_function.component_weights.residual_penalty
+    α = params.optimizer[opt_ix].loss_function.α
+    β = params.optimizer[opt_ix].loss_function.β
+    residual_penalty = params.optimizer[opt_ix].loss_function.residual_penalty
     i_series = surrogate_solution.i_series
     res = surrogate_solution.res
     if size(ground_truth_subset) == size(i_series)
         loss_dynamic =
-            dynamic_weight * (
-                mae_weight * mae(ground_truth_subset, i_series) +
-                rmse_weight * sqrt(mse(ground_truth_subset, i_series))
+            α * (
+                (1 - β) * mae(ground_truth_subset, i_series) +
+                β * sqrt(mse(ground_truth_subset, i_series))
             )
     else
         loss_dynamic =
             residual_penalty * (
-                mae_weight * mae(res, zeros(length(res))) +
-                rmse_weight * sqrt(mse(res, zeros(length(res))))
+                (1 - β) * mae(res, zeros(length(res))) +
+                β * sqrt(mse(res, zeros(length(res))))
             )
     end
     return 0.0, loss_dynamic
