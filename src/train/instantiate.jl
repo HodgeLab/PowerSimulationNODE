@@ -1140,8 +1140,16 @@ function _cb!(
                 validation_loss["max_error_ii"],
             ),
         )
-        ir_mean = Statistics.mean(validation_loss["mae_ir"])
-        ii_mean = Statistics.mean(validation_loss["mae_ii"])
+        #ir_mean = Statistics.mean(validation_loss["mae_ir"])
+        #ii_mean = Statistics.mean(validation_loss["mae_ii"]) 
+        ir_mean = Statistics.mean(output["validation_loss"][end, :mae_ir])
+        ii_mean = Statistics.mean(output["validation_loss"][end, :mae_ii])
+        ir_mean_previous = Statistics.mean(output["validation_loss"][end - 1, :mae_ir])
+        ii_mean_previous = Statistics.mean(output["validation_loss"][end - 1, :mae_ii])
+        if (ir_mean > ir_mean_previous) && (ii_mean > ii_mean_previous)
+            @warn "Training stopping condition met: real and imaginary average error increased on validation set"
+            return true
+        end
         if (0.0 < ((ir_mean + ii_mean) / 2) < lb_loss)  # validation loss assigned 0.0 when not stable
             @warn "Training stopping condition met: loss validation set is below defined limit"
             return true
