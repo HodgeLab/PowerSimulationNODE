@@ -12,7 +12,7 @@
         total_runs = 10
         random1 = (:validation_loss_every_n, (min = 2, max = 5))
         random2 = (:initializer_n_layer, (min = 10, max = 20))
-        random3 = (:η, (min = 1.0, max = 2.0))
+        random3 = (:log_η, (min = -2.0, max = -1.0))
         b = build_random_search!(base_option, total_runs, random1, random2, random3)
         @test length(b) == 10
     finally

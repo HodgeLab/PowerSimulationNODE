@@ -30,10 +30,10 @@
     - `abstol::Float64`: absolute tolearnce of the solve. 
     - `maxiters::Int64`: maximum iterations of the solve. 
     - `force_tstops::Bool`: if `true`, force the solver to stop at tstops from the train dataset. If `false`, do not explicitly force any steps. 
-- `optimizer::Vector{NamedTuple{(:sensealg, :algorithm, :η, :adjust, :initial_stepnorm, :maxiters, :lb_loss, :curriculum, :curriculum_timespans, :fix_params, :loss_function)}}`: Details of the optimization
+- `optimizer::Vector{NamedTuple{(:sensealg, :algorithm, :log_η, :adjust, :initial_stepnorm, :maxiters, :lb_loss, :curriculum, :curriculum_timespans, :fix_params, :loss_function)}}`: Details of the optimization
     - `sensealg::String`: Valid options: `"Zygote"` or `"ForwardDiff"` 
     - `algorithm::String`: Valid options: `"Adam"`, `"Bfgs"`, `"LBfgs"`. Typical choice is to start with Adam and then use BFGS. 
-    - `η::Float64`: Adam step size (ignored for other algorithms) 
+    - `log_η::Float64`: Log of Adam step size (ignored for other algorithms) 
     - `initial_stepnorm::Float64`: Bfgs initial step norm (ignored for other algorithms)
     - `maxiters::Int64`: Maximum number of  training iterations. 
     - `lb_loss::Float64`:  If the value of the loss on the validation set moves below lb_loss during training, the current optimization ends (current range).
@@ -103,7 +103,7 @@ mutable struct TrainParams
             (
                 :sensealg,
                 :algorithm,
-                :η,
+                :log_η,
                 :initial_stepnorm,
                 :maxiters,
                 :lb_loss,
@@ -224,7 +224,7 @@ function TrainParams(;
         (
             sensealg = "Zygote",
             algorithm = "Adam",
-            η = 0.000001,
+            log_η = -6.0,
             initial_stepnorm = 0.01,
             maxiters = 15,
             lb_loss = 0.0,

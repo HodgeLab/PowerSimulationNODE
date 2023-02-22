@@ -101,7 +101,7 @@ function _set_value!(TP, key, value)
     if key in [
         :sensealg,
         :algorithm,
-        :η,
+        :log_η,
         :initial_stepnorm,
         :maxiters,
         :lb_loss,

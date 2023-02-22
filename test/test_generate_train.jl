@@ -158,7 +158,7 @@ end
         optimizer = [(
             sensealg = "Zygote",
             algorithm = "Adam", #"Bfgs", "Adam"
-            η = 0.0000000001,
+            log_η = -10.0,
             initial_stepnorm = 0.0, #ignored for ADAM 
             maxiters = 6,
             lb_loss = 0.0,
@@ -278,7 +278,7 @@ end
         optimizer = [(
             sensealg = "Zygote",
             algorithm = "Adam", #"Bfgs", "Adam"
-            η = 0.0000000001,
+            log_η = -10.0,
             initial_stepnorm = 0.0, #ignored for ADAM 
             maxiters = 6,
             lb_loss = 0.0,
@@ -413,7 +413,7 @@ end
             (
                 sensealg = "Zygote",
                 algorithm = "Adam", #"Bfgs", "Adam"
-                η = 0.0000000001,
+                log_η = -10.0,
                 initial_stepnorm = 0.0, #ignored for ADAM 
                 maxiters = 6,
                 lb_loss = 0.0,
@@ -523,7 +523,7 @@ end
             (
                 sensealg = "ForwardDiff",
                 algorithm = "Adam", #"Bfgs", "Adam"
-                η = 0.1,
+                log_η = -1.0,
                 initial_stepnorm = 0.0, #ignored for ADAM 
                 maxiters = 6,
                 lb_loss = 0.0,
@@ -633,7 +633,7 @@ end
             (
                 sensealg = "ForwardDiff",
                 algorithm = "Adam", #"Bfgs", "Adam"
-                η = 0.0001,
+                log_η = -4.0,
                 initial_stepnorm = 0.0, #ignored for ADAM 
                 maxiters = 6,
                 lb_loss = 0.0,
@@ -742,7 +742,7 @@ end
             (
                 sensealg = "ForwardDiff",
                 algorithm = "Adam", #"Bfgs", "Adam"
-                η = 0.0000001,
+                log_η = -10.0,
                 initial_stepnorm = 0.0, #ignored for ADAM 
                 maxiters = 6,
                 lb_loss = 0.0,
@@ -851,7 +851,7 @@ end
             (
                 sensealg = "ForwardDiff",
                 algorithm = "Adam", #"Bfgs", "Adam"
-                η = 0.0000001,
+                log_η = -10.0,
                 initial_stepnorm = 0.0, #ignored for ADAM 
                 maxiters = 6,
                 lb_loss = 0.0,
