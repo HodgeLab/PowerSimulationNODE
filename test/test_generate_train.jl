@@ -168,7 +168,7 @@ end
             loss_function = (α = 0.5, β = 1.0, residual_penalty = 1.0e9),
         )],
         p_start = [],
-        validation_loss_every_n = 20,
+        validation_loss_every_n = 1,
         output_mode_skip = 1,
     )
     try

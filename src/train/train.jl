@@ -217,7 +217,7 @@ function evaluate_loss(
     for ix in eachindex(surrogate_dataset, groundtruth_dataset)
         if groundtruth_dataset[ix].stable == true
             if surrogate_dataset[ix].stable == false
-                push!(mae_ir, 0.0)   #Note: Cannot write Inf in Json spec, so assign 0 value if not stable (better for plotting too). Could lead to confusion if averaging over multiple plots. 
+                push!(mae_ir, 0.0)   #Note:  Cannot write Inf in Json spec, so assign 0 value if not stable (better for plotting too). Could lead to confusion if averaging over multiple plots. 
                 push!(max_error_ir, 0.0)
                 push!(mae_ii, 0.0)
                 push!(max_error_ii, 0.0)

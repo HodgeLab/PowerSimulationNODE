@@ -253,7 +253,7 @@ function TrainParams(;
     modified_surrogate_system_path = joinpath(
         base_path,
         PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
-        "modified_validation_system.json",
+        string("modified_validation_system_", train_id, ".json"),
     ),
     train_system_path = joinpath(
         base_path,

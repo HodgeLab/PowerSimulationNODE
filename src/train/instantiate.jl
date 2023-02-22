@@ -1140,18 +1140,7 @@ function _cb!(
                 validation_loss["max_error_ii"],
             ),
         )
-        #ir_mean = Statistics.mean(validation_loss["mae_ir"])
-        #ii_mean = Statistics.mean(validation_loss["mae_ii"]) 
-        ir_mean = Statistics.mean(output["validation_loss"][end, :mae_ir])
-        ii_mean = Statistics.mean(output["validation_loss"][end, :mae_ii])
-        ir_mean_previous = Statistics.mean(output["validation_loss"][end - 1, :mae_ir])
-        ii_mean_previous = Statistics.mean(output["validation_loss"][end - 1, :mae_ii])
-        if (ir_mean > ir_mean_previous) && (ii_mean > ii_mean_previous)
-            @warn "Training stopping condition met: real and imaginary average error increased on validation set"
-            return true
-        end
-        if (0.0 < ((ir_mean + ii_mean) / 2) < lb_loss)  # validation loss assigned 0.0 when not stable
-            @warn "Training stopping condition met: loss validation set is below defined limit"
+        if _check_for_termination_condition(lb_loss, output["validation_loss"])
             return true
         end
     end
@@ -1161,4 +1150,33 @@ function _cb!(
     else
         return false
     end
+end
+
+function _check_for_termination_condition(lb_loss, validation_loss_dataframe)
+    if DataFrames.nrow(validation_loss_dataframe) < 2
+        return false
+    end
+    ir_entries = validation_loss_dataframe[end, :mae_ir]
+    ii_entries = validation_loss_dataframe[end, :mae_ii]
+    ir_entries_previous = validation_loss_dataframe[end - 1, :mae_ir]
+    ii_entries_previosu = validation_loss_dataframe[end - 1, :mae_ii]
+    if (0.0 in ir_entries) ||
+       (0.0 in ii_entries) ||
+       (0.0 in ir_entries_previous) ||
+       (0.0 in ii_entries_previosu)
+        return false
+    end
+    ir_mean = Statistics.mean(ir_entries)
+    ii_mean = Statistics.mean(ii_entries)
+    ir_mean_previous = Statistics.mean(ir_entries_previous)
+    ii_mean_previous = Statistics.mean(ii_entries_previosu)
+    if (ir_mean > ir_mean_previous) && (ii_mean > ii_mean_previous)
+        @warn "Training stopping condition met: real and imaginary average error increased on validation set"
+        return true
+    end
+    if (0.0 < ((ir_mean + ii_mean) / 2) < lb_loss)  # validation loss assigned 0.0 when not stable
+        @warn "Training stopping condition met: loss validation set is below defined limit"
+        return true
+    end
+    return false
 end

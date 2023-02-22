@@ -55,6 +55,18 @@ function build_grid_search!(base_option::TrainParams, args...)
     iterator = CartesianIndices(dims_tuple)
     for (ix_outer, i) in enumerate(iterator)
         train_params[ix_outer].train_id = lpad(string(ix_outer), 3, "0")
+        #When you change the train_id, also change the path where the modified validation system is stored
+        mod_path = train_params[ix_outer].modified_surrogate_system_path
+        d = dirname(mod_path)
+        b = basename(mod_path)
+        new_b = string(
+            "modified_validation_system_",
+            train_params[ix_outer].train_id,
+            ".",
+            split(b, ".")[2],
+        )
+        new_path = joinpath(d, new_b)
+        train_params[ix_outer].modified_surrogate_system_path = new_path
         for (ix_inner, j) in enumerate(Tuple(i))
             _set_value!(train_params[ix_outer], args[ix_inner][1], args[ix_inner][2][j])
         end
@@ -69,6 +81,18 @@ function build_random_search!(base_option::TrainParams, total_runs::Int64, args.
     end
     for (i, tp) in enumerate(train_params)
         train_params[i].train_id = lpad(string(i), 3, "0")
+        #When you change the train_id, also change the path where the modified validation system is stored
+        mod_path = train_params[i].modified_surrogate_system_path
+        d = dirname(mod_path)
+        b = basename(mod_path)
+        new_b = string(
+            "modified_validation_system_",
+            train_params[i].train_id,
+            ".",
+            split(b, ".")[2],
+        )
+        new_path = joinpath(d, new_b)
+        train_params[i].modified_surrogate_system_path = new_path
         for a in args
             min_value = a[2].min
             max_value = a[2].max
