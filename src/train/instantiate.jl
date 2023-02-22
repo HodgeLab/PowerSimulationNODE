@@ -61,7 +61,7 @@ end
 
 function instantiate_optimizer(opt)
     if opt.algorithm == "Adam"
-        return optimizer_map(opt.algorithm)(opt.η)
+        return optimizer_map(opt.algorithm)(10.0^(opt.log_η))
     elseif opt.algorithm == "Bfgs"
         return optimizer_map(opt.algorithm)(initial_stepnorm = opt.initial_stepnorm)
     elseif opt.algorithm == "LBfgs"

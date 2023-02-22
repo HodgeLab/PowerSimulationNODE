@@ -101,7 +101,7 @@ function _set_value!(TP, key, value)
     if key in [
         :sensealg,
         :algorithm,
-        :η,
+        :log_η,
         :initial_stepnorm,
         :maxiters,
         :lb_loss,
@@ -111,17 +111,17 @@ function _set_value!(TP, key, value)
         :loss_function,
         :α,
         :β,
-        :residual_penalty, 
+        :residual_penalty,
     ]
         new_optimizer = []
         for entry in TP.optimizer
-            if key in [:α, :β, :residual_penalty] 
-               new_value = merge(entry.loss_function, [key => value])
-               new_key = :loss_function 
-               push!(new_optimizer, merge(entry, [new_key => new_value]))
-            else 
+            if key in [:α, :β, :residual_penalty]
+                new_value = merge(entry.loss_function, [key => value])
+                new_key = :loss_function
+                push!(new_optimizer, merge(entry, [new_key => new_value]))
+            else
                 push!(new_optimizer, merge(entry, [key => value]))
-            end 
+            end
         end
         TP.optimizer = new_optimizer
         return
