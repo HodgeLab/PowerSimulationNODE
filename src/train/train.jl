@@ -1000,19 +1000,19 @@ function _train(
     )
 
     #Calculate loss before training - useful code for debugging changes to make sure forward pass and callback works before checking train
-    #=     loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index_vector =
-            outer_loss_function(p_train, [(1, 1)])
-        @warn loss
-        @warn loss_initialization
-        @warn loss_dynamic
-        cb(
-            p_train,
-            loss,
-            loss_initialization,
-            loss_dynamic,
-            surrogate_solution,
-            fault_index_vector,
-        ) =#
+    loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index_vector =
+        outer_loss_function(p_train, [(1, 1)])
+    @warn loss
+    @warn loss_initialization
+    @warn loss_dynamic
+    cb(
+        p_train,
+        loss,
+        loss_initialization,
+        loss_dynamic,
+        surrogate_solution,
+        fault_index_vector,
+    )
 
     @warn "Starting full train: \n # of iterations per epoch: $(length(group)) \n # of epochs per solve: $per_solve_max_epochs \n max # of iterations for solve: $(per_solve_max_epochs*length(group))"
     timing_stats = @timed Optimization.solve(
