@@ -177,6 +177,7 @@ function visualize_training(input_params_file::String, iterations_to_visualize)
     end
 
     validation_sys = node_load_system(params.modified_surrogate_system_path)
+    validation_sys_aux = node_load_system(params.surrogate_system_path)
     validation_dataset = Serialization.deserialize(params.validation_data_path)
     data_collection_location_validation =
         Serialization.deserialize(params.data_collection_location_path)[2]
@@ -184,6 +185,7 @@ function visualize_training(input_params_file::String, iterations_to_visualize)
     θ = df_predictions[end, "parameters"][1]
     plots_validation_performance = visualize_loss(
         validation_sys,
+        validation_sys_aux,
         θ,
         validation_dataset,
         params.validation_data,

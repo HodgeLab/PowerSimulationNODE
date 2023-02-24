@@ -168,7 +168,8 @@ end
 
 """
     function evaluate_loss(
-        sys,
+        sys_main,
+        sys_aux,
         θ,
         groundtruth_dataset,
         data_params,
@@ -177,7 +178,8 @@ end
     )
 
 # Fields
-- `sys`: System with surrogate already included (usually the modified validation system)
+- `sys_main`: System with surrogate already included (usually the modified validation system)
+- `sys_aux`: Auxiliary system for finding components to use for perturbation (can be unmodified validation system)
 - `θ`: New surrogate parameters to evaluate loss for
 - `groundtruth_dataset`: ground truth data for evaluating loss.
 - `data_params`: the parameters used to generate `groundtruth_dataset`
@@ -185,21 +187,22 @@ end
 - `model_params`: model params of the surrogate. 
 """
 function evaluate_loss(
-    sys,
+    sys_main,
+    sys_aux,
     θ,
     groundtruth_dataset,
     data_params,
     data_collection_location,
     model_params,
 )
-    parameterize_surrogate_psid!(sys, θ, model_params)
+    parameterize_surrogate_psid!(sys_main, θ, model_params)
 
     operating_points = data_params.operating_points
     perturbations = data_params.perturbations
     generate_data_params = data_params.params
     surrogate_dataset = PSIDS.generate_surrogate_data(
-        sys,
-        sys,
+        sys_main,
+        sys_aux,
         perturbations,
         operating_points,
         PSIDS.SteadyStateNODEDataParams(
@@ -342,7 +345,8 @@ end
 
 """
     function visualize_loss(
-        sys,
+        sys_main,
+        sys_aux,
         θ,
         groundtruth_dataset,
         data_params,
@@ -354,7 +358,8 @@ end
 - A vector of plots for each entry in the dataset.
 
 # Fields
-- `sys`: System with surrogate already included (usually the modified validation system)
+- `sys_main`: System with surrogate already included (usually the modified validation system)
+- `sys_aux`: Auxiliary system for finding components to use for perturbation (can be unmodified validation system)
 - `θ`: New surrogate parameters to evaluate loss for
 - `groundtruth_dataset`: ground truth data for evaluating loss.
 - `data_params`: the parameters used to generate `groundtruth_dataset`
@@ -362,21 +367,22 @@ end
 - `model_params`: model params of the surrogate. 
 """
 function visualize_loss(
-    sys,
+    sys_main,
+    sys_aux,
     θ,
     groundtruth_dataset,
     data_params,
     data_collection_location,
     model_params,
 )
-    parameterize_surrogate_psid!(sys, θ, model_params)
+    parameterize_surrogate_psid!(sys_main, θ, model_params)
 
     operating_points = data_params.operating_points
     perturbations = data_params.perturbations
     generate_data_params = data_params.params
     surrogate_dataset = PSIDS.generate_surrogate_data(
-        sys,
-        sys,
+        sys_main,
+        sys_aux,
         perturbations,
         operating_points,
         PSIDS.SteadyStateNODEDataParams(
@@ -843,6 +849,7 @@ function train(params::TrainParams)
     output = _initialize_training_output_dict(params.model_params)
     try
         sys_validation = node_load_system(params.surrogate_system_path)
+        sys_validation_aux = deepcopy(sys_validation)
         add_surrogate_psid!(sys_validation, params.model_params, train_dataset)
         PSY.to_json(sys_validation, params.modified_surrogate_system_path, force = true)
 
@@ -903,6 +910,7 @@ function train(params::TrainParams)
                         train_dataset,
                         validation_dataset,
                         sys_validation,
+                        sys_validation_aux,
                         exogenous_input_functions,
                         train_details,
                         params,
@@ -922,6 +930,7 @@ function train(params::TrainParams)
 
         output["final_loss"] = evaluate_loss(
             sys_validation,
+            sys_validation_aux,
             p_full,
             validation_dataset,
             params.validation_data,
@@ -947,6 +956,7 @@ function _train(
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     validation_dataset::Vector{PSIDS.SteadyStateNODEData},
     sys_validation::PSY.System,
+    sys_validation_aux::PSY.System,
     exogenous_input_functions,
     train_details::Vector{
         NamedTuple{
@@ -992,6 +1002,7 @@ function _train(
         params,
         validation_dataset,
         sys_validation,
+        sys_validation_aux,
         data_collection_location,
         surrogate,
         p_fixed,

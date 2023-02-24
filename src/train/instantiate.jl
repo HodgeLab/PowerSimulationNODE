@@ -1040,6 +1040,7 @@ function instantiate_cb!(
     params,
     validation_dataset,
     sys_validation,
+    sys_validation_aux,
     data_collection_location,
     surrogate,
     p_fixed,
@@ -1065,6 +1066,7 @@ function instantiate_cb!(
             print_loss,
             validation_dataset,
             sys_validation,
+            sys_validation_aux,
             data_collection_location,
             surrogate,
             p_fixed,
@@ -1085,6 +1087,7 @@ function _cb!(
     print_loss,
     validation_dataset,
     sys_validation,
+    sys_validation_aux,
     data_collection_location,
     surrogate,
     p_fixed,
@@ -1124,6 +1127,7 @@ function _cb!(
     if mod(output["total_iterations"], validation_loss_every_n) == 0
         validation_loss = evaluate_loss(
             sys_validation,
+            sys_validation_aux,
             vcat(p_fixed, p_train)[p_map],
             validation_dataset,
             params.validation_data,
