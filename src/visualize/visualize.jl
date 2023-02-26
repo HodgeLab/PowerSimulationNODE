@@ -177,6 +177,7 @@ function visualize_training(input_params_file::String, iterations_to_visualize)
     end
 
     validation_sys = node_load_system(params.modified_surrogate_system_path)
+    validation_sys_aux = node_load_system(params.surrogate_system_path)
     validation_dataset = Serialization.deserialize(params.validation_data_path)
     data_collection_location_validation =
         Serialization.deserialize(params.data_collection_location_path)[2]
@@ -184,6 +185,7 @@ function visualize_training(input_params_file::String, iterations_to_visualize)
     θ = df_predictions[end, "parameters"][1]
     plots_validation_performance = visualize_loss(
         validation_sys,
+        validation_sys_aux,
         θ,
         validation_dataset,
         params.validation_data,
@@ -210,7 +212,9 @@ function _visualize_loss(path_to_output)
             title = "Loss",
         )
     end
-    Plots.plot!(p1, df_loss.Loss_dynamic, label = "Loss Dynamic")
+    if minimum(df_loss.Loss_dynamic) !== 0.0
+        Plots.plot!(p1, df_loss.Loss_dynamic, label = "Loss Dynamic")
+    end
     Plots.plot!(p1, df_loss.Loss, label = "Total Loss")
     p2 =
         Plots.plot(df_loss.reached_ss, title = "Steady state/boundary condition converged?")
@@ -443,37 +447,44 @@ function visualize_summary(high_level_outputs_dict)
     p2 = Plots.scatter()
     p = Plots.plot()
     for (key, value) in high_level_outputs_dict
-        ir_mean = Statistics.mean(value["final_loss"]["mae_ir"])
-        ii_mean = Statistics.mean(value["final_loss"]["mae_ii"])
-        l = (ir_mean + ii_mean) / 2
-        Plots.scatter!(
-            p1,
-            (value["total_time"], l),
-            label = value["train_id"],
-            xlabel = "total time (s)",
-            ylabel = "final loss",
-            yaxis = :log,
-            markersize = 1,
-            markerstrokewidth = 0,
-        )
-        Plots.annotate!(p1, value["total_time"], l, Plots.text(value["train_id"], :red, 3))
-        Plots.scatter!(
-            p2,
-            (value["total_time"], value["n_params_surrogate"]),
-            label = value["train_id"],
-            xlabel = "total time (s)",
-            ylabel = "n params nn",
-            yaxis = :log,
-            markersize = 1,
-            markerstrokewidth = 0,
-        )
-        Plots.annotate!(
-            p2,
-            value["total_time"],
-            value["n_params_surrogate"],
-            Plots.text(value["train_id"], :red, 3),
-        )
-        p = Plots.plot(p1, p2)
+        if haskey(value["final_loss"], "mae_ir")
+            ir_mean = Statistics.mean(value["final_loss"]["mae_ir"])
+            ii_mean = Statistics.mean(value["final_loss"]["mae_ii"])
+            l = (ir_mean + ii_mean) / 2
+            Plots.scatter!(
+                p1,
+                (value["total_time"], l),
+                label = value["train_id"],
+                xlabel = "total time (s)",
+                ylabel = "final loss",
+                yaxis = :log,
+                markersize = 1,
+                markerstrokewidth = 0,
+            )
+            Plots.annotate!(
+                p1,
+                value["total_time"],
+                l,
+                Plots.text(value["train_id"], :red, 3),
+            )
+            Plots.scatter!(
+                p2,
+                (value["total_time"], value["n_params_surrogate"]),
+                label = value["train_id"],
+                xlabel = "total time (s)",
+                ylabel = "n params nn",
+                yaxis = :log,
+                markersize = 1,
+                markerstrokewidth = 0,
+            )
+            Plots.annotate!(
+                p2,
+                value["total_time"],
+                value["n_params_surrogate"],
+                Plots.text(value["train_id"], :red, 3),
+            )
+            p = Plots.plot(p1, p2)
+        end
     end
     return p
 end

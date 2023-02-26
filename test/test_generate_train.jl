@@ -18,6 +18,7 @@ function generate_and_train_test(p)
     #Plot real and imag current for a full dataset
     ps = visualize_loss(
         System(p.modified_surrogate_system_path),
+        System(p.surrogate_system_path),
         θ,
         Serialization.deserialize(p.validation_data_path),
         p.validation_data,
@@ -28,6 +29,7 @@ function generate_and_train_test(p)
     #Evaluate loss metrics for a full dataset 
     _ = evaluate_loss(
         System(p.modified_surrogate_system_path),
+        System(p.surrogate_system_path),
         θ,
         Serialization.deserialize(p.validation_data_path),
         p.validation_data,

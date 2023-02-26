@@ -169,6 +169,6 @@ function (s::ClassicGen)(
         )
 
     else
-        return PhysicalModel_solution(tsteps, [], res, true)
+        return PhysicalModel_solution(tsteps, [], [1.0], true)
     end
 end

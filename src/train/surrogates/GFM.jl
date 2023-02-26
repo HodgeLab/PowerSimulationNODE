@@ -57,9 +57,9 @@ function (s::GFM)(
     p = vcat(p_fixed, p_train)
     p_ordered = p[p_map]
 
-    x0 = zeros(typeof(p_ordered[1]), 15)
-    inner_vars = repeat(PSID.ACCEPTED_REAL_TYPES[0.0], 25)
-    refs = zeros(typeof(p_ordered[1]), 3)
+    x0 = zeros(typeof(p_ordered[1]), n_states(s))
+    inner_vars = repeat(PSID.ACCEPTED_REAL_TYPES[0.0], n_inner_vars(s))
+    refs = zeros(typeof(p_ordered[1]), n_refs(s))
     ss_solver = s.ss_solver
     ss_tol = s.args[1]
     converged = initialize_dynamic_device!(
@@ -91,12 +91,12 @@ function (s::GFM)(
         sol = OrdinaryDiffEq.solve(prob_dyn, s.dyn_solver; s.kwargs...)
         return PhysicalModel_solution(
             tsteps,
-            Array(sol[14:15, :]),
-            [], #Need residual? 
+            Array(sol[real_current_index(s):imag_current_index(s), :]),
+            [],
             true,
         )
     else
-        return PhysicalModel_solution(tsteps, [], res, true)
+        return PhysicalModel_solution(tsteps, [], [1.0], true)
     end
 end
 

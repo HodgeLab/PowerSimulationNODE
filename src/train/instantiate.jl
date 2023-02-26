@@ -283,7 +283,7 @@ function _add_physics_surrogate_device!(sys, b, P_ref, Q_ref, model_params::PSID
         ),
         inner_control = PSY.CurrentModeControl(0.0, 0.0, 0.0),
         dc_source = PSY.FixedDCSource(0.0),
-        freq_estimator = PSY.ReducedOrderPLL(0.0, 0.0, 0.0),
+        freq_estimator = PSY.KauraPLL(0.0, 0.0, 0.0),
         filter = PSY.LCLFilter(0.0, 0.0, 0.0, 0.0, 0.0),
     )
     PSY.add_component!(sys, dynamic_injector, static_injector)
@@ -1040,6 +1040,7 @@ function instantiate_cb!(
     params,
     validation_dataset,
     sys_validation,
+    sys_validation_aux,
     data_collection_location,
     surrogate,
     p_fixed,
@@ -1065,6 +1066,7 @@ function instantiate_cb!(
             print_loss,
             validation_dataset,
             sys_validation,
+            sys_validation_aux,
             data_collection_location,
             surrogate,
             p_fixed,
@@ -1085,6 +1087,7 @@ function _cb!(
     print_loss,
     validation_dataset,
     sys_validation,
+    sys_validation_aux,
     data_collection_location,
     surrogate,
     p_fixed,
@@ -1124,6 +1127,7 @@ function _cb!(
     if mod(output["total_iterations"], validation_loss_every_n) == 0
         validation_loss = evaluate_loss(
             sys_validation,
+            sys_validation_aux,
             vcat(p_fixed, p_train)[p_map],
             validation_dataset,
             params.validation_data,
