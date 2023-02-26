@@ -57,9 +57,9 @@ function (s::GFL)(
     p = vcat(p_fixed, p_train)
     p_ordered = p[p_map]
 
-    x0 = zeros(typeof(p_ordered[1]), 15)
-    inner_vars = repeat(PSID.ACCEPTED_REAL_TYPES[0.0], 25)
-    refs = zeros(typeof(p_ordered[1]), 3)
+    x0 = zeros(typeof(p_ordered[1]), n_states(s))
+    inner_vars = repeat(PSID.ACCEPTED_REAL_TYPES[0.0], n_inner_vars(s))
+    refs = zeros(typeof(p_ordered[1]), n_refs(s))
     ss_solver = s.ss_solver
     ss_tol = s.args[1]
     converged = initialize_dynamic_device!(
@@ -91,12 +91,12 @@ function (s::GFL)(
         sol = OrdinaryDiffEq.solve(prob_dyn, s.dyn_solver; s.kwargs...)
         return PhysicalModel_solution(
             tsteps,
-            Array(sol[14:15, :]),
-            [], #Need residual? 
+            Array(sol[real_current_index(s):imag_current_index(s), :]),
+            [],
             true,
         )
     else
-        return PhysicalModel_solution(tsteps, [], res, true)
+        return PhysicalModel_solution(tsteps, [1.0], res, true)
     end
 end
 
@@ -151,7 +151,7 @@ function ordered_param_symbols(::Union{GFL, PSIDS.GFLParams})
 end
 
 function n_states(::Union{GFL, PSIDS.GFLParams})
-    return 15
+    return 16
 end
 
 function n_inner_vars(::Union{GFL, PSIDS.GFLParams})
@@ -167,11 +167,11 @@ function n_params(::Union{GFL, PSIDS.GFLParams})
 end
 
 function real_current_index(::Union{GFL, PSIDS.GFLParams})
-    return 14
+    return 15
 end
 
 function imag_current_index(::Union{GFL, PSIDS.GFLParams})
-    return 15
+    return 16
 end
 
 const gfl_indices = Dict{Symbol, Dict{Symbol, Int64}}(
@@ -204,15 +204,16 @@ const gfl_indices = Dict{Symbol, Dict{Symbol, Int64}}(
         :q_oc => 4,
         :γd_ic => 5,
         :γq_ic => 6,
-        :vq_pll => 7,
-        :ε_pll => 8,
-        :θ_pll => 9,
-        :ir_cnv => 10,
-        :ii_cnv => 11,
-        :vr_filter => 12,
-        :vi_filter => 13,
-        :ir_filter => 14,
-        :ii_filter => 15,
+        :vd_pll => 7,
+        :vq_pll => 8,
+        :ε_pll => 9,
+        :θ_pll => 10,
+        :ir_cnv => 11,
+        :ii_cnv => 12,
+        :vr_filter => 13,
+        :vi_filter => 14,
+        :ir_filter => 15,
+        :ii_filter => 16,
     ),
     :references => Dict{Symbol, Int64}(:P_ref => 1, :Q_ref => 2, :V_ref => 3),
 )
@@ -425,22 +426,26 @@ function initialize_frequency_estimator!(
 
     #Get initial guess
     θ0_pll = atan(Vi_filter, Vr_filter)
+    Vpll_d0 = Vr_filter
     Vpll_q0 = 0.0
     ϵ_pll0 = 0.0
 
     function f!(out, x, params, t)
-        vpll_q = x[1]
-        ϵ_pll = x[2]
-        θ_pll = x[3]
+        vpll_d = x[1]
+        vpll_q = x[2]
+        ϵ_pll = x[3]
+        θ_pll = x[4]
 
         V_dq_pll = PSID.ri_dq(θ_pll + pi / 2) * [Vr_filter; Vi_filter]
 
-        out[1] = V_dq_pll[PSID.q] - vpll_q
-        out[2] = vpll_q
-        out[3] = kp_pll * vpll_q + ki_pll * ϵ_pll
+        angle = atan(vpll_q, vpll_d)
+        out[1] = V_dq_pll[PSID.d] - vpll_d
+        out[2] = V_dq_pll[PSID.q] - vpll_q
+        out[3] = vpll_q
+        out[4] = kp_pll * vpll_q + ki_pll * ϵ_pll
     end
 
-    x0 = [Vpll_q0, ϵ_pll0, θ0_pll]
+    x0 = [Vpll_d0, Vpll_q0, ϵ_pll0, θ0_pll]
 
     ff_ss = OrdinaryDiffEq.ODEFunction{true}(f!)
     prob_ss = SteadyStateDiffEq.SteadyStateProblem(
@@ -454,13 +459,14 @@ function initialize_frequency_estimator!(
     else
         sol_x0 = sol.zero
 
-        device_states[gfl_indices[:states][:vq_pll]] = sol_x0[1]
-        device_states[gfl_indices[:states][:ε_pll]] = sol_x0[2]
-        device_states[gfl_indices[:states][:θ_pll]] = sol_x0[3]
+        device_states[gfl_indices[:states][:vd_pll]] = sol_x0[1]
+        device_states[gfl_indices[:states][:vq_pll]] = sol_x0[2]
+        device_states[gfl_indices[:states][:ε_pll]] = sol_x0[3]
+        device_states[gfl_indices[:states][:θ_pll]] = sol_x0[4]
 
         #Update guess of frequency estimator
         inner_vars[PSID.ω_freq_estimator_var] = 1.0 # get_ω_ref(dynamic_device)
-        inner_vars[PSID.θ_freq_estimator_var] = sol_x0[3]
+        inner_vars[PSID.θ_freq_estimator_var] = sol_x0[4]
     end
     return true
 end
@@ -767,6 +773,7 @@ function mdl_freq_estimator_ode!(
     ωb = 2.0 * pi * 60.0
 
     #Define internal states for frequency estimator
+    vpll_d = device_states[gfl_indices[:states][:vd_pll]]
     vpll_q = device_states[gfl_indices[:states][:vq_pll]]
     ϵ_pll = device_states[gfl_indices[:states][:ε_pll]]
     θ_pll = device_states[gfl_indices[:states][:θ_pll]]
@@ -775,12 +782,15 @@ function mdl_freq_estimator_ode!(
     V_dq_pll = PSID.ri_dq(θ_pll + pi / 2) * [Vr_filter; Vi_filter]
 
     #Output Voltage LPF (internal state)
-    #𝜕vpll_q/𝜕t, Low Pass Filter, Hug ISGT-EUROPE2018 eqn. 26
+    #𝜕vpll_d/𝜕t, D'Arco ESPR122 eqn. 12
+    output_ode[gfl_indices[:states][:vd_pll]] =
+        PSID.low_pass(V_dq_pll[PSID.d], vpll_d, 1.0, 1.0 / ω_lp)[2]
+    #𝜕vpll_q/𝜕t, D'Arco ESPR122 eqn. 12
     output_ode[gfl_indices[:states][:vq_pll]] =
         PSID.low_pass(V_dq_pll[PSID.q], vpll_q, 1.0, 1.0 / ω_lp)[2]
     #PI Integrator (internal state)
-    pi_output, dϵ_dt = PSID.pi_block(vpll_q, ϵ_pll, kp_pll, ki_pll)
-    #𝜕dϵ_pll/𝜕t, Hug ISGT-EUROPE2018 eqn. 10
+    pi_output, dϵ_dt = PSID.pi_block(atan(vpll_q, vpll_d), ϵ_pll, kp_pll, ki_pll)
+    #𝜕dϵ_pll/𝜕t, D'Arco ESPR122 eqn. 13
     output_ode[gfl_indices[:states][:ε_pll]] = dϵ_dt
     #PLL Frequency Deviation (internal state), Hug ISGT-EUROPE2018 eqn. 26 
     Δω = 1.0 - ω_sys + pi_output

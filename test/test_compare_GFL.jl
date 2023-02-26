@@ -212,7 +212,7 @@
     display(plot(p1, p2, p3, p4, size = (1000, 1000), title = "compare_GFL"))
 
     @test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <= 0.00026
-    @test LinearAlgebra.norm(Ii[2] .* -1 .- surrogate_sol.i_series[2, :], Inf) <= 0.00021
+    @test LinearAlgebra.norm(Ii[2] .* -1 .- surrogate_sol.i_series[2, :], Inf) <= 0.00022
     #See the distribution of the parameters
     #= p_params = scatter(θ[(train_surrogate.len + 1):(train_surrogate.len + train_surrogate.len2)], label = "node params")
     scatter!(p_params, θ[1:(train_surrogate.len)], label = "init params")

@@ -250,7 +250,7 @@ function (s::MultiDevice)(
         )
 
     else
-        return PhysicalModel_solution(tsteps, [], res, true)
+        return PhysicalModel_solution(tsteps, [1.0], res, true)
     end
 end
 
