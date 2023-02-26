@@ -96,7 +96,7 @@ function (s::GFM)(
             true,
         )
     else
-        return PhysicalModel_solution(tsteps, [1.0], res, true)
+        return PhysicalModel_solution(tsteps, [], [1.0], true)
     end
 end
 
