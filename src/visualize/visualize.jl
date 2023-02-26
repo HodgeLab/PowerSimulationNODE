@@ -212,7 +212,9 @@ function _visualize_loss(path_to_output)
             title = "Loss",
         )
     end
-    Plots.plot!(p1, df_loss.Loss_dynamic, label = "Loss Dynamic")
+    if minimum(df_loss.Loss_dynamic) !== 0.0
+        Plots.plot!(p1, df_loss.Loss_dynamic, label = "Loss Dynamic")
+    end
     Plots.plot!(p1, df_loss.Loss, label = "Total Loss")
     p2 =
         Plots.plot(df_loss.reached_ss, title = "Steady state/boundary condition converged?")
