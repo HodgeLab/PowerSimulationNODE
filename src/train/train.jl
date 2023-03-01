@@ -1057,7 +1057,7 @@ end
 
 function _initialize_params(
     p_fixed::Vector{Symbol},
-    p_full::Vector{Float32},
+    p_full,
     surrogate::SteadyStateNeuralODE,
 )
     total_length = length(p_full)
@@ -1092,11 +1092,7 @@ function _initialize_params(
     end
 end
 
-function _initialize_params(
-    p_fixed::Vector{Symbol},
-    p_full::Vector{Float64},
-    surrogate::ClassicGen,
-)
+function _initialize_params(p_fixed::Vector{Symbol}, p_full, surrogate::ClassicGen)
     @assert !(nothing in indexin(p_fixed, [:R, :Xd_p, :eq_p, :H, :D]))  #ensure given p_fixed is a valid parameter
     @info "original parameter vector: $p_full"
     p_fix = Float64[]
@@ -1123,11 +1119,7 @@ function _initialize_params(
     return p_fix, p_train, p_map
 end
 
-function _initialize_params(
-    p_fixed::Vector{Symbol},
-    p_full::Vector{Float64},
-    surrogate::GFL,
-)
+function _initialize_params(p_fixed::Vector{Symbol}, p_full, surrogate::GFL)
     param_symbols = ordered_param_symbols(surrogate)
     @assert !(nothing in indexin(p_fixed, param_symbols))  #ensure given p_fixed is a valid parameter
     @info "original parameter vector: $p_full"
@@ -1155,11 +1147,7 @@ function _initialize_params(
     return p_fix, p_train, p_map
 end
 
-function _initialize_params(
-    p_fixed::Vector{Symbol},
-    p_full::Vector{Float64},
-    surrogate::GFM,
-)
+function _initialize_params(p_fixed::Vector{Symbol}, p_full, surrogate::GFM)
     param_symbols = ordered_param_symbols(surrogate)
     @assert !(nothing in indexin(p_fixed, param_symbols))  #ensure given p_fixed is a valid parameter
     @info "original parameter vector: $p_full"
@@ -1187,11 +1175,7 @@ function _initialize_params(
     return p_fix, p_train, p_map
 end
 
-function _initialize_params(
-    p_fixed::Vector{Symbol},
-    p_full::Vector{Float64},
-    surrogate::ZIP,
-)
+function _initialize_params(p_fixed::Vector{Symbol}, p_full, surrogate::ZIP)
     param_symbols = ordered_param_symbols(surrogate)
     @assert !(nothing in indexin(p_fixed, param_symbols))  #ensure given p_fixed is a valid parameter
     @info "original parameter vector: $p_full"
@@ -1219,11 +1203,7 @@ function _initialize_params(
     return p_fix, p_train, p_map
 end
 
-function _initialize_params(
-    p_fixed::Vector{Symbol},
-    p_full::Vector{Float64},
-    surrogate::MultiDevice,
-)
+function _initialize_params(p_fixed::Vector{Symbol}, p_full, surrogate::MultiDevice)
     param_symbols = Symbol[]
     for (i, s) in enumerate(vcat(surrogate.static_devices, surrogate.dynamic_devices))
         push!(param_symbols, Symbol("P_fraction_", i))

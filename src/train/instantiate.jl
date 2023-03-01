@@ -1097,8 +1097,7 @@ function _cb!(
     lb_loss = params.optimizer[opt_ix].lb_loss
     exportmode_skip = params.output_mode_skip
     train_time_limit_seconds = params.train_time_limit_seconds
-    validation_loss_every_n = params.validation_loss_every_n
-
+    check_validation_loss_iterations = params.check_validation_loss_iterations
     push!(output["loss"], (l_initialization, l_dynamic, l, surrogate_solution.converged))
     if mod(output["total_iterations"], exportmode_skip) == 0 ||
        output["total_iterations"] == 1
@@ -1124,7 +1123,7 @@ function _cb!(
             fault_index,
         )
     end
-    if mod(output["total_iterations"], validation_loss_every_n) == 0
+    if output["total_iterations"] in check_validation_loss_iterations
         validation_loss = evaluate_loss(
             sys_validation,
             sys_validation_aux,

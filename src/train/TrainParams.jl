@@ -47,7 +47,7 @@
         - `β::Float64`: scales...
         - `residual_penalty::Float64`: scales the loss function if the implicit layer does not converge (if set to Inf, the loss is infinite anytime the implicit layer does not converge). 
 - `p_start::AbstractArray`: Starting parameters (for initializer, dynamics, and observation together). By default is empty which starts with randomly initialized parameters (see `rng_seed`). 
-- `validation_loss_every_n::Int64`: Determines how often, during training, the surrogate is added to the full system and loss is evaluated. 
+- `check_validation_loss_iterations::Vector{Int64}`: Iterations to check the validation loss. If validation loss increases from previous iteration, the training terminates. 
 - `rng_seed::Int64`: Seed for the random number generator used for initializing the NN for reproducibility across training runs.
 - `output_mode_skip::Int`: Record and save output data every `output_mode_skip` iterations. Meant to ease memory constraints on HPC. 
 - `train_time_limit_seconds::Int64`:  
@@ -132,7 +132,7 @@ mutable struct TrainParams
         },
     }
     p_start::AbstractArray
-    validation_loss_every_n::Int64
+    check_validation_loss_iterations::Vector{Int64}
     rng_seed::Int64
     output_mode_skip::Int64
     train_time_limit_seconds::Int64
@@ -235,7 +235,7 @@ function TrainParams(;
         ),
     ],
     p_start = Float32[],
-    validation_loss_every_n = 100,
+    check_validation_loss_iterations = [],
     rng_seed = 123,
     output_mode_skip = 1,
     train_time_limit_seconds = 1e9,
@@ -293,7 +293,7 @@ function TrainParams(;
         dynamic_solver,
         optimizer,
         p_start,
-        validation_loss_every_n,
+        check_validation_loss_iterations,
         rng_seed,
         output_mode_skip,
         train_time_limit_seconds,

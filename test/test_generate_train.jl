@@ -1,5 +1,8 @@
 
-function generate_and_train_test(p)
+function generate_and_train_test(p2)
+    input_param_file = joinpath(p2.base_path, "input_data", "input_test1.json")
+    PowerSimulationNODE.serialize(p2, input_param_file)
+    p = TrainParams(input_param_file)
     build_subsystems(p)
     generate_train_data(p)
     generate_validation_data(p)
@@ -170,7 +173,7 @@ end
             loss_function = (α = 0.5, β = 1.0, residual_penalty = 1.0e9),
         )],
         p_start = [],
-        validation_loss_every_n = 1,
+        check_validation_loss_iterations = [1, 2, 3, 4, 5, 6],
         output_mode_skip = 1,
     )
     try
@@ -290,7 +293,7 @@ end
             loss_function = (α = 0.5, β = 1.0, residual_penalty = 1.0e9),
         )],
         p_start = [],
-        validation_loss_every_n = 20,
+        check_validation_loss_iterations = [],
         output_mode_skip = 1,
     )
     try
@@ -426,7 +429,7 @@ end
             ),
         ],
         p_start = [],
-        validation_loss_every_n = 20,
+        check_validation_loss_iterations = [],
         output_mode_skip = 1,
     )
     try
@@ -536,7 +539,7 @@ end
             ),
         ],
         p_start = [], #Float32[0.01, 0.4995, 0.5087, 4.148, 1.0],
-        validation_loss_every_n = 20,
+        check_validation_loss_iterations = [],
         output_mode_skip = 1,
     )
     try
@@ -646,7 +649,7 @@ end
             ),
         ],
         p_start = Float64[],
-        validation_loss_every_n = 20,
+        check_validation_loss_iterations = [],
         output_mode_skip = 1,
     )
     try
@@ -755,7 +758,7 @@ end
             ),
         ],
         p_start = Float64[],
-        validation_loss_every_n = 20,
+        check_validation_loss_iterations = [],
         output_mode_skip = 1,
     )
     try
@@ -859,12 +862,77 @@ end
                 lb_loss = 0.0,
                 curriculum = "simultaneous",
                 curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
-                fix_params = [],
+                fix_params = [
+                    :P_fraction_1,
+                    :Q_fraction_1,
+                    :P_fraction_2,
+                    :Q_fraction_2,
+                    :P_fraction_3,
+                    :Q_fraction_3,
+                    :kffv_gfl,
+                    :kffv_gfm,
+                    :kffi,
+                ],
                 loss_function = (α = 0.5, β = 1.0, residual_penalty = 1.0e9),
             ),
         ],
-        p_start = Float64[],
-        validation_loss_every_n = 20,
+        p_start = Float64[
+            0.2,
+            0.2,
+            0.4,
+            0.4,
+            0.4,
+            0.4,
+            1.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            12.700000000000001,
+            615.9420289855071,
+            1.9835456702225953,
+            30.679163077003263,
+            41.818017263110214,
+            3.899221794528066,
+            30.29304511089826,
+            42.88608307322704,
+            5.813096036884919,
+            11.866710997978586,
+            0.0,
+            600.0,
+            512.5954002113241,
+            0.08625118210709415,
+            4.482557140304551,
+            0.07999999999999999,
+            0.0029999999999999996,
+            0.07399999999999998,
+            0.19999999999999998,
+            0.009999999999999998,
+            12.700000000000001,
+            205.3140096618357,
+            0.04991162961714421,
+            30.41129394073096,
+            0.2018427749817273,
+            1006.7417873074656,
+            0.579584126157358,
+            752.8680589602519,
+            0.0,
+            0.0,
+            0.19950887723724778,
+            1.2844250396816308,
+            1.2844250396816308,
+            0.0,
+            47.58554332620469,
+            0.1975149812011315,
+            600.0,
+            0.07999999999999999,
+            0.0029999999999999996,
+            0.07399999999999998,
+            0.19999999999999998,
+            0.009999999999999998,
+        ],
+        check_validation_loss_iterations = [],
         output_mode_skip = 1,
     )
     try
