@@ -8,6 +8,7 @@ export node_run_powerflow!
 export AlpineHPCTrain
 export SavioHPCTrain
 export generate_train_files
+export copy_data_and_subsystems
 export run_parallel_train
 export generate_surrogate_data
 export GenerateDataParams
