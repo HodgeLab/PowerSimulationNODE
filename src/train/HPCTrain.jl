@@ -32,7 +32,7 @@ julia --project={{{project_path}}} -e 'using Pkg; Pkg.instantiate()'
 
 INFILE=\$(sed -n "\${SLURM_ARRAY_TASK_ID}p" {{{train_set_file}}})
 
-julia --project={{{project_path}}} {{{project_path}}}/scripts/hpc_train/train_node.jl \$INFILE 
+julia --project={{{project_path}}} {{{project_path}}}/scripts/hpc_train/train_node.jl \$INFILE
 """
 
 const generate_data_bash_file_template = """
@@ -50,7 +50,7 @@ const generate_data_bash_file_template = """
 #SBATCH --partition={{partition}}
 #
 # Number of MPI tasks requested:
-#SBATCH --ntasks=1 
+#SBATCH --ntasks=1
 #
 # Memory per cpu
 #SBATCH --mem-per-cpu={{mb_per_cpu}}M
@@ -70,7 +70,7 @@ julia --project={{{project_path}}} {{{project_path}}}/scripts/hpc_train/build_su
 
 INFILE=\$(sed -n "\${SLURM_ARRAY_TASK_ID}p" {{{generate_data_set_file}}})
 
-julia --project={{{project_path}}} {{{project_path}}}/scripts/hpc_train/generate_data.jl \$INFILE 
+julia --project={{{project_path}}} {{{project_path}}}/scripts/hpc_train/generate_data.jl \$INFILE
 """
 
 struct HPCTrain
@@ -158,7 +158,7 @@ end
         train_folder = "train1",
         scratch_path = "/scratch/alpine/",
         time_limit_train = "24:00:00",
-        n_tasks = 1,  #default to parallelize across all tasks 
+        n_tasks = 1,  #default to parallelize across all tasks
         QoS = "normal",
         partition = "amilan",
         train_folder_for_data = nothing,
@@ -333,7 +333,7 @@ function generate_train_files(train::HPCTrain)
             write(file, "$param_file_path,test\n")
         end
 
-        #NUMBER OF TASKS IN THE GENERATE BASH FILE IS THE TOTAL NUMBER OF DATASETS TO BE GENERATED 
+        #NUMBER OF TASKS IN THE GENERATE BASH FILE IS THE TOTAL NUMBER OF DATASETS TO BE GENERATED
         data_generate_template["n_tasks"] =
             length(unique_train_params_data) +
             length(unique_validation_params_data) +
@@ -344,13 +344,6 @@ function generate_train_files(train::HPCTrain)
         write(io, Mustache.render(generate_data_bash_file_template, data_generate_template))
     end
     return
-end
-
-function run_parallel_train(train::HPCTrain)
-    generate_data_bash_file = train.generate_data_bash_file
-    train_bash_file = train.train_bash_file
-    generate_data_job_id = readchomp(`sbatch --parsable $generate_data_bash_file`)
-    return run(`sbatch --dependency=afterok:$generate_data_job_id $train_bash_file`)
 end
 
 function run_parallel_train(train::HPCTrain)
