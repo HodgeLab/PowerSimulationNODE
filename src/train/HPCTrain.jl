@@ -408,20 +408,45 @@ function copy_data_and_subsystems(train::HPCTrain)
 
     for path in surrogate_system_path
         name = basename(path)
+        validation_descriptors_name =
+            string(split(name, ".")[1], "_validation_descriptors.", split(name, ".")[2])
         @assert name in readdir(joinpath(train_folder_for_data, INPUT_SYSTEM_FOLDER_NAME))
         cp(
             joinpath(train_folder_for_data, INPUT_SYSTEM_FOLDER_NAME, name),
             joinpath(train_folder, INPUT_SYSTEM_FOLDER_NAME, name),
             force = true,
         )
+        cp(
+            joinpath(
+                train_folder_for_data,
+                INPUT_SYSTEM_FOLDER_NAME,
+                validation_descriptors_name,
+            ),
+            joinpath(train_folder, INPUT_SYSTEM_FOLDER_NAME, validation_descriptors_name),
+            force = true,
+        )
+        println(name)
     end
     for path in train_system_path
         name = basename(path)
+        validation_descriptors_name =
+            string(split(name, ".")[1], "_validation_descriptors.", split(name, ".")[2])
         @assert name in readdir(joinpath(train_folder_for_data, INPUT_SYSTEM_FOLDER_NAME))
         cp(
             joinpath(train_folder_for_data, INPUT_SYSTEM_FOLDER_NAME, name),
             joinpath(train_folder, INPUT_SYSTEM_FOLDER_NAME, name),
             force = true,
         )
+        cp(
+            joinpath(
+                train_folder_for_data,
+                INPUT_SYSTEM_FOLDER_NAME,
+                validation_descriptors_name,
+            ),
+            joinpath(train_folder, INPUT_SYSTEM_FOLDER_NAME, validation_descriptors_name),
+            force = true,
+        )
+        println(name)
+        println(split(name, "."))
     end
 end
