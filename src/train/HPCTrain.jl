@@ -354,9 +354,9 @@ function run_parallel_train(train::HPCTrain)
 end
 
 function run_parallel_train(train::HPCTrain)
+    train_bash_file = train.train_bash_file
     if train.train_folder_for_data === nothing
         generate_data_bash_file = train.generate_data_bash_file
-        train_bash_file = train.train_bash_file
         generate_data_job_id = readchomp(`sbatch --parsable $generate_data_bash_file`)
         return run(`sbatch --dependency=afterok:$generate_data_job_id $train_bash_file`)
     else
