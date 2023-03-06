@@ -425,7 +425,6 @@ function copy_data_and_subsystems(train::HPCTrain)
             joinpath(train_folder, INPUT_SYSTEM_FOLDER_NAME, validation_descriptors_name),
             force = true,
         )
-        println(name)
     end
     for path in train_system_path
         name = basename(path)
@@ -446,7 +445,11 @@ function copy_data_and_subsystems(train::HPCTrain)
             joinpath(train_folder, INPUT_SYSTEM_FOLDER_NAME, validation_descriptors_name),
             force = true,
         )
-        println(name)
-        println(split(name, "."))
     end
+    cp(
+        joinpath(train_folder_for_data, INPUT_SYSTEM_FOLDER_NAME, "connecting_branches_names"),
+        joinpath(train_folder, INPUT_SYSTEM_FOLDER_NAME, "connecting_branches_names"),
+        force = true,
+    )
+    return 
 end
