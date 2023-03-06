@@ -91,7 +91,7 @@ struct HPCTrain
     time_limit_generate_data::String
     generate_data_bash_file::String
     train_bash_file::String
-    force_generate_inputs::Bool
+    train_folder_for_data::Union{String, Nothing}
 end
 
 """
@@ -104,7 +104,7 @@ end
         n_tasks = 1,
         QoS = "savio_normal",
         partition = "savio",
-        force_generate_inputs = false,
+        train_folder_for_data = nothing,
         n_nodes = nothing, # Use with caution in Savio, it can lead to over subscription of nodes
         mb_per_cpu = 4000,
     )
@@ -120,7 +120,7 @@ function SavioHPCTrain(;
     time_limit_generate_data = "00:30:00",
     QoS = "savio_normal",
     partition = "savio",
-    force_generate_inputs = false,
+    train_folder_for_data = nothing,
     n_nodes = nothing, # Use with caution in Savio, it can lead to over subscription of nodes
     mb_per_cpu = 4000,
 )
@@ -145,7 +145,7 @@ function SavioHPCTrain(;
         time_limit_generate_data,
         joinpath(scratch_path, project_folder, train_folder, HPC_GENERATE_DATA_FILE),
         joinpath(scratch_path, project_folder, train_folder, HPC_TRAIN_FILE),
-        force_generate_inputs,
+        train_folder_for_data,
     )
 end
 
@@ -161,7 +161,7 @@ end
         n_tasks = 1,  #default to parallelize across all tasks 
         QoS = "normal",
         partition = "amilan",
-        force_generate_inputs = false,
+        train_folder_for_data = nothing,
         mb_per_cpu = 4800,
     )
 - Function for generating default `HPCTrain` parameters suitable for Alpine HPC at CU Boulder.
@@ -176,7 +176,7 @@ function AlpineHPCTrain(;
     time_limit_generate_data = "00:30:00",
     QoS = "normal",
     partition = "amilan",
-    force_generate_inputs = false,
+    train_folder_for_data = nothing,
     mb_per_cpu = 9600,
 )
     time_format = Dates.DateFormat("H:M:S")
@@ -206,7 +206,7 @@ function AlpineHPCTrain(;
         time_limit_generate_data,
         joinpath(scratch_path, project_folder, train_folder, HPC_GENERATE_DATA_FILE),
         joinpath(scratch_path, project_folder, train_folder, HPC_TRAIN_FILE),
-        force_generate_inputs,
+        train_folder_for_data,
     )
 end
 
@@ -351,4 +351,77 @@ function run_parallel_train(train::HPCTrain)
     train_bash_file = train.train_bash_file
     generate_data_job_id = readchomp(`sbatch --parsable $generate_data_bash_file`)
     return run(`sbatch --dependency=afterok:$generate_data_job_id $train_bash_file`)
+end
+
+function run_parallel_train(train::HPCTrain)
+    if train.train_folder_for_data === nothing
+        generate_data_bash_file = train.generate_data_bash_file
+        train_bash_file = train.train_bash_file
+        generate_data_job_id = readchomp(`sbatch --parsable $generate_data_bash_file`)
+        return run(`sbatch --dependency=afterok:$generate_data_job_id $train_bash_file`)
+    else
+        copy_data_and_subsystems(train)
+        return run(`sbatch $train_bash_file`)
+    end
+end
+
+function copy_data_and_subsystems(train::HPCTrain)
+    train_folder_for_data = train.train_folder_for_data
+    train_folder = train.train_folder
+
+    train_data_paths = unique([p.train_data_path for p in train.params_data])
+    validation_data_paths = unique([p.validation_data_path for p in train.params_data])
+    test_data_paths = unique([p.test_data_path for p in train.params_data])
+    surrogate_system_path = unique([p.surrogate_system_path for p in train.params_data])
+    train_system_path = unique([p.train_system_path for p in train.params_data])
+
+    for path in train_data_paths
+        name = basename(path)
+        @assert name in readdir(joinpath(train_folder_for_data, INPUT_FOLDER_NAME))
+        cp(
+            joinpath(train_folder_for_data, INPUT_FOLDER_NAME, name),
+            joinpath(train_folder, INPUT_FOLDER_NAME, name),
+            force = true,
+        )
+    end
+    for path in validation_data_paths
+        name = basename(path)
+        @assert name in readdir(joinpath(train_folder_for_data, INPUT_FOLDER_NAME))
+        cp(
+            joinpath(train_folder_for_data, INPUT_FOLDER_NAME, name),
+            joinpath(train_folder, INPUT_FOLDER_NAME, name),
+            force = true,
+        )
+    end
+    for path in test_data_paths
+        name = basename(path)
+        @assert name in readdir(joinpath(train_folder_for_data, INPUT_FOLDER_NAME))
+        cp(
+            joinpath(train_folder_for_data, INPUT_FOLDER_NAME, name),
+            joinpath(train_folder, INPUT_FOLDER_NAME, name),
+            force = true,
+        )
+    end
+
+    @assert length(surrogate_system_path) == 1
+    @assert length(train_system_path) == 1
+
+    for path in surrogate_system_path
+        name = basename(path)
+        @assert name in readdir(joinpath(train_folder_for_data, INPUT_SYSTEM_FOLDER_NAME))
+        cp(
+            joinpath(train_folder_for_data, INPUT_SYSTEM_FOLDER_NAME, name),
+            joinpath(train_folder, INPUT_SYSTEM_FOLDER_NAME, name),
+            force = true,
+        )
+    end
+    for path in train_system_path
+        name = basename(path)
+        @assert name in readdir(joinpath(train_folder_for_data, INPUT_SYSTEM_FOLDER_NAME))
+        cp(
+            joinpath(train_folder_for_data, INPUT_SYSTEM_FOLDER_NAME, name),
+            joinpath(train_folder, INPUT_SYSTEM_FOLDER_NAME, name),
+            force = true,
+        )
+    end
 end
