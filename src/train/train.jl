@@ -901,7 +901,7 @@ function train(params::TrainParams)
                 @info "\n curriculum: $(opt.curriculum) \n # of solves: $n_trains \n # of epochs per training (based on maxiters parameter): $per_solve_max_epochs \n # of iterations per epoch $(length(train_groups[1])) \n # of samples per iteration $(length(train_groups[1][1])) "
 
                 for group in train_groups
-                    res, output = _train(
+                    p_train, output = _train(
                         p_train,
                         p_fixed,
                         p_map,
@@ -921,7 +921,6 @@ function train(params::TrainParams)
                         output,
                         opt_ix,
                     )
-                    p_train = res.u
                 end
                 p_full = vcat(p_fixed, p_train)[p_map]
             end
@@ -1010,20 +1009,13 @@ function _train(
         opt_ix,
     )
 
-    #Calculate loss before training - useful code for debugging changes to make sure forward pass and callback works before checking train
+    #Calculate loss before training - useful code for debugging changes to make sure forward pass works before checking train (don't run callback because it records data)
     loss, loss_initialization, loss_dynamic, surrogate_solution, fault_index_vector =
         outer_loss_function(p_train, [(1, 1)])
-    @warn loss
-    @warn loss_initialization
-    @warn loss_dynamic
-    cb(
-        p_train,
-        loss,
-        loss_initialization,
-        loss_dynamic,
-        surrogate_solution,
-        fault_index_vector,
-    )
+
+    @warn "forward pass initialization loss:   ", loss_initialization
+    @warn "forward pass dynamic loss:   ", loss_dynamic
+    @warn "forward pass loss:   ", loss
 
     @warn "Starting full train: \n # of iterations per epoch: $(length(group)) \n # of epochs per solve: $per_solve_max_epochs \n max # of iterations for solve: $(per_solve_max_epochs*length(group))"
     timing_stats = @timed Optimization.solve(
@@ -1031,8 +1023,9 @@ function _train(
         algorithm,
         IterTools.ncycle(train_loader, per_solve_max_epochs),
         callback = cb;
+        save_best = false,
         allow_f_increases = true,
-        show_trace = true,
+        show_trace = false,
         x_abstol = -1.0,
         x_reltol = -1.0,
         f_abstol = -1.0,
@@ -1046,13 +1039,20 @@ function _train(
             gc_time = timing_stats.gctime,
         ),
     )
+    @warn "chosen iteration: ", output["chosen_iteration"]
+    @warn "total iterations: ", output["total_iterations"]
+
+    chosen_iteration_index =
+        indexin(output["chosen_iteration"], output["recorded_iterations"])[1]
+    chosen_trainable_parameters =
+        output["predictions"][chosen_iteration_index, "trainable_parameters"][1]
     res = timing_stats.value
-    @warn "Residual of Optimization.solve(): $(res)"
+    #@assert res_alt[1] == res.u does not pass because the Optimization.solve returns the parameters that are updated once more after the ones passed to the callback. Not sure which is correct, shouldn't matter much.
     if res.original !== nothing
         @warn "The result from original optimization library: $(res.original)"
         @warn "stopped by?: $(res.original.stopped_by)"
     end
-    return res, output
+    return chosen_trainable_parameters, output
 end
 
 function _initialize_params(
@@ -1287,6 +1287,7 @@ function _initialize_training_output_dict(
             reached_ss = Bool[],
         ),
         "predictions" => DataFrames.DataFrame(
+            trainable_parameters = Vector{Any}[],
             parameters = Vector{Any}[],
             surrogate_solution = SteadyStateNeuralODE_solution[],
             fault_index = Vector{Tuple{Int64, Int64}}[],
@@ -1298,7 +1299,8 @@ function _initialize_training_output_dict(
             max_error_ii = Vector{Float64}[],
         ),
         "total_time" => [],
-        "total_iterations" => 0,
+        "total_iterations" => 1,
+        "chosen_iteration" => 1,
         "recorded_iterations" => [],
         "final_loss" => Dict{String, Vector{Float64}}(),
         "timing_stats" => [],
@@ -1324,6 +1326,7 @@ function _initialize_training_output_dict(
             reached_ss = Bool[],
         ),
         "predictions" => DataFrames.DataFrame(
+            trainable_parameters = Vector{Any}[],
             parameters = Vector{Any}[],
             surrogate_solution = PhysicalModel_solution[],
             fault_index = Vector{Tuple{Int64, Int64}}[],
@@ -1335,7 +1338,8 @@ function _initialize_training_output_dict(
             max_error_ii = Vector{Float64}[],
         ),
         "total_time" => [],
-        "total_iterations" => 0,
+        "total_iterations" => 1,
+        "chosen_iteration" => 1,
         "recorded_iterations" => [],
         "final_loss" => Dict{String, Vector{Float64}}(),
         "timing_stats" => [],

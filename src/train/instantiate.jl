@@ -1094,6 +1094,8 @@ function _cb!(
     p_map,
     opt_ix,
 )
+    output["total_iterations"] += 1
+    output["chosen_iteration"] += 1
     lb_loss = params.optimizer[opt_ix].lb_loss
     exportmode_skip = params.output_mode_skip
     train_time_limit_seconds = params.train_time_limit_seconds
@@ -1103,17 +1105,18 @@ function _cb!(
        output["total_iterations"] == 1
         push!(
             output["predictions"],
-            ([vcat(p_fixed, p_train)[p_map]], surrogate_solution, fault_index),
+            ([p_train], [vcat(p_fixed, p_train)[p_map]], surrogate_solution, fault_index),
         )
         push!(output["recorded_iterations"], output["total_iterations"])
     end
-    output["total_iterations"] += 1
     #=     p1 = Plots.plot(surrogate_solution.t_series, surrogate_solution.i_series[1, :])
         p2 = Plots.plot(surrogate_solution.t_series, surrogate_solution.i_series[2, :])
         display(Plots.plot(p1, p2)) =#
     if (print_loss)
         println(
-            "total loss: ",
+            "iteration: ",
+            output["total_iterations"],
+            "\ttotal loss: ",
             l,
             "\t init loss: ",
             l_initialization,
