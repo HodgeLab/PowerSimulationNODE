@@ -1100,6 +1100,7 @@ function _cb!(
     exportmode_skip = params.output_mode_skip
     train_time_limit_seconds = params.train_time_limit_seconds
     check_validation_loss_iterations = params.check_validation_loss_iterations
+    validation_loss_termination = params.validation_loss_termination
     push!(output["loss"], (l_initialization, l_dynamic, l, surrogate_solution.converged))
     if mod(output["total_iterations"], exportmode_skip) == 0 ||
        output["total_iterations"] == 1
@@ -1146,7 +1147,12 @@ function _cb!(
                 validation_loss["max_error_ii"],
             ),
         )
-        if _check_for_termination_condition(lb_loss, output["validation_loss"])
+        if _check_for_termination_condition(
+            lb_loss,
+            check_validation_loss_iterations,
+            validation_loss_termination,
+            output,
+        )
             return true
         end
     end
@@ -1158,31 +1164,44 @@ function _cb!(
     end
 end
 
-function _check_for_termination_condition(lb_loss, validation_loss_dataframe)
-    if DataFrames.nrow(validation_loss_dataframe) < 2
+function _check_for_termination_condition(
+    lb_loss,
+    check_validation_loss_iterations,
+    validation_loss_termination,
+    output,
+)
+    validation_loss_dataframe = output["validation_loss"]
+    if validation_loss_termination == "false"
+        return false
+    else
+        if validation_loss_termination == "single increase"
+            if DataFrames.nrow(validation_loss_dataframe) < 2
+                return false
+            end
+            ir_entries = validation_loss_dataframe[end, :mae_ir]
+            ii_entries = validation_loss_dataframe[end, :mae_ii]
+            ir_entries_previous = validation_loss_dataframe[end - 1, :mae_ir]
+            ii_entries_previous = validation_loss_dataframe[end - 1, :mae_ii]
+            if (0.0 in ir_entries) ||
+               (0.0 in ii_entries) ||
+               (0.0 in ir_entries_previous) ||
+               (0.0 in ii_entries_previous)
+                return false
+            end
+            ir_mean = Statistics.mean(ir_entries)
+            ii_mean = Statistics.mean(ii_entries)
+            ir_mean_previous = Statistics.mean(ir_entries_previous)
+            ii_mean_previous = Statistics.mean(ii_entries_previous)
+            if (ir_mean > ir_mean_previous) && (ii_mean > ii_mean_previous)
+                @warn "Training stopping condition met (single increase): real and imaginary average error increased on validation set"
+                #TODO - set output["chosen_iteration"] to be the iteration before the increase in loss
+                return true
+            end
+        end
+        if (0.0 < ((ir_mean + ii_mean) / 2) < lb_loss)  # validation loss assigned 0.0 when not stable
+            @warn "Training stopping condition met: loss validation set is below defined limit"
+            return true
+        end
         return false
     end
-    ir_entries = validation_loss_dataframe[end, :mae_ir]
-    ii_entries = validation_loss_dataframe[end, :mae_ii]
-    ir_entries_previous = validation_loss_dataframe[end - 1, :mae_ir]
-    ii_entries_previosu = validation_loss_dataframe[end - 1, :mae_ii]
-    if (0.0 in ir_entries) ||
-       (0.0 in ii_entries) ||
-       (0.0 in ir_entries_previous) ||
-       (0.0 in ii_entries_previosu)
-        return false
-    end
-    ir_mean = Statistics.mean(ir_entries)
-    ii_mean = Statistics.mean(ii_entries)
-    ir_mean_previous = Statistics.mean(ir_entries_previous)
-    ii_mean_previous = Statistics.mean(ii_entries_previosu)
-    if (ir_mean > ir_mean_previous) && (ii_mean > ii_mean_previous)
-        @warn "Training stopping condition met: real and imaginary average error increased on validation set"
-        return true
-    end
-    if (0.0 < ((ir_mean + ii_mean) / 2) < lb_loss)  # validation loss assigned 0.0 when not stable
-        @warn "Training stopping condition met: loss validation set is below defined limit"
-        return true
-    end
-    return false
 end

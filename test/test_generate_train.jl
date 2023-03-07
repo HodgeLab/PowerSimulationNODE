@@ -174,6 +174,7 @@ end
         )],
         p_start = [],
         check_validation_loss_iterations = [1, 2, 3, 4, 5, 6],
+        validation_loss_termination = "false",
         output_mode_skip = 1,
     )
     try
@@ -293,7 +294,8 @@ end
             loss_function = (α = 0.5, β = 1.0, residual_penalty = 1.0e9),
         )],
         p_start = [],
-        check_validation_loss_iterations = [],
+        check_validation_loss_iterations = [20],
+        validation_loss_termination = "false",
         output_mode_skip = 1,
     )
     try
@@ -430,6 +432,7 @@ end
         ],
         p_start = [],
         check_validation_loss_iterations = [],
+        validation_loss_termination = "false",
         output_mode_skip = 1,
     )
     try
@@ -540,6 +543,7 @@ end
         ],
         p_start = [], #Float32[0.01, 0.4995, 0.5087, 4.148, 1.0],
         check_validation_loss_iterations = [],
+        validation_loss_termination = "false",
         output_mode_skip = 1,
     )
     try
@@ -650,6 +654,7 @@ end
         ],
         p_start = Float64[],
         check_validation_loss_iterations = [],
+        validation_loss_termination = "false",
         output_mode_skip = 1,
     )
     try
@@ -759,6 +764,7 @@ end
         ],
         p_start = Float64[],
         check_validation_loss_iterations = [],
+        validation_loss_termination = "false",
         output_mode_skip = 1,
     )
     try
@@ -933,6 +939,7 @@ end
             0.009999999999999998,
         ],
         check_validation_loss_iterations = [],
+        validation_loss_termination = "false",
         output_mode_skip = 1,
     )
     try
