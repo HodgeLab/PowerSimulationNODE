@@ -347,13 +347,6 @@ function generate_train_files(train::HPCTrain)
 end
 
 function run_parallel_train(train::HPCTrain)
-    generate_data_bash_file = train.generate_data_bash_file
-    train_bash_file = train.train_bash_file
-    generate_data_job_id = readchomp(`sbatch --parsable $generate_data_bash_file`)
-    return run(`sbatch --dependency=afterok:$generate_data_job_id $train_bash_file`)
-end
-
-function run_parallel_train(train::HPCTrain)
     train_bash_file = train.train_bash_file
     if train.train_folder_for_data === nothing
         generate_data_bash_file = train.generate_data_bash_file
@@ -447,9 +440,13 @@ function copy_data_and_subsystems(train::HPCTrain)
         )
     end
     cp(
-        joinpath(train_folder_for_data, INPUT_SYSTEM_FOLDER_NAME, "connecting_branches_names"),
+        joinpath(
+            train_folder_for_data,
+            INPUT_SYSTEM_FOLDER_NAME,
+            "connecting_branches_names",
+        ),
         joinpath(train_folder, INPUT_SYSTEM_FOLDER_NAME, "connecting_branches_names"),
         force = true,
     )
-    return 
+    return
 end
