@@ -175,8 +175,11 @@ StructTypes.subtypes(::Type{PSIDS.SurrogatePerturbation}) = (
     RandomLoadTrip = PSIDS.RandomLoadTrip,
     RandomLoadChange = PSIDS.RandomLoadChange,
 )
-StructTypes.subtypes(::Type{PSIDS.SurrogateOperatingPoint}) =
-    (GenerationLoadScale = PSIDS.GenerationLoadScale, ScaleSource = PSIDS.ScaleSource)
+StructTypes.subtypes(::Type{PSIDS.SurrogateOperatingPoint}) = (
+    GenerationLoadScale = PSIDS.GenerationLoadScale,
+    ScaleSource = PSIDS.ScaleSource,
+    RandomOperatingPointXiao = PSIDS.RandomOperatingPointXiao,
+)
 
 StructTypes.subtypes(::Type{PSIDS.SurrogateModelParams}) = (
     SteadyStateNODEParams = PSIDS.SteadyStateNODEParams,
