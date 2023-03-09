@@ -164,7 +164,7 @@ function (s::ClassicGen)(
                 [s[1] for s in saved_values.saveval]',
                 [s[2] for s in saved_values.saveval]',
             ),
-            res,
+            [1.0],
             true,
         )
 

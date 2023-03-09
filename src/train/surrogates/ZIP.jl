@@ -64,7 +64,7 @@ function (s::ZIP)(
         Vr, Vi = V(tsteps[i])
         i_series[1, i], i_series[2, i] = device(p_ordered, refs, Vr, Vi, s)
     end
-    return PhysicalModel_solution(tsteps, i_series, [], true)
+    return PhysicalModel_solution(tsteps, i_series, [1.0], true)
 end
 
 function default_params(::PSIDS.ZIPParams)
