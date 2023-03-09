@@ -92,7 +92,7 @@ function (s::GFM)(
         return PhysicalModel_solution(
             tsteps,
             Array(sol[real_current_index(s):imag_current_index(s), :]),
-            [],
+            [1.0],
             true,
         )
     else

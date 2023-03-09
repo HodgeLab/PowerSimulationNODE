@@ -195,6 +195,7 @@ function evaluate_loss(
     data_collection_location,
     model_params,
 )
+    a = time()
     parameterize_surrogate_psid!(sys_main, θ, model_params)
 
     operating_points = data_params.operating_points
@@ -266,6 +267,7 @@ function evaluate_loss(
         "mae_ii" => mae_ii,
         "max_error_ii" => max_error_ii,
     )
+    @warn "evaluate_loss time (s):  ", time()-a
     return dataset_loss
 end
 
@@ -1299,8 +1301,8 @@ function _initialize_training_output_dict(
             max_error_ii = Vector{Float64}[],
         ),
         "total_time" => [],
-        "total_iterations" => 1,
-        "chosen_iteration" => 1,
+        "total_iterations" => 0,
+        "chosen_iteration" => 0,
         "recorded_iterations" => [],
         "final_loss" => Dict{String, Vector{Float64}}(),
         "timing_stats" => [],
@@ -1338,8 +1340,8 @@ function _initialize_training_output_dict(
             max_error_ii = Vector{Float64}[],
         ),
         "total_time" => [],
-        "total_iterations" => 1,
-        "chosen_iteration" => 1,
+        "total_iterations" => 0,
+        "chosen_iteration" => 0,
         "recorded_iterations" => [],
         "final_loss" => Dict{String, Vector{Float64}}(),
         "timing_stats" => [],
