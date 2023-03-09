@@ -19,7 +19,7 @@ const SURROGATE_N_REFS = 2
 const NN_INPUT_LIMITS = (min = -1.0, max = 1.0)
 const NN_TARGET_LIMITS = (min = -1.0, max = 1.0)
 
-const TIME_LIMIT_BUFFER_SECONDS = 2700 #45 minutes to compile Julia environment (before training) and capture output data (after training) before hpc process is killed externally 
+const TIME_LIMIT_BUFFER_SECONDS = 5400 #90 minutes to compile Julia environment (before training) and capture output data (after training) before hpc process is killed externally (increased from 45 mins)
 
 if Sys.iswindows() || Sys.isapple()
     const NODE_CONSOLE_LEVEL = Logging.Info
