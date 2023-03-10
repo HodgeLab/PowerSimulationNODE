@@ -1,5 +1,5 @@
 """
-    function build_subsystems(p::TrainParams)  
+    function build_subsystems(p::TrainParams)
 
 Build `training_system` and `surrogate_system` based on `p.system_path` and `p.surrogate_buses` and serialize them to the respective paths in `p`.
 """
@@ -14,17 +14,18 @@ function build_subsystems(p::TrainParams)
         PSIDS.create_validation_system_from_buses(sys_full, p.surrogate_buses)
     #Serialize surrogate system
     PSY.to_json(sys_validation, p.surrogate_system_path, force = true)
-    #Serialize train system 
+    #Serialize train system
     PSY.to_json(sys_train, p.train_system_path, force = true)
     #Serialize connecting branches
     Serialization.serialize(
         p.data_collection_location_path,
         (data_collection_location_train, data_collection_location_validation),
     )
+    return
 end
 
 """
-    function generate_train_data(p::TrainParams)  
+    function generate_train_data(p::TrainParams)
 
 Generate the train data and serialize to the path in `p`.
 """
@@ -65,7 +66,7 @@ function generate_train_data(p::TrainParams)
 end
 
 """
-    function generate_validation_data(p::TrainParams)  
+    function generate_validation_data(p::TrainParams)
 
 Generate the validation data and serialize to the path in `p`.
 """
@@ -90,7 +91,7 @@ function generate_validation_data(p::TrainParams)   #generate the validation dat
 end
 
 """
-    function generate_test_data(p::TrainParams)  
+    function generate_test_data(p::TrainParams)
 
 Generate the test data and serialize to the path in `p`.
 """
