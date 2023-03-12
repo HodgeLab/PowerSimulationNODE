@@ -1128,7 +1128,7 @@ function _cb!(
         )
     end
     if output["total_iterations"] in check_validation_loss_iterations
-        validation_loss = evaluate_loss(
+        surrogate_dataset = generate_surrogate_dataset(
             sys_validation,
             sys_validation_aux,
             vcat(p_fixed, p_train)[p_map],
@@ -1137,6 +1137,7 @@ function _cb!(
             data_collection_location,
             params.model_params,
         )
+        validation_loss = evaluate_loss(surrogate_dataset, validation_dataset)
 
         push!(
             output["validation_loss"],

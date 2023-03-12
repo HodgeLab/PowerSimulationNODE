@@ -27,6 +27,7 @@ export generate_validation_data
 export generate_test_data
 export evaluate_loss
 export visualize_loss
+export generate_surrogate_dataset
 
 import Arrow
 import Dates

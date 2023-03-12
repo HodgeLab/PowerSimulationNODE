@@ -167,7 +167,7 @@ function _single_perturbation_to_function_of_time(
 end
 
 """
-    function evaluate_loss(
+    function generate_surrogate_dataset(
         sys_main,
         sys_aux,
         θ,
@@ -186,7 +186,7 @@ end
 - `data_collection_location::Vector{Tuple{String, Symbol}}`: the data collection location for generating data. A vector of Tuples of branch name and either `:to` or `:from` for interpreting the polarity of data from those branches.
 - `model_params`: model params of the surrogate. 
 """
-function evaluate_loss(
+function generate_surrogate_dataset(
     sys_main,
     sys_aux,
     θ,
@@ -213,6 +213,17 @@ function evaluate_loss(
         dataset_aux = groundtruth_dataset,
         surrogate_params = model_params,
     )
+    @warn "generate_surrogate_dataset time (s):  ", time() - a
+    return surrogate_dataset
+end
+
+"""
+    function evaluate_loss(
+        surrogate_dataset, 
+        groundtruth_dataset,
+    ) 
+"""
+function evaluate_loss(surrogate_dataset, groundtruth_dataset)
     @assert length(surrogate_dataset) == length(groundtruth_dataset)
     mae_ir = Float64[]
     max_error_ir = Float64[]
@@ -267,7 +278,7 @@ function evaluate_loss(
         "mae_ii" => mae_ii,
         "max_error_ii" => max_error_ii,
     )
-    @warn "evaluate_loss time (s):  ", time()-a
+
     return dataset_loss
 end
 
@@ -347,53 +358,11 @@ end
 
 """
     function visualize_loss(
-        sys_main,
-        sys_aux,
-        θ,
+        surrogate_dataset, 
         groundtruth_dataset,
-        data_params,
-        data_collection_location,
-        model_params,
     )
-
-# Returns
-- A vector of plots for each entry in the dataset.
-
-# Fields
-- `sys_main`: System with surrogate already included (usually the modified validation system)
-- `sys_aux`: Auxiliary system for finding components to use for perturbation (can be unmodified validation system)
-- `θ`: New surrogate parameters to evaluate loss for
-- `groundtruth_dataset`: ground truth data for evaluating loss.
-- `data_params`: the parameters used to generate `groundtruth_dataset`
-- `data_collection_location::Vector{Tuple{String, Symbol}}`: the data collection location for generating data. A vector of Tuples of branch name and either `:to` or `:from` for interpreting the polarity of data from those branches.
-- `model_params`: model params of the surrogate. 
 """
-function visualize_loss(
-    sys_main,
-    sys_aux,
-    θ,
-    groundtruth_dataset,
-    data_params,
-    data_collection_location,
-    model_params,
-)
-    parameterize_surrogate_psid!(sys_main, θ, model_params)
-
-    operating_points = data_params.operating_points
-    perturbations = data_params.perturbations
-    generate_data_params = data_params.params
-    surrogate_dataset = PSIDS.generate_surrogate_data(
-        sys_main,
-        sys_aux,
-        perturbations,
-        operating_points,
-        PSIDS.SteadyStateNODEDataParams(
-            location_of_data_collection = data_collection_location,
-        ),
-        generate_data_params,
-        dataset_aux = groundtruth_dataset,
-        surrogate_params = model_params,
-    )
+function visualize_loss(surrogate_dataset, groundtruth_dataset)
     @assert length(surrogate_dataset) == length(groundtruth_dataset)
     plots = []
     for ix in eachindex(surrogate_dataset, groundtruth_dataset)
@@ -929,7 +898,7 @@ function train(params::TrainParams)
         end
         output["total_time"] = total_time
 
-        output["final_loss"] = evaluate_loss(
+        surrogate_dataset = generate_surrogate_dataset(
             sys_validation,
             sys_validation_aux,
             p_full,
@@ -939,6 +908,7 @@ function train(params::TrainParams)
             params.model_params,
         )
 
+        output["final_loss"] = evaluate_loss(surrogate_dataset, validation_dataset)
         _capture_output(output, params.output_data_path, params.train_id)
         return true, p_full
     catch e

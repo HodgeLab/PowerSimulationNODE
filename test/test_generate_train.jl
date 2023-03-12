@@ -19,7 +19,7 @@ function generate_and_train_test(p2)
     print_high_level_output_overview(a, p.base_path)
 
     #Plot real and imag current for a full dataset
-    ps = visualize_loss(
+    surrogate_dataset = generate_surrogate_dataset(
         System(p.modified_surrogate_system_path),
         System(p.surrogate_system_path),
         θ,
@@ -28,9 +28,12 @@ function generate_and_train_test(p2)
         Serialization.deserialize(p.data_collection_location_path)[2],
         p.model_params,
     )
+    ps =
+        visualize_loss(surrogate_dataset, Serialization.deserialize(p.validation_data_path))
 
     #Evaluate loss metrics for a full dataset 
-    _ = evaluate_loss(
+
+    surrogate_dataset = generate_surrogate_dataset(
         System(p.modified_surrogate_system_path),
         System(p.surrogate_system_path),
         θ,
@@ -39,6 +42,7 @@ function generate_and_train_test(p2)
         Serialization.deserialize(p.data_collection_location_path)[2],
         p.model_params,
     )
+    _ = evaluate_loss(surrogate_dataset, Serialization.deserialize(p.validation_data_path))
 end
 
 function _generic_test_setup()

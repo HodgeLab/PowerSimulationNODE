@@ -175,26 +175,6 @@ function visualize_training(input_params_file::String, iterations_to_visualize)
     for (i, p) in enumerate(plots_pred)
         Plots.png(p, joinpath(path_to_output, string("_pred_", i)))
     end
-
-    validation_sys = node_load_system(params.modified_surrogate_system_path)
-    validation_sys_aux = node_load_system(params.surrogate_system_path)
-    validation_dataset = Serialization.deserialize(params.validation_data_path)
-    data_collection_location_validation =
-        Serialization.deserialize(params.data_collection_location_path)[2]
-    df_predictions = read_arrow_file_to_dataframe(joinpath(path_to_output, "predictions"))
-    θ = df_predictions[end, "parameters"][1]
-    plots_validation_performance = visualize_loss(
-        validation_sys,
-        validation_sys_aux,
-        θ,
-        validation_dataset,
-        params.validation_data,
-        data_collection_location_validation,
-        params.model_params,
-    )
-    for (i, p) in enumerate(plots_validation_performance)
-        Plots.png(p, joinpath(path_to_output, string("validation_dataset_", i)))
-    end
     #Cleanup to be able to delete the arrow files: https://github.com/apache/arrow-julia/issues/61
     GC.gc()
     return
