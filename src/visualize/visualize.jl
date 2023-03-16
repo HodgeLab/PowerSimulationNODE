@@ -440,12 +440,12 @@ function visualize_summary(high_level_outputs_dict)
                 ylabel = "final loss",
                 yaxis = :log,
             )
-#=             Plots.annotate!(
-                p1,
-                value["total_time"],
-                l,
-                Plots.text(value["train_id"], :red, 3),
-            ) =#
+            #=             Plots.annotate!(
+                            p1,
+                            value["total_time"],
+                            l,
+                            Plots.text(value["train_id"], :red, 3),
+                        ) =#
             Plots.scatter!(
                 p2,
                 (value["total_time"], value["n_params_surrogate"]),
@@ -454,12 +454,12 @@ function visualize_summary(high_level_outputs_dict)
                 ylabel = "n params nn",
                 yaxis = :log,
             )
-#=             Plots.annotate!(
-                p2,
-                value["total_time"],
-                value["n_params_surrogate"],
-                Plots.text(value["train_id"], :red, 3),
-            ) =#
+            #=             Plots.annotate!(
+                            p2,
+                            value["total_time"],
+                            value["n_params_surrogate"],
+                            Plots.text(value["train_id"], :red, 3),
+                        ) =#
             p = Plots.plot(p1, p2)
         end
     end
