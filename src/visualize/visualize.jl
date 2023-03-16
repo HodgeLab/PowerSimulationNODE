@@ -416,6 +416,7 @@ end
 Generates a plot with high level information about a collection of trainings with outputs in `output_data_path`. Visualizations include:
 - plot of total iterations vs total time
 - plot of total trainable parameters vs total time
+- should be used with interactive backend (plotlyjs) for zooming capabilities
 # Examples:
 ````
 d = generate_summary("output_data")
@@ -438,15 +439,13 @@ function visualize_summary(high_level_outputs_dict)
                 xlabel = "total time (s)",
                 ylabel = "final loss",
                 yaxis = :log,
-                markersize = 1,
-                markerstrokewidth = 0,
             )
-            Plots.annotate!(
+#=             Plots.annotate!(
                 p1,
                 value["total_time"],
                 l,
                 Plots.text(value["train_id"], :red, 3),
-            )
+            ) =#
             Plots.scatter!(
                 p2,
                 (value["total_time"], value["n_params_surrogate"]),
@@ -454,15 +453,13 @@ function visualize_summary(high_level_outputs_dict)
                 xlabel = "total time (s)",
                 ylabel = "n params nn",
                 yaxis = :log,
-                markersize = 1,
-                markerstrokewidth = 0,
             )
-            Plots.annotate!(
+#=             Plots.annotate!(
                 p2,
                 value["total_time"],
                 value["n_params_surrogate"],
                 Plots.text(value["train_id"], :red, 3),
-            )
+            ) =#
             p = Plots.plot(p1, p2)
         end
     end
