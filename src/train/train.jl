@@ -1032,6 +1032,7 @@ function _initialize_params(
     p_full,
     surrogate::SteadyStateNeuralODE,
 )
+    @warn typeof(p_full)    #p_full comes as a typeo f any 
     total_length = length(p_full)
     initializer_length = surrogate.len
     node_length = surrogate.len2
@@ -1049,13 +1050,13 @@ function _initialize_params(
         )  #WRONG?
         return p_fix, p_train, p_map
     elseif (:initializer in p_fixed)
-        p_fix = p_full[1:initializer_length]
-        p_train = p_full[(initializer_length + 1):end]
+        p_fix = Float32.(p_full[1:initializer_length])
+        p_train = Float32.(p_full[(initializer_length + 1):end])
         p_map = collect(1:total_length)
         return p_fix, p_train, p_map
     elseif p_fixed == []
         p_fix = Float32[]
-        p_train = p_full
+        p_train = Float32.(p_full)
         p_map = collect(1:length(p_full))
         return p_fix, p_train, p_map
     else
