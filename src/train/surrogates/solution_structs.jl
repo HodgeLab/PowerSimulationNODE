@@ -20,7 +20,8 @@ end
 
 struct SteadyStateNeuralODE_solution{T}
     r0_pred::AbstractArray{T}
-    r0::AbstractArray{T}
+    r0::AbstractArray{T}  
+    deq_iterations::Int64
     t_series::AbstractArray{T}
     r_series::AbstractArray{T}
     i_series::AbstractArray{T}

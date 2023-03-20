@@ -179,6 +179,7 @@ function (s::SteadyStateNeuralODE)(
         return SteadyStateNeuralODE_solution(
             u0_pred,
             Array(ss_solution.u),
+            ss_solution.original.iterations, 
             tsteps,
             Array(sol[1:end, :]),
             ri_dq * s.re3(p[p_map[(s.len + s.len2 + 1):end]])(sol[1:end, :]),
@@ -189,6 +190,7 @@ function (s::SteadyStateNeuralODE)(
         return SteadyStateNeuralODE_solution(
             u0_pred,
             Array(ss_solution.u),
+            ss_solution.original.iterations, 
             tsteps,
             Array(ss_solution.u),
             s.re3(p[p_map[(s.len + s.len2 + 1):end]])(ss_solution.u[1:(end - 2)]),
