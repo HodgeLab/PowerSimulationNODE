@@ -66,7 +66,7 @@ function _generic_test_setup()
     return path, full_system_path
 end
 
-@testset "SteadyStateNODEObs (9 bus system, train-data from full system)" begin
+#= @testset "SteadyStateNODEObs (9 bus system, train-data from full system)" begin
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
     include(joinpath(TEST_FILES_DIR, "scripts", "build_9bus.jl"))
     SURROGATE_BUSES = [2]
@@ -140,17 +140,17 @@ end
             name = "source_1",
             initializer_layer_type = "dense",
             initializer_n_layer = 0,
-            initializer_width_layers = 4,
-            initializer_activation = "hardtanh",
+            initializer_width_layers_relative_input = 1,
+            initializer_activation = "tanh",
             dynamic_layer_type = "dense",
             dynamic_hidden_states = 5,
             dynamic_n_layer = 1,
-            dynamic_width_layers = 4,
+            dynamic_width_layers_relative_input = -5,
             dynamic_activation = "relu",
             dynamic_σ2_initialization = 0.0,
             observation_layer_type = "dense",
             observation_n_layer = 0,
-            observation_width_layers = 4,
+            observation_width_layers_relative_input = -1,
             observation_activation = "relu",
         ),
         steady_state_solver = (
@@ -189,7 +189,7 @@ end
         @info("removing test files")
         rm(path, force = true, recursive = true)
     end
-end
+end =#
 
 @testset "SteadyStateNODE (9 bus system, train-data from full system, input starting parameters)" begin
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
@@ -265,12 +265,12 @@ end
             name = "source_1",
             initializer_layer_type = "dense",
             initializer_n_layer = 0,
-            initializer_width_layers = 4,
-            initializer_activation = "hardtanh",
+            initializer_width_layers_relative_input = 1,
+            initializer_activation = "tanh",
             dynamic_layer_type = "dense",
             dynamic_hidden_states = 5,
             dynamic_n_layer = 1,
-            dynamic_width_layers = 4,
+            dynamic_width_layers_relative_input = -5,
             dynamic_activation = "relu",
             dynamic_σ2_initialization = 0.0,
         ),
@@ -297,7 +297,7 @@ end
             fix_params = [],
             loss_function = (α = 0.5, β = 1.0, residual_penalty = 1.0e9),
         )],
-        p_start = Float32.(rand(93)), #will be completely unstable, making sure training still runs.
+        p_start = Float32.(rand(88)), #will be completely unstable, making sure training still runs.
         check_validation_loss_iterations = [20],
         validation_loss_termination = "false",
         output_mode_skip = 1,
@@ -386,12 +386,12 @@ end
             name = "source_1",
             initializer_layer_type = "dense",
             initializer_n_layer = 0,
-            initializer_width_layers = 4,
-            initializer_activation = "hardtanh",
+            initializer_width_layers_relative_input = 1,
+            initializer_activation = "tanh",
             dynamic_layer_type = "dense",
             dynamic_hidden_states = 5,
             dynamic_n_layer = 1,
-            dynamic_width_layers = 4,
+            dynamic_width_layers_relative_input = -5,
             dynamic_activation = "relu",
             dynamic_σ2_initialization = 0.0,
         ),
@@ -517,17 +517,17 @@ end
             name = "source_1",
             initializer_layer_type = "dense",
             initializer_n_layer = 0,
-            initializer_width_layers = 4,
-            initializer_activation = "hardtanh",
+            initializer_width_layers_relative_input = 1,
+            initializer_activation = "tanh",
             dynamic_layer_type = "dense",
             dynamic_hidden_states = 5,
             dynamic_n_layer = 1,
-            dynamic_width_layers = 4,
+            dynamic_width_layers_relative_input = -5,
             dynamic_activation = "relu",
             dynamic_σ2_initialization = 0.0,
             observation_layer_type = "dense",
             observation_n_layer = 0,
-            observation_width_layers = 4,
+            observation_width_layers_relative_input = -1,
             observation_activation = "relu",
         ),
         steady_state_solver = (

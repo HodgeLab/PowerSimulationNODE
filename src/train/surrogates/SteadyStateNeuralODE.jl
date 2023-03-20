@@ -119,12 +119,15 @@ function (s::SteadyStateNeuralODE)(
         Vd, Vq = dq_ri * V(0.0)
         return vcat(
             s.re2(p[p_map[(s.len + 1):(s.len + s.len2)]])((
-                u[1:(end - 2)],
+                u[1:(end - SURROGATE_N_REFS)],
                 [Vd, Vq], #u[3:4],
-                u[(end - 1):end],
+                u[(end - (SURROGATE_N_REFS - 1)):end],
             )),
-            s.re3(p[p_map[(s.len + s.len2 + 1):end]])(u[1:(end - 2)])[1] .- Id0,
-            s.re3(p[p_map[(s.len + s.len2 + 1):end]])(u[1:(end - 2)])[2] .- Iq0,
+            s.re3(p[p_map[(s.len + s.len2 + 1):end]])(u[1:(end - SURROGATE_N_REFS)])[1] .-
+            Id0,
+            s.re3(p[p_map[(s.len + s.len2 + 1):end]])(u[1:(end - SURROGATE_N_REFS)])[2] .-
+            Iq0,
+            zeros(SURROGATE_N_REFS - 2),
         )
     end
 
@@ -161,11 +164,11 @@ function (s::SteadyStateNeuralODE)(
     #@error NLsolve.converged(ss_solution.original) #check if SS condition was foudn. 
     if NLsolve.converged(ss_solution.original)
         #SOLVE DYNAMICS
-        refs = ss_solution.u[(end - 1):end] #NOTE: refs is used in dudt_dyn
+        refs = ss_solution.u[(end - (SURROGATE_N_REFS - 1)):end] #NOTE: refs is used in dudt_dyn
         ff = OrdinaryDiffEq.ODEFunction{false}(dudt_dyn) #,tgrad=basic_tgrad)    
         prob_dyn = OrdinaryDiffEq.ODEProblem{false}(
             ff,
-            ss_solution.u[1:(end - 2)],
+            ss_solution.u[1:(end - SURROGATE_N_REFS)],
             (tsteps[1], tsteps[end]),
             p;
             tstops = tstops,
@@ -176,6 +179,7 @@ function (s::SteadyStateNeuralODE)(
         return SteadyStateNeuralODE_solution(
             u0_pred,
             Array(ss_solution.u),
+            ss_solution.original.iterations, 
             tsteps,
             Array(sol[1:end, :]),
             ri_dq * s.re3(p[p_map[(s.len + s.len2 + 1):end]])(sol[1:end, :]),
@@ -186,6 +190,7 @@ function (s::SteadyStateNeuralODE)(
         return SteadyStateNeuralODE_solution(
             u0_pred,
             Array(ss_solution.u),
+            ss_solution.original.iterations, 
             tsteps,
             Array(ss_solution.u),
             s.re3(p[p_map[(s.len + s.len2 + 1):end]])(ss_solution.u[1:(end - 2)]),

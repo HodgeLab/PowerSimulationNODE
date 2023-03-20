@@ -16,7 +16,7 @@ function plot_overview(surrogate_prediction, fault_index, fault_data, exs)
 end
 
 function _plot_overview_physical(surrogate_prediction, fault_index, fault_data, exs)
-    if surrogate_prediction.converged
+    if surrogate_prediction.converged && length(i_series) != 2   #FAILS AT LINE 26 if the initialization converged but the run was unstable so there isn't data saved. 
         tsteps = fault_data[fault_index[end][1]].tsteps
         ground_truth_real_current = fault_data[fault_index[end][1]].real_current
         ground_truth_imag_current = fault_data[fault_index[end][1]].imag_current
