@@ -45,8 +45,8 @@
             dynamic_layer_type = "dense",
             dynamic_hidden_states = 3,
             dynamic_n_layer = 1,
-            dynamic_width_layers = 4,
-            dynamic_activation = "hardtanh",
+            dynamic_width_layers_relative_input = -3,  #was 4, now (7-3)
+            dynamic_activation = "tanh",
             dynamic_σ2_initialization = 0.1,
         ),
         train_data = (

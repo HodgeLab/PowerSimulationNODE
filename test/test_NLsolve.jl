@@ -13,9 +13,9 @@
                 name = "test-source",
                 dynamic_layer_type = "dense",
                 dynamic_hidden_states = h,
-                dynamic_width_layers = 10,
+                dynamic_width_layers_relative_input = 0,    #this changes the test... 
                 dynamic_n_layer = 2,
-                dynamic_activation = "hardtanh",
+                dynamic_activation = "tanh",
                 dynamic_σ2_initialization = 0.01,
             ),
             train_data = (

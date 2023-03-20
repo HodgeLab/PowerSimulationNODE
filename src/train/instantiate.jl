@@ -47,7 +47,12 @@ function sensealg_map(key)
 end
 
 function activation_map(key)
-    d = Dict("relu" => Flux.relu, "hardtanh" => Flux.hardtanh, "sigmoid" => Flux.sigmoid)
+    d = Dict(
+        "relu" => Flux.relu,
+        "tanh" => Flux.tanh,
+        "hardtanh" => Flux.hardtanh,
+        "sigmoid" => Flux.sigmoid,
+    )
     return d[key]
 end
 
@@ -531,7 +536,10 @@ function _instantiate_model_initializer(m, n_ports, scaling_extrema; flux = true
     hidden_states = m.dynamic_hidden_states
     type = m.initializer_layer_type
     n_layer = m.initializer_n_layer
-    width_layers = m.initializer_width_layers
+    width_layers_relative_input = m.initializer_width_layers_relative_input
+    input_dim = SURROGATE_SS_INPUT_DIM * n_ports
+    hidden_dim = input_dim + width_layers_relative_input
+    output_dim = hidden_states + SURROGATE_N_REFS
     input_min = scaling_extrema["input_min"]
     input_max = scaling_extrema["input_max"]
     target_min = scaling_extrema["target_min"]
@@ -562,50 +570,27 @@ function _instantiate_model_initializer(m, n_ports, scaling_extrema; flux = true
         end
         if n_layer == 0
             if flux == true
-                push!(
-                    vector_layers,
-                    Dense(
-                        SURROGATE_SS_INPUT_DIM * n_ports,
-                        hidden_states + SURROGATE_N_REFS,
-                    ),
-                )
+                push!(vector_layers, Dense(input_dim, output_dim))
             else
-                push!(
-                    vector_layers,
-                    (
-                        SURROGATE_SS_INPUT_DIM * n_ports,
-                        hidden_states + SURROGATE_N_REFS,
-                        true,
-                        "identity",
-                    ),
-                )
+                push!(vector_layers, (input_dim, output_dim, true, "identity"))
             end
         else
             if flux == true
-                push!(
-                    vector_layers,
-                    Dense(SURROGATE_SS_INPUT_DIM * n_ports, width_layers, activation),
-                )
+                push!(vector_layers, Dense(input_dim, hidden_dim, activation))
             else
-                push!(
-                    vector_layers,
-                    (SURROGATE_SS_INPUT_DIM * n_ports, width_layers, true, activation),
-                )
+                push!(vector_layers, (input_dim, hidden_dim, true, activation))
             end
             for i in 1:(n_layer - 1)
                 if flux == true
-                    push!(vector_layers, Dense(width_layers, width_layers, activation))
+                    push!(vector_layers, Dense(hidden_dim, hidden_dim, activation))
                 else
-                    push!(vector_layers, (width_layers, width_layers, true, activation))
+                    push!(vector_layers, (hidden_dim, hidden_dim, true, activation))
                 end
             end
             if flux == true
-                push!(vector_layers, Dense(width_layers, hidden_states + SURROGATE_N_REFS))
+                push!(vector_layers, Dense(hidden_dim, output_dim))
             else
-                push!(
-                    vector_layers,
-                    (width_layers, hidden_states + SURROGATE_N_REFS, true, "identity"),
-                )
+                push!(vector_layers, (hidden_dim, output_dim, true, "identity"))
             end
         end
     elseif type == "OutputParams"
@@ -624,7 +609,10 @@ function _instantiate_model_dynamic(m, n_ports, scaling_extrema; flux = true)
     hidden_states = m.dynamic_hidden_states
     type = m.dynamic_layer_type
     n_layer = m.dynamic_n_layer
-    width_layers = m.dynamic_width_layers
+    width_layers_relative_input = m.dynamic_width_layers_relative_input
+    input_dim = hidden_states + (SURROGATE_EXOGENOUS_INPUT_DIM + SURROGATE_N_REFS) * n_ports
+    hidden_dim = input_dim + width_layers_relative_input
+    output_dim = hidden_states
     σ2_initialization = m.dynamic_σ2_initialization
     input_min = scaling_extrema["input_min"]
     input_max = scaling_extrema["input_max"]
@@ -655,19 +643,15 @@ function _instantiate_model_dynamic(m, n_ports, scaling_extrema; flux = true)
                 if σ2_initialization == 0.0
                     push!(
                         vector_layers,
-                        Dense(
-                            hidden_states +
-                            (SURROGATE_EXOGENOUS_INPUT_DIM + SURROGATE_N_REFS) * n_ports,
-                            hidden_states,
-                        ),
+                        Dense(input_dim, output_dim, bias = m.dynamic_last_layer_bias),
                     )
                 else
                     push!(
                         vector_layers,
                         Dense(
-                            hidden_states +
-                            (SURROGATE_EXOGENOUS_INPUT_DIM + SURROGATE_N_REFS) * n_ports,
-                            hidden_states,
+                            input_dim,
+                            output_dim,
+                            bias = m.dynamic_last_layer_bias,
                             init = NormalInitializer(σ² = σ2_initialization),
                         ),
                     )
@@ -675,85 +659,68 @@ function _instantiate_model_dynamic(m, n_ports, scaling_extrema; flux = true)
             else
                 push!(
                     vector_layers,
-                    (
-                        hidden_states +
-                        (SURROGATE_EXOGENOUS_INPUT_DIM + SURROGATE_N_REFS) * n_ports,
-                        hidden_states,
-                        true,
-                        "identity",
-                    ),
+                    (input_dim, output_dim, m.dynamic_last_layer_bias, "identity"),
                 )
             end
         else
             if flux == true
                 if σ2_initialization == 0.0
-                    push!(
-                        vector_layers,
-                        Dense(
-                            hidden_states +
-                            (SURROGATE_EXOGENOUS_INPUT_DIM + SURROGATE_N_REFS) * n_ports,
-                            width_layers,
-                            activation,
-                        ),
-                    )
+                    push!(vector_layers, Dense(input_dim, hidden_dim, activation))
                 else
                     push!(
                         vector_layers,
                         Dense(
-                            hidden_states +
-                            (SURROGATE_EXOGENOUS_INPUT_DIM + SURROGATE_N_REFS) * n_ports,
-                            width_layers,
+                            input_dim,
+                            hidden_dim,
                             activation,
                             init = NormalInitializer(σ² = σ2_initialization),
                         ),
                     )
                 end
             else
-                push!(
-                    vector_layers,
-                    (
-                        hidden_states +
-                        (SURROGATE_EXOGENOUS_INPUT_DIM + SURROGATE_N_REFS) * n_ports,
-                        width_layers,
-                        true,
-                        activation,
-                    ),
-                )
+                push!(vector_layers, (input_dim, hidden_dim, true, activation))
             end
             for i in 1:(n_layer - 1)
                 if flux == true
                     if σ2_initialization == 0.0
-                        push!(vector_layers, Dense(width_layers, width_layers, activation))
+                        push!(vector_layers, Dense(hidden_dim, hidden_dim, activation))
                     else
                         push!(
                             vector_layers,
                             Dense(
-                                width_layers,
-                                width_layers,
+                                hidden_dim,
+                                hidden_dim,
                                 activation,
                                 init = NormalInitializer(σ² = σ2_initialization),
                             ),
                         )
                     end
                 else
-                    push!(vector_layers, (width_layers, width_layers, true, activation))
+                    push!(vector_layers, (hidden_dim, hidden_dim, true, activation))
                 end
             end
             if flux == true
                 if σ2_initialization == 0.0
-                    push!(vector_layers, Dense(width_layers, hidden_states))
+                    push!(
+                        vector_layers,
+                        Dense(hidden_dim, output_dim, bias = m.dynamic_last_layer_bias),
+                    )
                 else
                     push!(
                         vector_layers,
                         Dense(
-                            width_layers,
-                            hidden_states,
+                            hidden_dim,
+                            output_dim,
+                            bias = m.dynamic_last_layer_bias,
                             init = NormalInitializer(σ² = σ2_initialization),
                         ),
                     )
                 end
             else
-                push!(vector_layers, (width_layers, hidden_states, true, "identity"))
+                push!(
+                    vector_layers,
+                    (hidden_dim, output_dim, m.dynamic_last_layer_bias, "identity"),
+                )
             end
         end
     elseif type == "OutputParams"
@@ -795,12 +762,15 @@ function _instantiate_model_observation(m, n_ports, scaling_extrema; flux = true
         hidden_states = m.dynamic_hidden_states
         type = m.observation_layer_type
         n_layer = m.observation_n_layer
-        width_layers = m.observation_width_layers
+        width_layers_relative_input = m.observation_width_layers_relative_input
+        input_dim = hidden_states 
+        hidden_dim = input_dim + width_layers_relative_input
+        output_dim = n_ports * SURROGATE_OUTPUT_DIM
         if n_layer == 0
             if flux == true
                 push!(
                     vector_layers,
-                    Dense(hidden_states, n_ports * SURROGATE_OUTPUT_DIM),  #identity activation for output layer
+                    Dense(input_dim, output_dim),  #identity activation for output layer
                 )
                 push!(
                     vector_layers,
@@ -812,26 +782,26 @@ function _instantiate_model_observation(m, n_ports, scaling_extrema; flux = true
             else
                 push!(
                     vector_layers,
-                    (hidden_states, n_ports * SURROGATE_OUTPUT_DIM, true, "identity"),  #identity activation for output layer
+                    (input_dim, output_dim, true, "identity"),  #identity activation for output layer
                 )
             end
         else
             if flux == true
-                push!(vector_layers, Dense(hidden_states, width_layers, activation))
+                push!(vector_layers, Dense(input_dim, hidden_dim, activation))
             else
-                push!(vector_layers, (hidden_states, width_layers, true, activation))
+                push!(vector_layers, (input_dim, hidden_dim, true, activation))
             end
             for i in 1:(n_layer - 1)
                 if flux == true
-                    push!(vector_layers, Dense(width_layers, width_layers, activation))
+                    push!(vector_layers, Dense(hidden_dim, hidden_dim, activation))
                 else
-                    push!(vector_layers, (width_layers, width_layers, true, activation))
+                    push!(vector_layers, (hidden_dim, hidden_dim, true, activation))
                 end
             end
             if flux == true
                 push!(
                     vector_layers,
-                    Dense(width_layers, n_ports * SURROGATE_OUTPUT_DIM),    #identity activation for output layer
+                    Dense(hidden_dim, output_dim),    #identity activation for output layer
                 )
                 push!(
                     vector_layers,
@@ -843,7 +813,7 @@ function _instantiate_model_observation(m, n_ports, scaling_extrema; flux = true
             else
                 push!(
                     vector_layers,
-                    (width_layers, n_ports * SURROGATE_OUTPUT_DIM, true, "identity"),
+                    (hidden_dim, output_dim, true, "identity"),
                 )
             end
         end
