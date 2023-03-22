@@ -16,12 +16,12 @@ function plot_overview(surrogate_prediction, fault_index, fault_data, exs)
 end
 
 function _plot_overview_physical(surrogate_prediction, fault_index, fault_data, exs)
+    i_series = surrogate_prediction.i_series
     if surrogate_prediction.converged && length(i_series) != 2   #FAILS AT LINE 26 if the initialization converged but the run was unstable so there isn't data saved. 
         tsteps = fault_data[fault_index[end][1]].tsteps
         ground_truth_real_current = fault_data[fault_index[end][1]].real_current
         ground_truth_imag_current = fault_data[fault_index[end][1]].imag_current
         t_series = surrogate_prediction.t_series
-        i_series = surrogate_prediction.i_series
         i_series = reshape(i_series, (2, length(t_series)))       #Loses shape when serialized/deserialized to arrow  
         res = surrogate_prediction.res
         ex = exs[fault_index[end][1]]
@@ -432,34 +432,44 @@ function visualize_summary(high_level_outputs_dict)
             ir_mean = Statistics.mean(value["final_loss"]["mae_ir"])
             ii_mean = Statistics.mean(value["final_loss"]["mae_ii"])
             l = (ir_mean + ii_mean) / 2
-            Plots.scatter!(
-                p1,
-                (value["total_time"], l),
-                label = value["train_id"],
-                xlabel = "total time (s)",
-                ylabel = "final loss",
-                yaxis = :log,
-            )
-            #=             Plots.annotate!(
-                            p1,
-                            value["total_time"],
-                            l,
-                            Plots.text(value["train_id"], :red, 3),
-                        ) =#
-            Plots.scatter!(
-                p2,
-                (value["total_time"], value["n_params_surrogate"]),
-                label = value["train_id"],
-                xlabel = "total time (s)",
-                ylabel = "n params nn",
-                yaxis = :log,
-            )
-            #=             Plots.annotate!(
-                            p2,
-                            value["total_time"],
-                            value["n_params_surrogate"],
-                            Plots.text(value["train_id"], :red, 3),
-                        ) =#
+            if in(0.0, value["final_loss"]["mae_ir"]) ||
+               in(0.0, value["final_loss"]["mae_ii"])
+                Plots.scatter!(
+                    p1,
+                    (value["total_time"], l),
+                    label = value["train_id"],
+                    xlabel = "total time (s)",
+                    ylabel = "final loss",
+                    yaxis = :log,
+                    color = :black,
+                )
+                Plots.scatter!(
+                    p2,
+                    (value["total_time"], value["n_params_surrogate"]),
+                    label = value["train_id"],
+                    xlabel = "total time (s)",
+                    ylabel = "n params nn",
+                    yaxis = :log,
+                    color = :black,
+                )
+            else
+                Plots.scatter!(
+                    p1,
+                    (value["total_time"], l),
+                    label = value["train_id"],
+                    xlabel = "total time (s)",
+                    ylabel = "final loss",
+                    yaxis = :log,
+                )
+                Plots.scatter!(
+                    p2,
+                    (value["total_time"], value["n_params_surrogate"]),
+                    label = value["train_id"],
+                    xlabel = "total time (s)",
+                    ylabel = "n params nn",
+                    yaxis = :log,
+                )
+            end
             p = Plots.plot(p1, p2)
         end
     end

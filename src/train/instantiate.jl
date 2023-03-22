@@ -763,7 +763,7 @@ function _instantiate_model_observation(m, n_ports, scaling_extrema; flux = true
         type = m.observation_layer_type
         n_layer = m.observation_n_layer
         width_layers_relative_input = m.observation_width_layers_relative_input
-        input_dim = hidden_states 
+        input_dim = hidden_states
         hidden_dim = input_dim + width_layers_relative_input
         output_dim = n_ports * SURROGATE_OUTPUT_DIM
         if n_layer == 0
@@ -811,10 +811,7 @@ function _instantiate_model_observation(m, n_ports, scaling_extrema; flux = true
                     ),
                 )
             else
-                push!(
-                    vector_layers,
-                    (hidden_dim, output_dim, true, "identity"),
-                )
+                push!(vector_layers, (hidden_dim, output_dim, true, "identity"))
             end
         end
     elseif type == "OutputParams"

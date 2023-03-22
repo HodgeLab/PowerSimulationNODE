@@ -783,6 +783,31 @@ function _check_dimensionality(
     @assert model_params.n_ports == length(data_collection_location)
 end
 
+function _check_surrogate_convergence(surrogate)
+    return true
+end
+
+#Check that for 10 random inputs the surrogate converges above a threshold. 
+function _check_surrogate_convergence(surrogate::SteadyStateNeuralODELayer)
+    v0 = rand(2) .* 2 .- 1.0
+    i0 = rand(2) .* 2 .- 1.0
+    converged = 0.0
+    iterations = 0.0
+    for j in 1:10
+        v0 = rand(2)
+        i0 = rand(2)
+        sol = surrogate((t) -> v0, v0, i0, [0.0, 1.0], [0.0, 1.0])
+        converged += sol.converged
+        iterations += sol.deq_iterations
+    end
+    @warn "checking convergence of initial surrogate: convergence percentage: $(converged/10), average iterations: $(iterations/10) "
+    if converged / 10 == 1.0 && iterations / 10 < 10.0
+        return true
+    else
+        return false
+    end
+end
+
 """
     train(params::TrainParams)
 
@@ -826,6 +851,16 @@ function train(params::TrainParams)
 
         #INSTANTIATE 
         surrogate = instantiate_surrogate_flux(params, params.model_params, train_dataset)
+        for i in 1:ATTEMPTS_TO_FIND_CONVERGENT_SURROGATE
+            if _check_surrogate_convergence(surrogate) == true
+                break
+            elseif i == ATTEMPTS_TO_FIND_CONVERGENT_SURROGATE
+                @error "DEQ did not converge for $i different initializations"
+                break
+            end
+            surrogate =
+                instantiate_surrogate_flux(params, params.model_params, train_dataset)
+        end
 
         p_nn_init, _ = Flux.destructure(surrogate)
         n_parameters = length(p_nn_init)
