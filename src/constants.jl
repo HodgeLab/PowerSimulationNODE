@@ -16,6 +16,7 @@ const SURROGATE_EXOGENOUS_INPUT_DIM = 2 #[Vr, Vi]
 const SURROGATE_SS_INPUT_DIM = 3    #[P, Q, V, θ]  --> changed to [Vq, Id, Iq] (Vq = 0 in local ref frame)
 const SURROGATE_OUTPUT_DIM = 2 #[Ir, Ii]
 const SURROGATE_N_REFS = 2
+const ATTEMPTS_TO_FIND_CONVERGENT_SURROGATE = 10
 const NN_INPUT_LIMITS = (min = -1.0, max = 1.0)
 const NN_TARGET_LIMITS = (min = -1.0, max = 1.0)
 
