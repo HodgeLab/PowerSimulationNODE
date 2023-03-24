@@ -783,25 +783,27 @@ function _check_dimensionality(
     @assert model_params.n_ports == length(data_collection_location)
 end
 
-function _check_surrogate_convergence(surrogate)
+function _check_surrogate_convergence(surrogate, train_dataset)
     return true
 end
 
-#Check that for 10 random inputs the surrogate converges above a threshold. 
-function _check_surrogate_convergence(surrogate::SteadyStateNeuralODELayer)
-    v0 = rand(2) .* 2 .- 1.0
-    i0 = rand(2) .* 2 .- 1.0
-    converged = 0.0
-    iterations = 0.0
-    for j in 1:10
-        v0 = rand(2)
-        i0 = rand(2)
+function _check_surrogate_convergence(surrogate::SteadyStateNeuralODELayer, train_dataset)
+    v0s = [
+        [entry.surrogate_real_voltage[1], entry.surrogate_imag_voltage[1]] for
+        entry in train_dataset
+    ]
+    i0s = [[entry.real_current[1], entry.imag_current[1]] for entry in train_dataset]
+    converged = []
+    iterations = []
+    for (i, v0) in enumerate(v0s)
+        i0 = i0s[i]
         sol = surrogate((t) -> v0, v0, i0, [0.0, 1.0], [0.0, 1.0])
-        converged += sol.converged
-        iterations += sol.deq_iterations
+        push!(converged, sol.converged)
+        push!(iterations, sol.deq_iterations)
     end
-    @warn "checking convergence of initial surrogate: convergence percentage: $(converged/10), average iterations: $(iterations/10) "
-    if converged / 10 == 1.0 && iterations / 10 < 10.0
+    @warn "checking convergence of initial surrogate: convergence for each train dataset entry : $converged, iterations for each train dataset entry: $iterations"
+    if sum(converged) / length(converged) == 1.0 &&
+       sum(iterations) / length(iterations) < 20.0
         return true
     else
         return false
@@ -852,7 +854,7 @@ function train(params::TrainParams)
         #INSTANTIATE 
         surrogate = instantiate_surrogate_flux(params, params.model_params, train_dataset)
         for i in 1:ATTEMPTS_TO_FIND_CONVERGENT_SURROGATE
-            if _check_surrogate_convergence(surrogate) == true
+            if _check_surrogate_convergence(surrogate, train_dataset) == true
                 break
             elseif i == ATTEMPTS_TO_FIND_CONVERGENT_SURROGATE
                 @error "DEQ did not converge for $i different initializations"
