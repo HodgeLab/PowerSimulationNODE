@@ -190,7 +190,7 @@ function AlpineHPCTrain(;
     n_cpus_per_task = 1
     return HPCTrain(
         username,
-        "ucb-general", # Get allocation
+        "ucb340_asc1",
         QoS,
         partition,
         project_folder,
