@@ -787,6 +787,7 @@ function _check_surrogate_convergence(surrogate, train_dataset)
     return true
 end
 
+#Check all entries in dataset converge in under 10 iterations of DEQ layer. 
 function _check_surrogate_convergence(surrogate::SteadyStateNeuralODELayer, train_dataset)
     v0s = [
         [entry.surrogate_real_voltage[1], entry.surrogate_imag_voltage[1]] for
@@ -802,8 +803,7 @@ function _check_surrogate_convergence(surrogate::SteadyStateNeuralODELayer, trai
         push!(iterations, sol.deq_iterations)
     end
     @warn "checking convergence of initial surrogate: convergence for each train dataset entry : $converged, iterations for each train dataset entry: $iterations"
-    if sum(converged) / length(converged) == 1.0 &&
-       sum(iterations) / length(iterations) < 20.0
+    if sum(converged) / length(converged) == 1.0 && !(any(x -> x > 10, iterations))
         return true
     else
         return false
