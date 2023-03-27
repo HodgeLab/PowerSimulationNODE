@@ -15,12 +15,12 @@ base_system_path = joinpath(
 sys = node_load_system(joinpath(TEST_FILES_DIR, raw_file_path))
 surrogate_bus_number = 16
 surrogate_bus =
-    collect(get_components(Bus, sys, x -> get_number(x) == surrogate_bus_number))[1]
+    collect(get_components(x -> get_number(x) == surrogate_bus_number, Bus, sys))[1]
 gens = collect(
     get_components(
+        x -> get_number(get_bus(x)) == surrogate_bus_number,
         ThermalStandard,
         sys,
-        x -> get_number(get_bus(x)) == surrogate_bus_number,
     ),
 )
 !(length(gens) == 1) && @error "number of devices at surrogate bus not equal to one"
@@ -63,9 +63,9 @@ end
 #Add dynamic models to non-surrogate generators 
 gens = collect(
     get_components(
+        x -> get_number(get_bus(x)) != surrogate_bus_number,
         ThermalStandard,
         sys,
-        x -> get_number(get_bus(x)) != surrogate_bus_number,
     ),
 )
 for g in gens
