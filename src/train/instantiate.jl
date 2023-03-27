@@ -339,42 +339,25 @@ function _add_physics_surrogate_device!(sys, b, P_ref, Q_ref, model_params::PSID
 end
 
 function _add_physics_surrogate_device!(sys, b, P_ref, Q_ref, model_params::PSIDS.ZIPParams)
-    load_Z = PSY.PowerLoad(
-        name = string(model_params.name, "_Z"),
+    load = PSY.StandardLoad(
+        name = model_params.name,
         available = true,
         bus = b,
-        model = PSY.LoadModels.ConstantImpedance,
-        active_power = 0.0,
-        reactive_power = 0.0,
         base_power = 100.0,
-        max_active_power = 1.0,
-        max_reactive_power = 1.0,
+        constant_active_power = 0.0,
+        constant_reactive_power = 0.0,
+        impedance_active_power = 0.0,
+        impedance_reactive_power = 0.0,
+        current_active_power = 0.0,
+        current_reactive_power = 0.0,
+        max_constant_active_power = 1.0,
+        max_constant_reactive_power = 1.0,
+        max_impedance_active_power = 1.0,
+        max_impedance_reactive_power = 1.0,
+        max_current_active_power = 1.0,
+        max_current_reactive_power = 1.0,
     )
-    load_I = PSY.PowerLoad(
-        name = string(model_params.name, "_I"),
-        available = true,
-        bus = b,
-        model = PSY.LoadModels.ConstantCurrent,
-        active_power = 0.0,
-        reactive_power = 0.0,
-        base_power = 100.0,
-        max_active_power = 1.0,
-        max_reactive_power = 1.0,
-    )
-    load_P = PSY.PowerLoad(
-        name = string(model_params.name, "_P"),
-        available = true,
-        bus = b,
-        model = PSY.LoadModels.ConstantPower,
-        active_power = 0.0,
-        reactive_power = 0.0,
-        base_power = 100.0,
-        max_active_power = 1.0,
-        max_reactive_power = 1.0,
-    )
-    PSY.add_component!(sys, load_Z)
-    PSY.add_component!(sys, load_I)
-    PSY.add_component!(sys, load_P)
+    PSY.add_component!(sys, load)
 end
 
 function instantiate_surrogate_flux(

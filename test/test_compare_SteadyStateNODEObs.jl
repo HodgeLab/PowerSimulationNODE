@@ -19,16 +19,15 @@
             add_component!(sys, source)
         end
         if get_number(b) == 2
-            l = PowerLoad(
+            l = StandardLoad(
                 name = "Load_2",
                 available = true,
                 base_power = 100.0,
-                model = LoadModels.ConstantImpedance,
                 bus = b,
-                active_power = 1.0,
-                reactive_power = 0.1,
-                max_active_power = 2.0,
-                max_reactive_power = 2.0,
+                impedance_active_power = 1.0,
+                impedance_reactive_power = 0.1,
+                max_impedance_active_power = 2.0,
+                max_impedance_reactive_power = 2.0,
             )
             add_component!(sys, l)
         end
@@ -174,8 +173,8 @@
         end
     end
 
-    #Remove the true model (the PowerLoad)
-    for P in get_components(PowerLoad, sys_train)
+    #Remove the true model (the StandardLoad)
+    for P in get_components(StandardLoad, sys_train)
         remove_component!(sys_train, P)
     end
 

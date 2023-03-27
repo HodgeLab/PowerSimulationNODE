@@ -516,13 +516,13 @@ function parameterize_surrogate_psid!(
     PSY.set_rated_voltage!(converter, θ[gfl_indices[:params][:rated_voltage_gfl]])
     PSY.set_rated_current!(converter, θ[gfl_indices[:params][:rated_current_gfl]])
 
-    active_power = PSY.get_active_power(PSY.get_outer_control(surrogate))
+    active_power = PSY.get_active_power_control(PSY.get_outer_control(surrogate))
     PSY.set_Kp_p!(active_power, θ[gfl_indices[:params][:Kp_p]])
     PSY.set_Ki_p!(active_power, θ[gfl_indices[:params][:Ki_p]])
     PSY.set_ωz!(active_power, θ[gfl_indices[:params][:ωz_gfl]])
     #PSY.set_P_ref!(active_power, P_ref)
 
-    reactive_power = PSY.get_reactive_power(PSY.get_outer_control(surrogate))
+    reactive_power = PSY.get_reactive_power_control(PSY.get_outer_control(surrogate))
     PSY.set_Kp_q!(reactive_power, θ[gfl_indices[:params][:Kp_q]])
     PSY.set_Ki_q!(reactive_power, θ[gfl_indices[:params][:Ki_q]])
     PSY.set_ωf!(reactive_power, θ[gfl_indices[:params][:ωf_gfl]])
@@ -567,12 +567,12 @@ function parameterize_surrogate_psid!(
     PSY.set_rated_voltage!(converter, θ[gfm_indices[:params][:rated_voltage_gfm]])
     PSY.set_rated_current!(converter, θ[gfm_indices[:params][:rated_current_gfm]])
 
-    active_power = PSY.get_active_power(PSY.get_outer_control(surrogate))
+    active_power = PSY.get_active_power_control(PSY.get_outer_control(surrogate))
     PSY.set_Rp!(active_power, θ[gfm_indices[:params][:Rp]])
     PSY.set_ωz!(active_power, θ[gfm_indices[:params][:ωz_gfm]])
     #PSY.set_P_ref!(active_power, P_ref)
 
-    reactive_power = PSY.get_reactive_power(PSY.get_outer_control(surrogate))
+    reactive_power = PSY.get_reactive_power_control(PSY.get_outer_control(surrogate))
     PSY.set_kq!(reactive_power, θ[gfm_indices[:params][:kq]])
     PSY.set_ωf!(reactive_power, θ[gfm_indices[:params][:ωf_gfm]])
     #PSY.set_V_ref!(reactive_power, V_ref)
@@ -618,41 +618,29 @@ function parameterize_surrogate_psid!(
         θ[zip_indices[:params][:max_reactive_power_Z]] +
         θ[zip_indices[:params][:max_reactive_power_I]] +
         θ[zip_indices[:params][:max_reactive_power_P]]
-    load_Z = PSY.get_component(PSY.PowerLoad, sys, string(model_params.name, "_Z"))
-    PSY.set_max_active_power!(
-        load_Z,
+    load = PSY.get_component(PSY.StandardLoad, sys, model_params.name) # string(model_params.name, "_Z"))
+    PSY.set_max_impedance_active_power!(
+        load,
         max_P * θ[zip_indices[:params][:max_active_power_Z]] / P_total,
     )
-    PSY.set_max_reactive_power!(
-        load_Z,
+    PSY.set_max_impedance_reactive_power!(
+        load,
         max_Q * θ[zip_indices[:params][:max_reactive_power_Z]] / Q_total,
     )
-
-    load_I = PSY.get_component(PSY.PowerLoad, sys, string(model_params.name, "_I"))
-    PSY.set_max_active_power!(
-        load_I,
+    PSY.set_max_current_active_power!(
+        load,
         max_P * θ[zip_indices[:params][:max_active_power_I]] / P_total,
     )
-    PSY.set_max_reactive_power!(
-        load_I,
+    PSY.set_max_current_reactive_power!(
+        load,
         max_Q * θ[zip_indices[:params][:max_reactive_power_I]] / Q_total,
     )
-
-    load_P = PSY.get_component(PSY.PowerLoad, sys, string(model_params.name, "_P"))
-    PSY.set_active_power!(
-        load_P,
+    PSY.set_max_constant_active_power!(
+        load,
         max_P * θ[zip_indices[:params][:max_active_power_P]] / P_total,
     )
-    PSY.set_reactive_power!(
-        load_P,
-        max_Q * θ[zip_indices[:params][:max_reactive_power_P]] / Q_total,
-    )
-    PSY.set_max_active_power!(
-        load_P,
-        max_P * θ[zip_indices[:params][:max_active_power_P]] / P_total,
-    )
-    PSY.set_max_reactive_power!(
-        load_P,
+    PSY.set_max_constant_reactive_power!(
+        load,
         max_Q * θ[zip_indices[:params][:max_reactive_power_P]] / Q_total,
     )
 end
