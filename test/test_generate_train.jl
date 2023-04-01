@@ -66,7 +66,7 @@ function _generic_test_setup()
     return path, full_system_path
 end
 
-#= @testset "SteadyStateNODEObs (9 bus system, train-data from full system)" begin
+@testset "SteadyStateNODEObs (9 bus system, train-data from full system)" begin
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
     include(joinpath(TEST_FILES_DIR, "scripts", "build_9bus.jl"))
     SURROGATE_BUSES = [2]
@@ -189,9 +189,9 @@ end
         @info("removing test files")
         rm(path, force = true, recursive = true)
     end
-end =#
+end 
 
-@testset "SteadyStateNODE (9 bus system, train-data from full system, input starting parameters)" begin
+ @testset "SteadyStateNODE (9 bus system, train-data from full system, input starting parameters)" begin
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
     include(joinpath(TEST_FILES_DIR, "scripts", "build_9bus.jl"))
     SURROGATE_BUSES = [2]
@@ -409,6 +409,127 @@ end
         optimizer = [(
             sensealg = "Zygote",
             algorithm = "Adam", #"Bfgs", "Adam"
+            log_η = -10.0,
+            initial_stepnorm = 0.0, #ignored for ADAM 
+            maxiters = 6,
+            lb_loss = 0.0,
+            curriculum = "individual faults",
+            curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
+            fix_params = [],
+            loss_function = (α = 0.5, β = 1.0, residual_penalty = 1.0e9),
+        )],
+        p_start = [],
+        check_validation_loss_iterations = [20],
+        validation_loss_termination = "false",
+        output_mode_skip = 1,
+    )
+    try
+        generate_and_train_test(p)
+        #=                  @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
+                              11.0 #should pass after precompilation run  =#
+    finally
+        @info("removing test files")
+        rm(path, force = true, recursive = true)
+    end
+end 
+
+@testset "SteadyStateNODE (9 bus system, train-data from full system, BFGS)" begin
+    include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
+    include(joinpath(TEST_FILES_DIR, "scripts", "build_9bus.jl"))
+    SURROGATE_BUSES = [2]
+    branch_to_trip = "4-6-i_5"
+    path, full_system_path = _generic_test_setup()
+
+    p = TrainParams(
+        base_path = path,
+        surrogate_buses = SURROGATE_BUSES,
+        system_path = full_system_path,
+        train_data = (
+            id = "1",
+            operating_points = PSIDS.SurrogateOperatingPoint[PSIDS.GenerationLoadScale(
+                generation_scale = 1.0,
+                load_scale = 1.0,
+            )],
+            perturbations = [
+                [PSIDS.RandomLoadChange(time = 0.5, load_multiplier_range = (0.9, 1.1))],
+                [PSIDS.RandomLoadChange(time = 0.5, load_multiplier_range = (0.9, 1.1))],
+            ],
+            params = PSIDS.GenerateDataParams(
+                solver = "Rodas5",
+                formulation = "MassMatrix",
+                solver_tols = (reltol = 1e-4, abstol = 1e-4),
+                tspan = (0.0, 1.0),
+                tstops = [0.0, 0.5, 1.0], #[0.0, 0.5, 1.0],  #issue with tstop at 0.0 with dynamic lines? 
+                tsave = [], #[0.0,0.5,1.0],#0:0.01:1.0,# [], # 0:0.01:1.0,
+                all_lines_dynamic = false,
+                all_branches_dynamic = false,   #Can't do dynamic transformers? 
+                seed = 1,
+            ),
+            system = "full",
+        ),
+        validation_data = (
+            id = "1",
+            operating_points = PSIDS.SurrogateOperatingPoint[PSIDS.GenerationLoadScale(
+                generation_scale = 1.0,
+                load_scale = 1.0,
+            )],
+            perturbations = [[
+                PSIDS.RandomLoadChange(time = 0.5, load_multiplier_range = (0.9, 1.1)),
+            ]],
+            params = PSIDS.GenerateDataParams(
+                solver = "Rodas5",
+                formulation = "MassMatrix",
+                solver_tols = (reltol = 1e-4, abstol = 1e-4),
+                tspan = (0.0, 1.0),
+                tstops = [0.0, 0.5, 1.0], #[0.0, 0.5, 1.0],  #issue with tstop at 0.0 with dynamic lines? 
+                tsave = [0.0, 0.5, 1.0],  #must have tstops with validation data 
+                all_lines_dynamic = false,
+                all_branches_dynamic = false,   #Can't do dynamic transformers? 
+                seed = 1,
+            ),
+        ),
+        test_data = (
+            id = "1",
+            operating_points = PSIDS.SurrogateOperatingPoint[PSIDS.GenerationLoadScale(
+                generation_scale = 1.0,
+                load_scale = 1.0,
+            )],
+            perturbations = [[
+                PSIDS.RandomLoadChange(time = 0.5, load_multiplier_range = (0.9, 1.1)),
+            ]],
+            params = PSIDS.GenerateDataParams(
+                solver = "Rodas5",
+                formulation = "MassMatrix",
+                solver_tols = (reltol = 1e-4, abstol = 1e-4),
+            ),
+        ),
+        model_params = PSIDS.SteadyStateNODEParams(
+            name = "source_1",
+            initializer_layer_type = "dense",
+            initializer_n_layer = 0,
+            initializer_width_layers_relative_input = 1,
+            initializer_activation = "tanh",
+            dynamic_layer_type = "dense",
+            dynamic_hidden_states = 5,
+            dynamic_n_layer = 1,
+            dynamic_width_layers_relative_input = -5,
+            dynamic_activation = "relu",
+            dynamic_σ2_initialization = 0.0,
+        ),
+        steady_state_solver = (
+            solver = "SSRootfind",
+            abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+        ),
+        dynamic_solver = (
+            solver = "Rodas5",
+            reltol = 1e-6,
+            abstol = 1e-6,
+            maxiters = 1e5,
+            force_tstops = true,
+        ),
+        optimizer = [(
+            sensealg = "Zygote",
+            algorithm = "Bfgs", #"Bfgs", "Adam"
             log_η = -10.0,
             initial_stepnorm = 0.0, #ignored for ADAM 
             maxiters = 6,

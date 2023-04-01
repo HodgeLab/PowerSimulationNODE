@@ -1015,12 +1015,12 @@ function _train(
     @warn "forward pass loss:   ", loss
 
     @warn "Starting full train: \n # of iterations per epoch: $(length(group)) \n # of epochs per solve: $per_solve_max_epochs \n max # of iterations for solve: $(per_solve_max_epochs*length(group))"
+    if typeof(algorithm) <: Optim.AbstractOptimizer 
     timing_stats = @timed Optimization.solve(
         optprob,
         algorithm,
         IterTools.ncycle(train_loader, per_solve_max_epochs),
         callback = cb;
-        save_best = false,
         allow_f_increases = true,
         show_trace = false,
         x_abstol = -1.0,
@@ -1028,6 +1028,21 @@ function _train(
         f_abstol = -1.0,
         f_reltol = -1.0,
     )
+    else
+        timing_stats = @timed Optimization.solve(
+            optprob,
+            algorithm,
+            IterTools.ncycle(train_loader, per_solve_max_epochs),
+            callback = cb;
+            save_best = false, 
+            allow_f_increases = true,
+            show_trace = false,
+            x_abstol = -1.0,
+            x_reltol = -1.0,
+            f_abstol = -1.0,
+            f_reltol = -1.0,
+        )
+    end 
     push!(
         output["timing_stats"],
         (
