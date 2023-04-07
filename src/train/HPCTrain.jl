@@ -100,7 +100,7 @@ end
         params_data,
         project_folder = "PowerSystemNODEs",
         scratch_path = "/global/scratch/users",
-        time_limit_train = "24:00:00",
+        time_limit_train = "0-24:00:00",
         n_tasks = 1,
         QoS = "savio_normal",
         partition = "savio",
@@ -116,7 +116,7 @@ function SavioHPCTrain(;
     project_folder = "PowerSystemNODEs",
     train_folder = "train1",
     scratch_path = "/global/scratch/users",
-    time_limit_train = "23:59:59",
+    time_limit_train = "0-23:59:59",
     time_limit_generate_data = "00:30:00",
     QoS = "savio_normal",
     partition = "savio",
@@ -157,7 +157,7 @@ end
         project_folder = "PowerSystemNODEs",
         train_folder = "train1",
         scratch_path = "/scratch/alpine/",
-        time_limit_train = "24:00:00",
+        time_limit_train = "0-24:00:00",
         n_tasks = 1,  #default to parallelize across all tasks 
         QoS = "normal",
         partition = "amilan",
@@ -172,17 +172,17 @@ function AlpineHPCTrain(;
     project_folder = "PowerSystemNODEs",
     train_folder = "train1",
     scratch_path = "/scratch/alpine/",
-    time_limit_train = "23:59:59",
+    time_limit_train = "0-23:59:59",
     time_limit_generate_data = "00:30:00",
     QoS = "normal",
     partition = "amilan",
     train_folder_for_data = nothing,
     mb_per_cpu = 9600,
 )
-    time_format = Dates.DateFormat("H:M:S")
+    time_format = Dates.DateFormat("d-H:M:S")
     for p in params_data
         t = Dates.Time(time_limit_train, time_format)
-        z = Dates.Time("00:00:00", time_format)
+        z = Dates.Time("0-00:00:00", time_format)
         p.train_time_limit_seconds = floor((t - z).value * 10^-9)
     end
 
