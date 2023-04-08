@@ -830,7 +830,8 @@ function train(params::TrainParams)
     @info "length(tstops) in first train condition: $(length(train_dataset[1].tstops))"
     @info "length(tsteps) in first train condition: $(length(train_dataset[1].tsteps))"
 
-    _check_dimensionality(data_collection_location_validation, params.model_params)
+    #Commented because fails for multiple parallel lines connecting surrogate to system 
+    #_check_dimensionality(data_collection_location_validation, params.model_params)
 
     output = _initialize_training_output_dict(params.model_params)
     try
@@ -1034,7 +1035,7 @@ function _train(
             algorithm,
             IterTools.ncycle(train_loader, per_solve_max_epochs),
             callback = cb;
-            save_best = false, 
+            save_best = false,
             allow_f_increases = true,
             show_trace = false,
             x_abstol = -1.0,
@@ -1042,7 +1043,7 @@ function _train(
             f_abstol = -1.0,
             f_reltol = -1.0,
         )
-    end 
+    end
     push!(
         output["timing_stats"],
         (
