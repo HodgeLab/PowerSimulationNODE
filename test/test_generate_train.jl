@@ -189,9 +189,9 @@ end
         @info("removing test files")
         rm(path, force = true, recursive = true)
     end
-end 
+end
 
- @testset "SteadyStateNODE (9 bus system, train-data from full system, input starting parameters)" begin
+@testset "SteadyStateNODE (9 bus system, train-data from full system, input starting parameters)" begin
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
     include(joinpath(TEST_FILES_DIR, "scripts", "build_9bus.jl"))
     SURROGATE_BUSES = [2]
@@ -431,7 +431,7 @@ end
         @info("removing test files")
         rm(path, force = true, recursive = true)
     end
-end 
+end
 
 @testset "SteadyStateNODE (9 bus system, train-data from full system, BFGS)" begin
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))

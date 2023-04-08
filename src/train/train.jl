@@ -20,13 +20,15 @@ function _build_exogenous_input_functions(
         for (ix_p, p) in enumerate(train_data_params.perturbations)
             ix = (ix_o - 1) * n_perturbations + ix_p
             train_data = train_dataset[ix]
-            if train_data.stable == true    #only build exogenous inputs for the stable trajectories
+            if train_data.stable == true
                 V = _surrogate_perturbation_to_function_of_time(
                     p,
                     train_data,
                     train_data_params,
                 )
                 push!(exogenous_input_functions, V)
+            else
+                push!(exogenous_input_functions, x -> x)  #add dummy function for unstable trajectories so same index that is used for dataset can be used for exogenous_input_functions.
             end
         end
     end
@@ -777,11 +779,12 @@ end
 
 #Check all entries in dataset converge in under 10 iterations of DEQ layer. 
 function _check_surrogate_convergence(surrogate::SteadyStateNeuralODELayer, train_dataset)
+    train_dataset_stable = filter(x -> x.stable, train_dataset)
     v0s = [
         [entry.surrogate_real_voltage[1], entry.surrogate_imag_voltage[1]] for
-        entry in train_dataset
+        entry in train_dataset_stable
     ]
-    i0s = [[entry.real_current[1], entry.imag_current[1]] for entry in train_dataset]
+    i0s = [[entry.real_current[1], entry.imag_current[1]] for entry in train_dataset_stable]
     converged = []
     iterations = []
     for (i, v0) in enumerate(v0s)
@@ -1016,19 +1019,19 @@ function _train(
     @warn "forward pass loss:   ", loss
 
     @warn "Starting full train: \n # of iterations per epoch: $(length(group)) \n # of epochs per solve: $per_solve_max_epochs \n max # of iterations for solve: $(per_solve_max_epochs*length(group))"
-    if typeof(algorithm) <: Optim.AbstractOptimizer 
-    timing_stats = @timed Optimization.solve(
-        optprob,
-        algorithm,
-        IterTools.ncycle(train_loader, per_solve_max_epochs),
-        callback = cb;
-        allow_f_increases = true,
-        show_trace = false,
-        x_abstol = -1.0,
-        x_reltol = -1.0,
-        f_abstol = -1.0,
-        f_reltol = -1.0,
-    )
+    if typeof(algorithm) <: Optim.AbstractOptimizer
+        timing_stats = @timed Optimization.solve(
+            optprob,
+            algorithm,
+            IterTools.ncycle(train_loader, per_solve_max_epochs),
+            callback = cb;
+            allow_f_increases = true,
+            show_trace = false,
+            x_abstol = -1.0,
+            x_reltol = -1.0,
+            f_abstol = -1.0,
+            f_reltol = -1.0,
+        )
     else
         timing_stats = @timed Optimization.solve(
             optprob,
