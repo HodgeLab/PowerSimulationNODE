@@ -179,11 +179,14 @@ function AlpineHPCTrain(;
     train_folder_for_data = nothing,
     mb_per_cpu = 9600,
 )
-    time_format = Dates.DateFormat("d-H:M:S")
+    time_format = Dates.DateFormat("H:M:S")
     for p in params_data
-        t = Dates.Time(time_limit_train, time_format)
-        z = Dates.Time("0-00:00:00", time_format)
-        p.train_time_limit_seconds = floor((t - z).value * 10^-9)
+        days = split(time_limit_train, "-")[1]
+        hrs_mins_sec = split(time_limit_train, "-")[2]
+        t = Dates.DateTime(hrs_mins_sec, time_format)
+        z = Dates.DateTime("00:00:00", time_format)
+        p.train_time_limit_seconds =
+            floor(((t - z).value + (parse(Int64, days) * 86400000)) * 10^-3)
     end
 
     # Default until we parallelize training code

@@ -28,6 +28,7 @@
             params_data = test,
             project_folder = "test2",
             scratch_path = path,
+            time_limit_train = "1-23:59:59",
         )
 
         mkpath(joinpath(hpc_params.scratch_path, hpc_params.project_folder))
