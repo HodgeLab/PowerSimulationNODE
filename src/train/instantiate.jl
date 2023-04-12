@@ -1051,7 +1051,7 @@ function _cb!(
     train_time_limit_seconds = params.train_time_limit_seconds
     check_validation_loss_iterations = params.check_validation_loss_iterations
     validation_loss_termination = params.validation_loss_termination
-    push!(output["loss"], (l_initialization, l_dynamic, l, surrogate_solution.converged))
+    push!(output["loss"], (l_initialization, l_dynamic, l, time(), surrogate_solution.converged))
     if mod(output["total_iterations"], exportmode_skip) == 0 ||
        output["total_iterations"] == 1
         push!(

@@ -1301,6 +1301,7 @@ function _initialize_training_output_dict(
             Loss_initialization = Float64[],
             Loss_dynamic = Float64[],
             Loss = Float64[],
+            iteration_time_seconds = Float64[],
             reached_ss = Bool[],
         ),
         "predictions" => DataFrames.DataFrame(
@@ -1340,6 +1341,7 @@ function _initialize_training_output_dict(
             Loss_initialization = Float64[],
             Loss_dynamic = Float64[],
             Loss = Float64[],
+            iteration_time_seconds = Float64[],
             reached_ss = Bool[],
         ),
         "predictions" => DataFrames.DataFrame(
