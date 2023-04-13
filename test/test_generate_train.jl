@@ -197,7 +197,7 @@ end
     SURROGATE_BUSES = [2]
     branch_to_trip = "4-6-i_5"
     path, full_system_path = _generic_test_setup()
-
+    Random.seed!(1) #starting parameters are generated randomly--> need to make sure values are consistent. 
     p = TrainParams(
         base_path = path,
         surrogate_buses = SURROGATE_BUSES,

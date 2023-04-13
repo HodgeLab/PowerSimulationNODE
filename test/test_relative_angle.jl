@@ -112,6 +112,8 @@ end
             observation_activation = "hardtanh",
         ),
     )
+    Random.seed!(p.rng_seed) #Seed call usually happens at start of train()
+
     fake_train_dataset = [
         PSIDS.SteadyStateNODEData(
             real_current = [-1.0 1.0 0.0 0.0],
@@ -239,6 +241,8 @@ end
             dynamic_σ2_initialization = 0.05,
         ),
     )
+    Random.seed!(p.rng_seed) #Seed call usually happens at start of train()
+
     fake_train_dataset = [
         PSIDS.SteadyStateNODEData(
             real_current = [-1.0 1.0 0.0 0.0],
