@@ -1,5 +1,7 @@
 
 @testset "Compare GFM in Flux and PSID - FrequencyChirp" begin
+    path = (joinpath(pwd(), "test-compare-dir"))
+    !isdir(path) && mkdir(path)
     #READ SYSTEM WITHOUT GENS 
     sys = System(joinpath(TEST_FILES_DIR, "system_data/2bus_nogens.raw"))
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
@@ -34,11 +36,11 @@
     end
 
     #SERIALIZE TO SYSTEM
-    to_json(sys, joinpath(pwd(), "test", "system_data", "test.json"), force = true)
+    to_json(sys, joinpath(path, "system_data", "test.json"), force = true)
 
     #DEFAULT PARAMETERS FOR THAT SYSTEM
     p = TrainParams(
-        base_path = joinpath(pwd(), "test"),
+        base_path = path,
         surrogate_buses = [2],
         model_params = PSIDS.GFMParams(name = "source_surrogate"),
         train_data = (
@@ -68,7 +70,7 @@
             ),
             system = "reduced", #Use the reduced system to generate the data!
         ),
-        system_path = joinpath(pwd(), "test", "system_data", "test.json"),
+        system_path = joinpath(path, "system_data", "test.json"),
         rng_seed = 4,
         dynamic_solver = (
             solver = "Rodas5",
@@ -224,10 +226,12 @@
     #NOTE: i_surrogate = - i_source
     plot!(p1, Ir[1], -1 * Ir[2], label = "real current -psid", legend = :topright)
     plot!(p2, Ii[1], -1 * Ii[2], label = "imag current -psid", legend = :topright)
-    display(plot(p1, p2, p3, p4, size = (1000, 1000), title = "compare_GFM"))
+    #display(plot(p1, p2, p3, p4, size = (1000, 1000), title = "compare_GFM"))
 
     @test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <= 0.00026
     @test LinearAlgebra.norm(Ii[2] .* -1 .- surrogate_sol.i_series[2, :], Inf) <= 0.00021
+
+    rm(path, force = true, recursive = true)
     #See the distribution of the parameters
     #= p_params = scatter(θ[(train_surrogate.len + 1):(train_surrogate.len + train_surrogate.len2)], label = "node params")
     scatter!(p_params, θ[1:(train_surrogate.len)], label = "init params")

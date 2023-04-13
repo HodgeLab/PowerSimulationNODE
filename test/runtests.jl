@@ -1,4 +1,6 @@
 #Test development: https://github.com/JuliaLang/Pkg.jl/issues/1973
+using Pkg
+Pkg.activate("test")
 using Test
 using Revise
 #using PowerFlows

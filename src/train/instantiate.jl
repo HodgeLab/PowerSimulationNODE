@@ -805,7 +805,7 @@ function instantiate_outer_loss_function(
     ss_solver,
     dyn_solver,
     args...;
-    kwargs... 
+    kwargs...,
 )
     return (p_train, vector_fault_timespan_index) -> _outer_loss_function(
         p_train,
@@ -821,7 +821,7 @@ function instantiate_outer_loss_function(
         ss_solver,
         dyn_solver,
         args...;
-        kwargs...
+        kwargs...,
     )
 end
 
@@ -844,7 +844,7 @@ function _outer_loss_function(
     ss_solver,
     dyn_solver,
     args...;
-    kwargs...
+    kwargs...,
 )
     vector_fault_timespan_index
     surrogate_solution = 0.0    #Only return the surrogate_solution from the last fault of the iteration (cannot mutate arrays with Zygote)
@@ -880,11 +880,11 @@ function _outer_loss_function(
             tstops,    #if entry in tstops is outside of tspan, will be ignored.
             ss_solver,
             dyn_solver,
-            args...; 
+            args...;
             p_fixed = p_fixed,
             p_train = p_train,
-            p_map = p_map, 
-            kwargs... 
+            p_map = p_map,
+            kwargs...,
         )
         loss_i, loss_d = _inner_loss_function(
             surrogate_solution,

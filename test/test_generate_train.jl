@@ -42,7 +42,9 @@ function generate_and_train_test(p2)
         Serialization.deserialize(p.data_collection_location_path)[2],
         p.model_params,
     )
-    _ = evaluate_loss(surrogate_dataset, Serialization.deserialize(p.validation_data_path))
+    dataset_loss =
+        evaluate_loss(surrogate_dataset, Serialization.deserialize(p.validation_data_path))
+    return dataset_loss
 end
 
 function _generic_test_setup()
@@ -182,9 +184,11 @@ end
         output_mode_skip = 1,
     )
     try
-        generate_and_train_test(p)
-        #=                  @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
-                              11.0 #should pass after precompilation run  =#
+        dataset_loss = generate_and_train_test(p)
+        @test dataset_loss["max_error_ir"] == [0.007384696587123374]
+        #loss_dataframe =  PowerSimulationNODE.read_arrow_file_to_dataframe(joinpath(p.output_data_path,"train_instance_1", "loss"))
+        #@test loss_dataframe[6, :iteration_time_seconds] - loss_dataframe[5, :iteration_time_seconds] < 1.0
+        #GC.gc()
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -303,9 +307,8 @@ end
         output_mode_skip = 1,
     )
     try
-        generate_and_train_test(p)
-        #=                  @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
-                              11.0 #should pass after precompilation run  =#
+        dataset_loss = generate_and_train_test(p)
+        @test dataset_loss["max_error_ir"] == [0.004614147683377423]
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -424,9 +427,8 @@ end
         output_mode_skip = 1,
     )
     try
-        generate_and_train_test(p)
-        #=                  @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
-                              11.0 #should pass after precompilation run  =#
+        dataset_loss = generate_and_train_test(p)
+        @test dataset_loss["max_error_ir"] == [0.004276176963785128]
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -545,9 +547,8 @@ end
         output_mode_skip = 1,
     )
     try
-        generate_and_train_test(p)
-        #=                  @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
-                              11.0 #should pass after precompilation run  =#
+        dataset_loss = generate_and_train_test(p)
+        @test dataset_loss["max_error_ir"] == [0.004033598706891128]
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -682,9 +683,8 @@ end
         output_mode_skip = 1,
     )
     try
-        generate_and_train_test(p)
-        #=                  @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
-                              11.0 #should pass after precompilation run  =#
+        dataset_loss = generate_and_train_test(p)
+        @test dataset_loss["max_error_ir"] == [0.14131662879776652]
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -793,9 +793,8 @@ end
         output_mode_skip = 1,
     )
     try
-        generate_and_train_test(p)
-        #=                  @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
-                              11.0 #should pass after precompilation run  =#
+        dataset_loss = generate_and_train_test(p)
+        @test dataset_loss["max_error_ir"] == [0.0004922800802611427]
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -904,9 +903,8 @@ end
         output_mode_skip = 1,
     )
     try
-        generate_and_train_test(p)
-        #=                  @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
-                              11.0 #should pass after precompilation run  =#
+        dataset_loss = generate_and_train_test(p)
+        @test dataset_loss["max_error_ir"] == [0.0]
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -1014,9 +1012,8 @@ end
         output_mode_skip = 1,
     )
     try
-        generate_and_train_test(p)
-        #=                  @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
-                              11.0 #should pass after precompilation run  =#
+        dataset_loss = generate_and_train_test(p)
+        @test dataset_loss["max_error_ir"] == [0.00159187565598784]
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -1189,9 +1186,8 @@ end
         output_mode_skip = 1,
     )
     try
-        generate_and_train_test(p)
-        #=                  @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
-                              11.0 #should pass after precompilation run  =#
+        dataset_loss = generate_and_train_test(p)
+        @test dataset_loss["max_error_ir"] == [0.0021414167152631336]
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
