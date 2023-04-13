@@ -773,12 +773,12 @@ function _check_dimensionality(
     @assert model_params.n_ports == length(data_collection_location)
 end
 
-function _check_surrogate_convergence(surrogate, train_dataset)
+function _check_surrogate_convergence(surrogate, train_dataset, steadystate_solver, dynamic_solver, args ... ;kwargs... )
     return true
 end
 
 #Check all entries in dataset converge in under 10 iterations of DEQ layer. 
-function _check_surrogate_convergence(surrogate::SteadyStateNeuralODELayer, train_dataset)
+function _check_surrogate_convergence(surrogate::SteadyStateNeuralODELayer, train_dataset, steadystate_solver, dynamic_solver, args ... ;kwargs... )
     train_dataset_stable = filter(x -> x.stable, train_dataset)
     v0s = [
         [entry.surrogate_real_voltage[1], entry.surrogate_imag_voltage[1]] for
@@ -789,7 +789,7 @@ function _check_surrogate_convergence(surrogate::SteadyStateNeuralODELayer, trai
     iterations = []
     for (i, v0) in enumerate(v0s)
         i0 = i0s[i]
-        sol = surrogate((t) -> v0, v0, i0, [0.0, 1.0], [0.0, 1.0])
+        sol = surrogate((t) -> v0, v0, i0, [0.0, 1.0], [0.0, 1.0], steadystate_solver, dynamic_solver, args...; kwargs... )
         push!(converged, sol.converged)
         push!(iterations, sol.deq_iterations)
     end
@@ -845,8 +845,16 @@ function train(params::TrainParams)
 
         #INSTANTIATE 
         surrogate = instantiate_surrogate_flux(params, params.model_params, train_dataset)
+        dynamic_reltol = params.dynamic_solver.reltol
+        dynamic_abstol = params.dynamic_solver.abstol
+        dynamic_maxiters = params.dynamic_solver.maxiters
+        steadystate_abstol = params.steady_state_solver.abstol
+        steadystate_solver =
+            PowerSimulationNODE.instantiate_steadystate_solver(params.steady_state_solver)
+        dynamic_solver = PowerSimulationNODE.instantiate_solver(params.dynamic_solver)
+
         for i in 1:ATTEMPTS_TO_FIND_CONVERGENT_SURROGATE
-            if _check_surrogate_convergence(surrogate, train_dataset) == true
+            if _check_surrogate_convergence(surrogate, train_dataset, steadystate_solver, dynamic_solver, steadystate_abstol; reltol = dynamic_reltol, abstol = dynamic_abstol, maxiters = dynamic_maxiters) == true
                 break
             elseif i == ATTEMPTS_TO_FIND_CONVERGENT_SURROGATE
                 @error "DEQ did not converge for $i different initializations"
@@ -899,6 +907,14 @@ function train(params::TrainParams)
                 @info "Curriculum pairings (fault_index, timespan_index)", train_groups
                 @info "optimizer $(opt.algorithm)"
                 @info "\n curriculum: $(opt.curriculum) \n # of solves: $n_trains \n # of epochs per training (based on maxiters parameter): $per_solve_max_epochs \n # of iterations per epoch $(length(train_groups[1])) \n # of samples per iteration $(length(train_groups[1][1])) "
+                
+                dynamic_reltol = params.dynamic_solver.reltol   #TODO - get this from the opt, not the general TrainParams (need to redefine TrainParams())
+                dynamic_abstol = params.dynamic_solver.abstol
+                dynamic_maxiters = params.dynamic_solver.maxiters
+                steadystate_abstol = params.steady_state_solver.abstol
+                steadystate_solver =
+                    PowerSimulationNODE.instantiate_steadystate_solver(params.steady_state_solver)
+                dynamic_solver = PowerSimulationNODE.instantiate_solver(params.dynamic_solver)
 
                 for group in train_groups
                     p_train, output = _train(
@@ -920,6 +936,12 @@ function train(params::TrainParams)
                         per_solve_max_epochs,
                         output,
                         opt_ix,
+                        steadystate_solver,
+                        dynamic_solver,
+                        steadystate_abstol;    
+                        reltol = dynamic_reltol,
+                        abstol = dynamic_abstol,
+                        maxiters = dynamic_maxiters
                     )
                 end
                 p_full = vcat(p_fixed, p_train)[p_map]
@@ -974,6 +996,10 @@ function _train(
     per_solve_max_epochs::Int,
     output::Dict{String, Any},
     opt_ix::Int64,
+    ss_solver,  #add types 
+    dyn_solver,
+    args ... ;
+    kwargs ... 
 )
     @warn "Starting value of trainable parameters: $p_train"
     @warn "Starting value of fixed parameters: $p_fixed"
@@ -988,6 +1014,10 @@ function _train(
         p_map,
         params,
         opt_ix,
+        ss_solver,
+        dyn_solver,
+        args...;
+        kwargs...
     )
 
     optfun = Optimization.OptimizationFunction(

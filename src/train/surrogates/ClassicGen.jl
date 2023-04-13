@@ -2,42 +2,18 @@ using Flux
 abstract type ClassicGenLayer <: Function end
 Flux.trainable(m::ClassicGenLayer) = (p = m.p,)
 
-struct ClassicGen{PT, PF, PM, SS, DS, A, K} <: ClassicGenLayer
+struct ClassicGen{PT, PF, PM} <: ClassicGenLayer
     p_train::PT
     p_fixed::PF
     p_map::PM
-    ss_solver::SS
-    dyn_solver::DS
-    args::A
-    kwargs::K
 
     function ClassicGen(  #This is an inner constructor 
-        ss_solver,
-        dyn_solver,
-        args...;
         p = nothing,
-        kwargs...,
     )
         if p === nothing
             p = Float64[0.0, 0.2995, 0.7087, 3.148, 2.0] #default starting parameters 
         end
-        new{
-            typeof(p),
-            typeof(p),
-            Vector{Int64},
-            typeof(ss_solver),
-            typeof(dyn_solver),
-            typeof(args),
-            typeof(kwargs),
-        }(
-            p,
-            [],
-            1:length(p),
-            ss_solver,
-            dyn_solver,
-            args,
-            kwargs,
-        )
+        new{typeof(p), typeof(p), Vector{Int64}}(p, [], 1:length(p))
     end
 end
 
@@ -50,9 +26,13 @@ function (s::ClassicGen)(
     i0,
     tsteps,
     tstops,
+    ss_solver,
+    dyn_solver,
+    args...;
     p_fixed = s.p_fixed,
     p_train = s.p_train,
     p_map = s.p_map,
+    kwargs...,
 )
     p = vcat(p_fixed, p_train)
     p_ordered = p[p_map]
@@ -117,7 +97,7 @@ function (s::ClassicGen)(
             p_ordered,
         ),
     )
-    ss_solution = SteadyStateDiffEq.solve(prob_ss, s.ss_solver; abstol = s.args[1])
+    ss_solution = SteadyStateDiffEq.solve(prob_ss, ss_solver; abstol = args[1])
     #=     display(s.args[1])
         display(ss_solution.original)
         display(dudt_ss(u0_pred, p, 0.0))
@@ -157,7 +137,7 @@ function (s::ClassicGen)(
             Tuple{typeof(ss_solution.u[1]), typeof(ss_solution.u[1])},
         )
         cb = DiffEqCallbacks.SavingCallback(f_saving, saved_values; saveat = tsteps)
-        sol = OrdinaryDiffEq.solve(prob_dyn, s.dyn_solver, callback = cb; s.kwargs...)
+        sol = OrdinaryDiffEq.solve(prob_dyn, dyn_solver, callback = cb; kwargs...)
         return PhysicalModel_solution(
             tsteps,
             vcat(

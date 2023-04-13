@@ -115,7 +115,26 @@
     train_surrogate =
         PowerSimulationNODE.instantiate_surrogate_flux(p, p.model_params, train_dataset)
 
-    surrogate_sol = train_surrogate(exs[1], v0, i0, tsteps, tstops)
+    dynamic_reltol = p.dynamic_solver.reltol
+    dynamic_abstol = p.dynamic_solver.abstol
+    dynamic_maxiters = p.dynamic_solver.maxiters
+    steadystate_abstol = p.steady_state_solver.abstol
+    steadystate_solver =
+        PowerSimulationNODE.instantiate_steadystate_solver(p.steady_state_solver)
+    dynamic_solver = PowerSimulationNODE.instantiate_solver(p.dynamic_solver)
+    surrogate_sol = train_surrogate(
+        exs[1],
+        v0,
+        i0,
+        tsteps,
+        tstops,
+        steadystate_solver,
+        dynamic_solver,
+        steadystate_abstol;
+        reltol = dynamic_reltol,
+        abstol = dynamic_abstol,
+        maxiters = dynamic_maxiters,
+    )
     p1 = plot(
         surrogate_sol.t_series,
         surrogate_sol.i_series[1, :],

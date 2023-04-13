@@ -2,6 +2,8 @@ using Flux
 abstract type SteadyStateNeuralODELayer <: Function end
 Flux.trainable(m::SteadyStateNeuralODELayer) = (p = m.p,)
 
+#TODO - update docstring for the layer
+#TODO - split SteadyStateNeuralODE and SteadyStateNeuralODEObs into two different layers? 
 """
 Constructs a custom surrogate layer designed for dynamic power systems simulation.
 The layer contains three models with distinct parameters.
@@ -26,10 +28,10 @@ Arguments:
   [Common Solver Arguments](https://diffeq.sciml.ai/dev/basics/common_solver_opts/)
   documentation for more details.
 """
-struct SteadyStateNeuralODE{PT, PF, M, RE, M2, RE2, M3, RE3, SS, DS, PM, A, K} <:
+struct SteadyStateNeuralODE{PT, PF, M, RE, M2, RE2, M3, RE3, PM} <:
        SteadyStateNeuralODELayer
     p_train::PT
-    p_fixed::PF                                    #need to split into p_fixed and p_train.... 
+    p_fixed::PF
     len::Int        #length of p1 
     len2::Int       #length of p2 
     model1::M       #Initializer model 
@@ -38,22 +40,9 @@ struct SteadyStateNeuralODE{PT, PF, M, RE, M2, RE2, M3, RE3, SS, DS, PM, A, K} <
     re2::RE2
     model3::M3      #Observation model 
     re3::RE3
-    ss_solver::SS
-    dyn_solver::DS
     p_map::PM
-    args::A                                #add p_map 
-    kwargs::K
 
-    function SteadyStateNeuralODE(
-        model1,
-        model2,
-        model3,
-        ss_solver,
-        dyn_solver,
-        args...;
-        p = nothing,
-        kwargs...,
-    )           #This is an inner constructor 
+    function SteadyStateNeuralODE(model1, model2, model3; p = nothing)           #This is an inner constructor 
         p1, re1 = Flux.destructure(model1)
         p2, re2 = Flux.destructure(model2)
         p3, re3 = Flux.destructure(model3)
@@ -69,11 +58,7 @@ struct SteadyStateNeuralODE{PT, PF, M, RE, M2, RE2, M3, RE3, SS, DS, PM, A, K} <
             typeof(re2),
             typeof(model3),
             typeof(re3),      #The type of len and len2 (Int) is automatically derived: https://docs.julialang.org/en/v1/manual/constructors/
-            typeof(ss_solver),
-            typeof(dyn_solver),
             Vector{Int64},
-            typeof(args),
-            typeof(kwargs),
         }(
             p,
             [],
@@ -85,11 +70,7 @@ struct SteadyStateNeuralODE{PT, PF, M, RE, M2, RE2, M3, RE3, SS, DS, PM, A, K} <
             re2,
             model3,
             re3,
-            ss_solver,
-            dyn_solver,
             1:length(p),
-            args,
-            kwargs,
         )
     end
 end
@@ -103,9 +84,13 @@ function (s::SteadyStateNeuralODE)(
     i0,
     tsteps,
     tstops,
+    ss_solver,
+    dyn_solver,
+    args...;
     p_fixed = s.p_fixed,
     p_train = s.p_train,
     p_map = s.p_map,
+    kwargs...,
 )
     p = vcat(p_fixed, p_train)
     θ = atan(v0[2], v0[1])
@@ -151,7 +136,7 @@ function (s::SteadyStateNeuralODE)(
             p,
         ),
     )
-    ss_solution = SteadyStateDiffEq.solve(prob_ss, s.ss_solver; abstol = s.args[1])
+    ss_solution = SteadyStateDiffEq.solve(prob_ss, ss_solver; abstol = args[1])
     #=     display(s.args[1])
         display(ss_solution.original)
         display(dudt_ss(u0_pred, p, 0.0))
@@ -174,7 +159,7 @@ function (s::SteadyStateNeuralODE)(
             tstops = tstops,
             saveat = tsteps,
         )
-        sol = OrdinaryDiffEq.solve(prob_dyn, s.dyn_solver; s.kwargs...)
+        sol = OrdinaryDiffEq.solve(prob_dyn, dyn_solver; kwargs...)
 
         return SteadyStateNeuralODE_solution(
             u0_pred,

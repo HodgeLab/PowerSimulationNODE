@@ -81,7 +81,27 @@
         P0 = real(S)
         Q0 = imag(S)
         ex = t -> [Vr0, Vi0]
-        surrogate_sol = train_surrogate(ex, [Vr0, Vi0], [Ir0, Ii0], 0:0.1:1.0, 0:0.1:1.0)
+
+        dynamic_reltol = p.dynamic_solver.reltol
+        dynamic_abstol = p.dynamic_solver.abstol
+        dynamic_maxiters = p.dynamic_solver.maxiters
+        steadystate_abstol = p.steady_state_solver.abstol
+        steadystate_solver =
+            PowerSimulationNODE.instantiate_steadystate_solver(p.steady_state_solver)
+        dynamic_solver = PowerSimulationNODE.instantiate_solver(p.dynamic_solver)
+        surrogate_sol = train_surrogate(
+            ex,
+            [Vr0, Vi0],
+            [Ir0, Ii0],
+            0:0.1:1.0,
+            0:0.1:1.0,
+            steadystate_solver,
+            dynamic_solver,
+            steadystate_abstol;
+            reltol = dynamic_reltol,
+            abstol = dynamic_abstol,
+            maxiters = dynamic_maxiters,
+        )
 
         sys = System(100.0)
         b = Bus(
