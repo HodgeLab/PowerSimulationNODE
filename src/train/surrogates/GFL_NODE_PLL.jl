@@ -1,38 +1,58 @@
 using Flux
-abstract type GFLLayer <: Function end
-Flux.trainable(m::GFLLayer) = (p = m.p,)
+abstract type GFL_NODE_PLL_Layer <: Function end
+Flux.trainable(m::GFL_NODE_PLL_Layer) = (p = m.p,)
 
-struct GFL{PT, PF, PM} <: GFLLayer
+struct GFL_NODE_PLL{PT, PF, PM, SS, DS, A, K} <: GFL_NODE_PLL_Layer
     p_train::PT
     p_fixed::PF
     p_map::PM
+    ss_solver::SS
+    dyn_solver::DS
+    args::A
+    kwargs::K
 
-    function GFL(  #This is an inner constructor 
+    function GFL_NODE_PLL(  #This is an inner constructor 
+        ss_solver,
+        dyn_solver,
+        args...;
         p = nothing,
+        kwargs...,
     )
         if p === nothing
-            p = default_params(PSIDS.GFLParams())
+            p = default_params(PSIDS.GFL_NODE_PLL_PARAMS()) #TODO - define in PSIDS
         end
-        new{typeof(p), typeof(p), Vector{Int64}}(p, [], 1:length(p))
+        new{
+            typeof(p),
+            typeof(p),
+            Vector{Int64},
+            typeof(ss_solver),
+            typeof(dyn_solver),
+            typeof(args),
+            typeof(kwargs),
+        }(
+            p,
+            [],
+            1:length(p),
+            ss_solver,
+            dyn_solver,
+            args,
+            kwargs,
+        )
     end
 end
 
-Flux.@functor GFL
-Flux.trainable(m::GFL) = (p = m.p_train,)
+Flux.@functor GFL_NODE_PLL
+Flux.trainable(m::GFL_NODE_PLL) = (p = m.p_train,)
 
-function (s::GFL)(
+function (s::GFL_NODE_PLL)(
     V,
     v0,
     i0,
     tsteps,
     tstops,
-    ss_solver,
-    dyn_solver,
-    args...;
     p_fixed = s.p_fixed,
     p_train = s.p_train,
     p_map = s.p_map,
-    kwargs...,
 )
     p = vcat(p_fixed, p_train)
     p_ordered = p[p_map]
@@ -40,7 +60,8 @@ function (s::GFL)(
     x0 = zeros(typeof(p_ordered[1]), n_states(s))
     inner_vars = repeat(PSID.ACCEPTED_REAL_TYPES[0.0], n_inner_vars(s))
     refs = zeros(typeof(p_ordered[1]), n_refs(s))
-    ss_tol = args[1]
+    ss_solver = s.ss_solver
+    ss_tol = s.args[1]
     converged = initialize_dynamic_device!(
         x0,
         inner_vars,
@@ -67,7 +88,7 @@ function (s::GFL)(
             tstops = tstops,
             saveat = tsteps,
         )
-        sol = OrdinaryDiffEq.solve(prob_dyn, dyn_solver; kwargs...)
+        sol = OrdinaryDiffEq.solve(prob_dyn, s.dyn_solver; s.kwargs...)
         return PhysicalModel_solution(
             tsteps,
             Array(sol[real_current_index(s):imag_current_index(s), :]),
@@ -94,7 +115,7 @@ function default_params(::PSIDS.GFLParams)
         1.0,    #kffv
         600.0,  #voltage
         1.32 * 2 * pi * 50, #ω_lp
-        2.0,    #kp_pll 
+        2.0,    #kp_pll                 
         20.0,   #ki_pll 
         0.009,  #lf 
         0.016,  #rf
@@ -167,9 +188,9 @@ const gfl_indices = Dict{Symbol, Dict{Symbol, Int64}}(
         :kic_gfl => 10,
         :kffv_gfl => 11,
         :voltage_gfl => 12,
-        :ω_lp => 13,
-        :kp_pll => 14,
-        :ki_pll => 15,
+        :ω_lp => 13,            #delete
+        :kp_pll => 14,#delete
+        :ki_pll => 15,#delete
         :lf_gfl => 16,
         :rf_gfl => 17,
         :cf_gfl => 18,
@@ -183,10 +204,10 @@ const gfl_indices = Dict{Symbol, Dict{Symbol, Int64}}(
         :q_oc => 4,
         :γd_ic => 5,
         :γq_ic => 6,
-        :vd_pll => 7,
-        :vq_pll => 8,
-        :ε_pll => 9,
-        :θ_pll => 10,
+        :vd_pll => 7,   #delete -- how to deal with variable states in the node? put them at the end? 
+        :vq_pll => 8,#delete
+        :ε_pll => 9,#delete
+        :θ_pll => 10,#delete
         :ir_cnv => 11,
         :ii_cnv => 12,
         :vr_filter => 13,
@@ -385,6 +406,7 @@ function initialize_converter!(
     return true
 end
 
+#REPLACE WITH DEQ FORMULATION 
 function initialize_frequency_estimator!(
     device_states,
     inner_vars,

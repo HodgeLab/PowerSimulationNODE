@@ -367,8 +367,6 @@ function instantiate_surrogate_flux(
 )
     n_ports = model_params.n_ports
     scaling_extrema = calculate_scaling_extrema(train_dataset)
-    steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
-    dynamic_solver = instantiate_solver(params.dynamic_solver)
     model_initializer =
         _instantiate_model_initializer(model_params, n_ports, scaling_extrema, flux = true)
     model_dynamic =
@@ -385,22 +383,8 @@ function instantiate_surrogate_flux(
     @info "number of parameters: $(length(Flux.destructure(model_dynamic)[1]))\n"
     @info "Observation structure: $(model_observation)\n"
     @info "number of parameters: $(length(Flux.destructure(model_observation)[1]))\n"
-    dynamic_reltol = params.dynamic_solver.reltol
-    dynamic_abstol = params.dynamic_solver.abstol
-    dynamic_maxiters = params.dynamic_solver.maxiters
-    steadystate_abstol = params.steady_state_solver.abstol
 
-    return SteadyStateNeuralODE(
-        model_initializer,
-        model_dynamic,
-        model_observation,
-        steadystate_solver,
-        dynamic_solver,
-        steadystate_abstol;
-        abstol = dynamic_abstol,
-        reltol = dynamic_reltol,
-        maxiters = dynamic_maxiters,
-    )
+    return SteadyStateNeuralODE(model_initializer, model_dynamic, model_observation)
 end
 
 function instantiate_surrogate_flux(
@@ -408,21 +392,7 @@ function instantiate_surrogate_flux(
     model_params::PSIDS.ClassicGenParams,
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
 )
-    steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
-    dynamic_solver = instantiate_solver(params.dynamic_solver)
-    dynamic_reltol = params.dynamic_solver.reltol
-    dynamic_abstol = params.dynamic_solver.abstol
-    dynamic_maxiters = params.dynamic_solver.maxiters
-    steadystate_abstol = params.steady_state_solver.abstol
-
-    return ClassicGen(
-        steadystate_solver,
-        dynamic_solver,
-        steadystate_abstol;
-        abstol = dynamic_abstol,
-        reltol = dynamic_reltol,
-        maxiters = dynamic_maxiters,
-    )
+    return ClassicGen()
 end
 
 function instantiate_surrogate_flux(
@@ -430,21 +400,7 @@ function instantiate_surrogate_flux(
     model_params::PSIDS.GFLParams,
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
 )
-    steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
-    dynamic_solver = instantiate_solver(params.dynamic_solver)
-    dynamic_reltol = params.dynamic_solver.reltol
-    dynamic_abstol = params.dynamic_solver.abstol
-    dynamic_maxiters = params.dynamic_solver.maxiters
-    steadystate_abstol = params.steady_state_solver.abstol
-
-    return GFL(
-        steadystate_solver,
-        dynamic_solver,
-        steadystate_abstol;
-        abstol = dynamic_abstol,
-        reltol = dynamic_reltol,
-        maxiters = dynamic_maxiters,
-    )
+    return GFL()
 end
 
 function instantiate_surrogate_flux(
@@ -452,21 +408,7 @@ function instantiate_surrogate_flux(
     model_params::PSIDS.GFMParams,
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
 )
-    steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
-    dynamic_solver = instantiate_solver(params.dynamic_solver)
-    dynamic_reltol = params.dynamic_solver.reltol
-    dynamic_abstol = params.dynamic_solver.abstol
-    dynamic_maxiters = params.dynamic_solver.maxiters
-    steadystate_abstol = params.steady_state_solver.abstol
-
-    return GFM(
-        steadystate_solver,
-        dynamic_solver,
-        steadystate_abstol;
-        abstol = dynamic_abstol,
-        reltol = dynamic_reltol,
-        maxiters = dynamic_maxiters,
-    )
+    return GFM()
 end
 
 function instantiate_surrogate_flux(
@@ -474,21 +416,7 @@ function instantiate_surrogate_flux(
     model_params::PSIDS.ZIPParams,
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
 )
-    steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
-    dynamic_solver = instantiate_solver(params.dynamic_solver)
-    dynamic_reltol = params.dynamic_solver.reltol
-    dynamic_abstol = params.dynamic_solver.abstol
-    dynamic_maxiters = params.dynamic_solver.maxiters
-    steadystate_abstol = params.steady_state_solver.abstol
-
-    return ZIP(
-        steadystate_solver,
-        dynamic_solver,
-        steadystate_abstol;
-        abstol = dynamic_abstol,
-        reltol = dynamic_reltol,
-        maxiters = dynamic_maxiters,
-    )
+    return ZIP()
 end
 
 function instantiate_surrogate_flux(
@@ -496,23 +424,7 @@ function instantiate_surrogate_flux(
     model_params::PSIDS.MultiDeviceParams,
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
 )
-    steadystate_solver = instantiate_steadystate_solver(params.steady_state_solver)
-    dynamic_solver = instantiate_solver(params.dynamic_solver)
-    dynamic_reltol = params.dynamic_solver.reltol
-    dynamic_abstol = params.dynamic_solver.abstol
-    dynamic_maxiters = params.dynamic_solver.maxiters
-    steadystate_abstol = params.steady_state_solver.abstol
-
-    return MultiDevice(
-        model_params.static_devices,
-        model_params.dynamic_devices,
-        steadystate_solver,
-        dynamic_solver,
-        steadystate_abstol;
-        abstol = dynamic_abstol,
-        reltol = dynamic_reltol,
-        maxiters = dynamic_maxiters,
-    )
+    return MultiDevice(model_params.static_devices, model_params.dynamic_devices)
 end
 
 function _instantiate_model_initializer(m, n_ports, scaling_extrema; flux = true)
@@ -827,9 +739,9 @@ function _inner_loss_function(
     loss_initialization =
         (1 - α) * ((1 - β) * mae(r0_pred, r0) + β * sqrt(mse(r0_pred, r0)))
     #Note: A loss of 0.0 makes the NLsolve equations non-finite during training. Instead, set the loss to the tolerance of the NLsolve. 
-    #if loss_initialization < params.steady_state_solver.abstol
+    #if loss_initialization < params.optimizer[opt_ix].steadystate_solver.abstol
     if loss_initialization == 0.0
-        loss_initialization = params.steady_state_solver.abstol
+        loss_initialization = params.optimizer[opt_ix].steadystate_solver.abstol
     end
     if size(ground_truth_subset) == size(i_series)
         loss_dynamic =
@@ -890,6 +802,10 @@ function instantiate_outer_loss_function(
     p_map::Vector{Int64},
     params::TrainParams,
     opt_ix::Int64,
+    ss_solver,
+    dyn_solver,
+    args...;
+    kwargs...,
 )
     return (p_train, vector_fault_timespan_index) -> _outer_loss_function(
         p_train,
@@ -902,6 +818,10 @@ function instantiate_outer_loss_function(
         p_map,
         params,
         opt_ix,
+        ss_solver,
+        dyn_solver,
+        args...;
+        kwargs...,
     )
 end
 
@@ -921,6 +841,10 @@ function _outer_loss_function(
     p_map::Vector{Int64},
     params::TrainParams,
     opt_ix::Int64,
+    ss_solver,
+    dyn_solver,
+    args...;
+    kwargs...,
 )
     vector_fault_timespan_index
     surrogate_solution = 0.0    #Only return the surrogate_solution from the last fault of the iteration (cannot mutate arrays with Zygote)
@@ -937,7 +861,7 @@ function _outer_loss_function(
         ii0 = train_dataset[fault_index].imag_current[1]
 
         tsteps = train_dataset[fault_index].tsteps
-        if params.dynamic_solver.force_tstops == true
+        if params.optimizer[opt_ix].dynamic_solver.force_tstops == true
             tstops = train_dataset[fault_index].tstops
         else
             tstops = []
@@ -953,10 +877,14 @@ function _outer_loss_function(
             [vr0, vi0],
             [ir0, ii0],
             tsteps_subset,
-            tstops,     #if entry in tstops is outside of tspan, will be ignored.
-            p_fixed,
-            p_train,
-            p_map,
+            tstops,    #if entry in tstops is outside of tspan, will be ignored.
+            ss_solver,
+            dyn_solver,
+            args...;
+            p_fixed = p_fixed,
+            p_train = p_train,
+            p_map = p_map,
+            kwargs...,
         )
         loss_i, loss_d = _inner_loss_function(
             surrogate_solution,
@@ -1051,7 +979,10 @@ function _cb!(
     train_time_limit_seconds = params.train_time_limit_seconds
     check_validation_loss_iterations = params.check_validation_loss_iterations
     validation_loss_termination = params.validation_loss_termination
-    push!(output["loss"], (l_initialization, l_dynamic, l, time(), surrogate_solution.converged))
+    push!(
+        output["loss"],
+        (l_initialization, l_dynamic, l, time(), surrogate_solution.converged),
+    )
     if mod(output["total_iterations"], exportmode_skip) == 0 ||
        output["total_iterations"] == 1
         push!(

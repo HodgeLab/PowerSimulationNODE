@@ -1,5 +1,7 @@
 
 @testset "Compare MultiDevice in Flux and PSID - FrequencyChirp" begin
+    path = (joinpath(pwd(), "test-compare-dir"))
+    !isdir(path) && mkdir(path)
     #READ SYSTEM WITHOUT GENS 
     sys = System(joinpath(TEST_FILES_DIR, "system_data/2bus_nogens.raw"))
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
@@ -33,11 +35,11 @@
         end
     end
     #SERIALIZE TO SYSTEM
-    to_json(sys, joinpath(pwd(), "test", "system_data", "test.json"), force = true)
+    to_json(sys, joinpath(path, "system_data", "test.json"), force = true)
 
     #DEFAULT PARAMETERS FOR THAT SYSTEM
     p = TrainParams(
-        base_path = joinpath(pwd(), "test"),
+        base_path = path,
         surrogate_buses = [2],
         model_params = PSIDS.MultiDeviceParams(name = "source_surrogate"),
         train_data = (
@@ -67,15 +69,30 @@
             ),
             system = "reduced", #Use the reduced system to generate the data!
         ),
-        system_path = joinpath(pwd(), "test", "system_data", "test.json"),
+        system_path = joinpath(path, "system_data", "test.json"),
         rng_seed = 4,
-        dynamic_solver = (
-            solver = "Rodas5",
-            reltol = 1e-6,
-            abstol = 1e-6,
-            maxiters = 1e5,
-            force_tstops = true,
-        ),
+        optimizer = [
+            (
+                sensealg = "Zygote",
+                algorithm = "Adam",
+                log_η = -6.0,
+                initial_stepnorm = 0.01,
+                maxiters = 15,
+                steadystate_solver = (solver = "SSRootfind", abstol = 1e-4),
+                dynamic_solver = (
+                    solver = "Rodas5",
+                    reltol = 1e-6,
+                    abstol = 1e-6,
+                    maxiters = Int64(1e5),
+                    force_tstops = true,
+                ),
+                lb_loss = 0.0,
+                curriculum = "individual faults",
+                curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
+                fix_params = Symbol[],
+                loss_function = (α = 0.5, β = 1.0, residual_penalty = 1.0e9),
+            ),
+        ],
         p_start = Float64[1.0, 1.0, 1.0, 1.0, 1.0],
     )
 
@@ -109,7 +126,27 @@
     train_surrogate =
         PowerSimulationNODE.instantiate_surrogate_flux(p, p.model_params, train_dataset)
 
-    surrogate_sol = train_surrogate(exs[1], v0, i0, tsteps, tstops)
+    dynamic_reltol = p.optimizer[1].dynamic_solver.reltol
+    dynamic_abstol = p.optimizer[1].dynamic_solver.abstol
+    dynamic_maxiters = p.optimizer[1].dynamic_solver.maxiters
+    steadystate_abstol = p.optimizer[1].steadystate_solver.abstol
+    steadystate_solver = PowerSimulationNODE.instantiate_steadystate_solver(
+        p.optimizer[1].steadystate_solver,
+    )
+    dynamic_solver = PowerSimulationNODE.instantiate_solver(p.optimizer[1].dynamic_solver)
+    surrogate_sol = train_surrogate(
+        exs[1],
+        v0,
+        i0,
+        tsteps,
+        tstops,
+        steadystate_solver,
+        dynamic_solver,
+        steadystate_abstol;
+        reltol = dynamic_reltol,
+        abstol = dynamic_abstol,
+        maxiters = dynamic_maxiters,
+    )
 
     p1 = plot(
         surrogate_sol.t_series,
@@ -207,10 +244,12 @@
     #NOTE: i_surrogate = - i_source
     plot!(p1, Ir[1], -1 * Ir[2], label = "real current -psid", legend = :topright)
     plot!(p2, Ii[1], -1 * Ii[2], label = "imag current -psid", legend = :topright)
-    display(plot(p1, p2, p3, p4, size = (1000, 1000), title = "compare_MultiDevice"))
+    #display(plot(p1, p2, p3, p4, size = (1000, 1000), title = "compare_MultiDevice"))
 
     @test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <= 0.00032
     @test LinearAlgebra.norm(Ii[2] .* -1 .- surrogate_sol.i_series[2, :], Inf) <= 0.00021
+
+    rm(path, force = true, recursive = true)
     #See the distribution of the parameters
     #= p_params = scatter(θ[(train_surrogate.len + 1):(train_surrogate.len + train_surrogate.len2)], label = "node params")
     scatter!(p_params, θ[1:(train_surrogate.len)], label = "init params")

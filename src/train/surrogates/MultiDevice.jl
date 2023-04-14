@@ -2,25 +2,17 @@ using Flux
 abstract type MultiDeviceLayer <: Function end
 Flux.trainable(m::MultiDeviceLayer) = (p = m.p,)
 
-struct MultiDevice{PT, PF, PM, SD, DD, SS, DS, A, K} <: MultiDeviceLayer
+struct MultiDevice{PT, PF, PM, SD, DD} <: MultiDeviceLayer
     p_train::PT
     p_fixed::PF
     p_map::PM
     static_devices::SD
     dynamic_devices::DD
-    ss_solver::SS
-    dyn_solver::DS
-    args::A
-    kwargs::K
 
     function MultiDevice(  #This is an inner constructor 
         static_devices,
         dynamic_devices,
-        ss_solver,
-        dyn_solver,
-        args...;
         p = nothing,
-        kwargs...,
     )
         if p === nothing
             p = Float64[]
@@ -46,20 +38,12 @@ struct MultiDevice{PT, PF, PM, SD, DD, SS, DS, A, K} <: MultiDeviceLayer
             Vector{Int64},
             Vector{PSIDS.SurrogateModelParams},
             Vector{PSIDS.SurrogateModelParams},
-            typeof(ss_solver),
-            typeof(dyn_solver),
-            typeof(args),
-            typeof(kwargs),
         }(
             p,
             [],
             1:length(p),
             static_devices,
             dynamic_devices,
-            ss_solver,
-            dyn_solver,
-            args,
-            kwargs,
         )
     end
 end
@@ -73,14 +57,17 @@ function (s::MultiDevice)(
     i0,
     tsteps,
     tstops,
+    ss_solver,
+    dyn_solver,
+    args...;
     p_fixed = s.p_fixed,
     p_train = s.p_train,
     p_map = s.p_map,
+    kwargs...,
 )
     p = vcat(p_fixed, p_train)
     p_ordered = p[p_map]
-    ss_tol = s.args[1]
-    ss_solver = s.ss_solver
+    ss_tol = args[1]
 
     x0 = zeros(typeof(p_ordered[1]), sum([n_states(x) for x in s.dynamic_devices]))
     inner_vars = repeat(
@@ -238,7 +225,7 @@ function (s::MultiDevice)(
         )
         saved_values = DiffEqCallbacks.SavedValues(Any, Tuple{Any, Any})
         cb = DiffEqCallbacks.SavingCallback(f_saving, saved_values; saveat = tsteps)
-        sol = OrdinaryDiffEq.solve(prob_dyn, s.dyn_solver, callback = cb; s.kwargs...)
+        sol = OrdinaryDiffEq.solve(prob_dyn, dyn_solver, callback = cb; kwargs...)
         return PhysicalModel_solution(
             tsteps,
             vcat(

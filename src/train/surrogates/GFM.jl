@@ -2,42 +2,18 @@ using Flux
 abstract type GFMLayer <: Function end
 Flux.trainable(m::GFMLayer) = (p = m.p,)
 
-struct GFM{PT, PF, PM, SS, DS, A, K} <: GFMLayer
+struct GFM{PT, PF, PM} <: GFMLayer
     p_train::PT
     p_fixed::PF
     p_map::PM
-    ss_solver::SS
-    dyn_solver::DS
-    args::A
-    kwargs::K
 
     function GFM(  #This is an inner constructor 
-        ss_solver,
-        dyn_solver,
-        args...;
         p = nothing,
-        kwargs...,
     )
         if p === nothing
             p = default_params(PSIDS.GFMParams())
         end
-        new{
-            typeof(p),
-            typeof(p),
-            Vector{Int64},
-            typeof(ss_solver),
-            typeof(dyn_solver),
-            typeof(args),
-            typeof(kwargs),
-        }(
-            p,
-            [],
-            1:length(p),
-            ss_solver,
-            dyn_solver,
-            args,
-            kwargs,
-        )
+        new{typeof(p), typeof(p), Vector{Int64}}(p, [], 1:length(p))
     end
 end
 
@@ -50,9 +26,13 @@ function (s::GFM)(
     i0,
     tsteps,
     tstops,
+    ss_solver,
+    dyn_solver,
+    args...;
     p_fixed = s.p_fixed,
     p_train = s.p_train,
     p_map = s.p_map,
+    kwargs...,
 )
     p = vcat(p_fixed, p_train)
     p_ordered = p[p_map]
@@ -60,8 +40,7 @@ function (s::GFM)(
     x0 = zeros(typeof(p_ordered[1]), n_states(s))
     inner_vars = repeat(PSID.ACCEPTED_REAL_TYPES[0.0], n_inner_vars(s))
     refs = zeros(typeof(p_ordered[1]), n_refs(s))
-    ss_solver = s.ss_solver
-    ss_tol = s.args[1]
+    ss_tol = args[1]
     converged = initialize_dynamic_device!(
         x0,
         inner_vars,
@@ -88,7 +67,7 @@ function (s::GFM)(
             tstops = tstops,
             saveat = tsteps,
         )
-        sol = OrdinaryDiffEq.solve(prob_dyn, s.dyn_solver; s.kwargs...)
+        sol = OrdinaryDiffEq.solve(prob_dyn, dyn_solver; kwargs...)
         return PhysicalModel_solution(
             tsteps,
             Array(sol[real_current_index(s):imag_current_index(s), :]),

@@ -3,42 +3,18 @@ using Flux
 abstract type ZIPLayer <: Function end
 Flux.trainable(m::ZIPLayer) = (p = m.p,)
 
-struct ZIP{PT, PF, PM, SS, DS, A, K} <: ZIPLayer
+struct ZIP{PT, PF, PM} <: ZIPLayer
     p_train::PT
     p_fixed::PF
     p_map::PM
-    ss_solver::SS
-    dyn_solver::DS
-    args::A
-    kwargs::K
 
     function ZIP(  #This is an inner constructor 
-        ss_solver,
-        dyn_solver,
-        args...;
         p = nothing,
-        kwargs...,
     )
         if p === nothing
             p = default_params(PSIDS.ZIPParams())
         end
-        new{
-            typeof(p),
-            typeof(p),
-            Vector{Int64},
-            typeof(ss_solver),
-            typeof(dyn_solver),
-            typeof(args),
-            typeof(kwargs),
-        }(
-            p,
-            [],
-            1:length(p),
-            ss_solver,
-            dyn_solver,
-            args,
-            kwargs,
-        )
+        new{typeof(p), typeof(p), Vector{Int64}}(p, [], 1:length(p))
     end
 end
 
@@ -51,9 +27,13 @@ function (s::ZIP)(
     i0,
     tsteps,
     tstops,
+    ss_solver,
+    dyn_solver,
+    args...;
     p_fixed = s.p_fixed,
     p_train = s.p_train,
     p_map = s.p_map,
+    kwargs...,
 )
     p = vcat(p_fixed, p_train)
     p_ordered = p[p_map]

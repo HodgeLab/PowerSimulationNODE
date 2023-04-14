@@ -42,7 +42,9 @@ function generate_and_train_test(p2)
         Serialization.deserialize(p.data_collection_location_path)[2],
         p.model_params,
     )
-    _ = evaluate_loss(surrogate_dataset, Serialization.deserialize(p.validation_data_path))
+    dataset_loss =
+        evaluate_loss(surrogate_dataset, Serialization.deserialize(p.validation_data_path))
+    return dataset_loss
 end
 
 function _generic_test_setup()
@@ -153,23 +155,23 @@ end
             observation_width_layers_relative_input = -1,
             observation_activation = "relu",
         ),
-        steady_state_solver = (
-            solver = "SSRootfind",
-            abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
-        ),
-        dynamic_solver = (
-            solver = "Rodas5",
-            reltol = 1e-6,
-            abstol = 1e-6,
-            maxiters = 1e5,
-            force_tstops = true,
-        ),
         optimizer = [(
             sensealg = "Zygote",
             algorithm = "Adam", #"Bfgs", "Adam"
             log_η = -10.0,
             initial_stepnorm = 0.0, #ignored for ADAM 
             maxiters = 6,
+            steadystate_solver = (
+                solver = "SSRootfind",
+                abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+            ),
+            dynamic_solver = (
+                solver = "Rodas5",
+                reltol = 1e-6,
+                abstol = 1e-6,
+                maxiters = 1e5,
+                force_tstops = true,
+            ),
             lb_loss = 0.0,
             curriculum = "simultaneous",
             curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
@@ -182,9 +184,11 @@ end
         output_mode_skip = 1,
     )
     try
-        generate_and_train_test(p)
-        #=                  @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
-                              11.0 #should pass after precompilation run  =#
+        dataset_loss = generate_and_train_test(p)
+        @test dataset_loss["max_error_ir"] == [0.007384696587123374]
+        #loss_dataframe =  PowerSimulationNODE.read_arrow_file_to_dataframe(joinpath(p.output_data_path,"train_instance_1", "loss"))
+        #@test loss_dataframe[6, :iteration_time_seconds] - loss_dataframe[5, :iteration_time_seconds] < 1.0
+        #GC.gc()
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -274,23 +278,23 @@ end
             dynamic_activation = "relu",
             dynamic_σ2_initialization = 0.0,
         ),
-        steady_state_solver = (
-            solver = "SSRootfind",
-            abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
-        ),
-        dynamic_solver = (
-            solver = "Rodas5",
-            reltol = 1e-6,
-            abstol = 1e-6,
-            maxiters = 1e5,
-            force_tstops = true,
-        ),
         optimizer = [(
             sensealg = "Zygote",
             algorithm = "Adam", #"Bfgs", "Adam"
             log_η = -10.0,
             initial_stepnorm = 0.0, #ignored for ADAM 
             maxiters = 6,
+            steadystate_solver = (
+                solver = "SSRootfind",
+                abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+            ),
+            dynamic_solver = (
+                solver = "Rodas5",
+                reltol = 1e-6,
+                abstol = 1e-6,
+                maxiters = 1e5,
+                force_tstops = true,
+            ),
             lb_loss = 0.0,
             curriculum = "individual faults",
             curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
@@ -303,9 +307,8 @@ end
         output_mode_skip = 1,
     )
     try
-        generate_and_train_test(p)
-        #=                  @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
-                              11.0 #should pass after precompilation run  =#
+        dataset_loss = generate_and_train_test(p)
+        @test dataset_loss["max_error_ir"] == [0.004614147683377423]
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -395,23 +398,23 @@ end
             dynamic_activation = "relu",
             dynamic_σ2_initialization = 0.0,
         ),
-        steady_state_solver = (
-            solver = "SSRootfind",
-            abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
-        ),
-        dynamic_solver = (
-            solver = "Rodas5",
-            reltol = 1e-6,
-            abstol = 1e-6,
-            maxiters = 1e5,
-            force_tstops = true,
-        ),
         optimizer = [(
             sensealg = "Zygote",
             algorithm = "Adam", #"Bfgs", "Adam"
             log_η = -10.0,
             initial_stepnorm = 0.0, #ignored for ADAM 
             maxiters = 6,
+            steadystate_solver = (
+                solver = "SSRootfind",
+                abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+            ),
+            dynamic_solver = (
+                solver = "Rodas5",
+                reltol = 1e-6,
+                abstol = 1e-6,
+                maxiters = 1e5,
+                force_tstops = true,
+            ),
             lb_loss = 0.0,
             curriculum = "individual faults",
             curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
@@ -424,9 +427,8 @@ end
         output_mode_skip = 1,
     )
     try
-        generate_and_train_test(p)
-        #=                  @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
-                              11.0 #should pass after precompilation run  =#
+        dataset_loss = generate_and_train_test(p)
+        @test dataset_loss["max_error_ir"] == [0.004276176963785128]
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -516,23 +518,23 @@ end
             dynamic_activation = "relu",
             dynamic_σ2_initialization = 0.0,
         ),
-        steady_state_solver = (
-            solver = "SSRootfind",
-            abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
-        ),
-        dynamic_solver = (
-            solver = "Rodas5",
-            reltol = 1e-6,
-            abstol = 1e-6,
-            maxiters = 1e5,
-            force_tstops = true,
-        ),
         optimizer = [(
             sensealg = "Zygote",
             algorithm = "Bfgs", #"Bfgs", "Adam"
             log_η = -10.0,
             initial_stepnorm = 0.0, #ignored for ADAM 
             maxiters = 6,
+            steadystate_solver = (
+                solver = "SSRootfind",
+                abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+            ),
+            dynamic_solver = (
+                solver = "Rodas5",
+                reltol = 1e-6,
+                abstol = 1e-6,
+                maxiters = 1e5,
+                force_tstops = true,
+            ),
             lb_loss = 0.0,
             curriculum = "individual faults",
             curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
@@ -545,9 +547,8 @@ end
         output_mode_skip = 1,
     )
     try
-        generate_and_train_test(p)
-        #=                  @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
-                              11.0 #should pass after precompilation run  =#
+        dataset_loss = generate_and_train_test(p)
+        @test dataset_loss["max_error_ir"] == [0.004033598706891128]
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -651,17 +652,6 @@ end
             observation_width_layers_relative_input = -1,
             observation_activation = "relu",
         ),
-        steady_state_solver = (
-            solver = "SSRootfind",
-            abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
-        ),
-        dynamic_solver = (
-            solver = "Rodas5",
-            reltol = 1e-6,
-            abstol = 1e-6,
-            maxiters = 1e5,
-            force_tstops = true,
-        ),
         optimizer = [
             (
                 sensealg = "Zygote",
@@ -669,6 +659,17 @@ end
                 log_η = -10.0,
                 initial_stepnorm = 0.0, #ignored for ADAM 
                 maxiters = 6,
+                steadystate_solver = (
+                    solver = "SSRootfind",
+                    abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+                ),
+                dynamic_solver = (
+                    solver = "Rodas5",
+                    reltol = 1e-6,
+                    abstol = 1e-6,
+                    maxiters = 1e5,
+                    force_tstops = true,
+                ),
                 lb_loss = 0.0,
                 curriculum = "simultaneous",
                 curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
@@ -682,9 +683,8 @@ end
         output_mode_skip = 1,
     )
     try
-        generate_and_train_test(p)
-        #=                  @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
-                              11.0 #should pass after precompilation run  =#
+        dataset_loss = generate_and_train_test(p)
+        @test dataset_loss["max_error_ir"] == [0.14131662879776652]
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -762,17 +762,6 @@ end
             ),
         ),
         model_params = PSIDS.ClassicGenParams(name = "source_1"),
-        steady_state_solver = (
-            solver = "SSRootfind",
-            abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
-        ),
-        dynamic_solver = (
-            solver = "Rodas5",
-            reltol = 1e-6,
-            abstol = 1e-6,
-            maxiters = 1e5,
-            force_tstops = true,
-        ),
         optimizer = [
             (
                 sensealg = "ForwardDiff",
@@ -780,6 +769,17 @@ end
                 log_η = -1.0,
                 initial_stepnorm = 0.0, #ignored for ADAM 
                 maxiters = 6,
+                steadystate_solver = (
+                    solver = "SSRootfind",
+                    abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+                ),
+                dynamic_solver = (
+                    solver = "Rodas5",
+                    reltol = 1e-6,
+                    abstol = 1e-6,
+                    maxiters = 1e5,
+                    force_tstops = true,
+                ),
                 lb_loss = 0.0,
                 curriculum = "simultaneous",
                 curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
@@ -793,9 +793,8 @@ end
         output_mode_skip = 1,
     )
     try
-        generate_and_train_test(p)
-        #=                  @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
-                              11.0 #should pass after precompilation run  =#
+        dataset_loss = generate_and_train_test(p)
+        @test dataset_loss["max_error_ir"] == [0.0004922800802611427]
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -873,17 +872,6 @@ end
             ),
         ),
         model_params = PSIDS.GFLParams(name = "source_1"),
-        steady_state_solver = (
-            solver = "SSRootfind",
-            abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
-        ),
-        dynamic_solver = (
-            solver = "Rodas5",
-            reltol = 1e-6,
-            abstol = 1e-6,
-            maxiters = 1e5,
-            force_tstops = true,
-        ),
         optimizer = [
             (
                 sensealg = "ForwardDiff",
@@ -891,6 +879,17 @@ end
                 log_η = -4.0,
                 initial_stepnorm = 0.0, #ignored for ADAM 
                 maxiters = 6,
+                steadystate_solver = (
+                    solver = "SSRootfind",
+                    abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+                ),
+                dynamic_solver = (
+                    solver = "Rodas5",
+                    reltol = 1e-6,
+                    abstol = 1e-6,
+                    maxiters = 1e5,
+                    force_tstops = true,
+                ),
                 lb_loss = 0.0,
                 curriculum = "simultaneous",
                 curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
@@ -904,9 +903,8 @@ end
         output_mode_skip = 1,
     )
     try
-        generate_and_train_test(p)
-        #=                  @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
-                              11.0 #should pass after precompilation run  =#
+        dataset_loss = generate_and_train_test(p)
+        @test dataset_loss["max_error_ir"] == [0.0]
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -983,17 +981,6 @@ end
             ),
         ),
         model_params = PSIDS.GFMParams(name = "source_1"),
-        steady_state_solver = (
-            solver = "SSRootfind",
-            abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
-        ),
-        dynamic_solver = (
-            solver = "Rodas5",
-            reltol = 1e-1,  #Only solves at lower tolerance. 
-            abstol = 1e-1,
-            maxiters = 1e5,
-            force_tstops = true,
-        ),
         optimizer = [
             (
                 sensealg = "ForwardDiff",
@@ -1001,6 +988,17 @@ end
                 log_η = -10.0,
                 initial_stepnorm = 0.0, #ignored for ADAM 
                 maxiters = 6,
+                steadystate_solver = (
+                    solver = "SSRootfind",
+                    abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+                ),
+                dynamic_solver = (
+                    solver = "Rodas5",
+                    reltol = 1e-1,  #Only solves at lower tolerance. 
+                    abstol = 1e-1,
+                    maxiters = 1e5,
+                    force_tstops = true,
+                ),
                 lb_loss = 0.0,
                 curriculum = "simultaneous",
                 curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
@@ -1014,9 +1012,8 @@ end
         output_mode_skip = 1,
     )
     try
-        generate_and_train_test(p)
-        #=                  @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
-                              11.0 #should pass after precompilation run  =#
+        dataset_loss = generate_and_train_test(p)
+        @test dataset_loss["max_error_ir"] == [0.00159187565598784]
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -1093,17 +1090,6 @@ end
             ),
         ),
         model_params = PSIDS.MultiDeviceParams(name = "source_1"),
-        steady_state_solver = (
-            solver = "SSRootfind",
-            abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
-        ),
-        dynamic_solver = (
-            solver = "Rodas5",
-            reltol = 1e-1,  #Only solves at lower tolerance. 
-            abstol = 1e-1,
-            maxiters = 1e5,
-            force_tstops = true,
-        ),
         optimizer = [
             (
                 sensealg = "ForwardDiff",
@@ -1111,6 +1097,17 @@ end
                 log_η = -10.0,
                 initial_stepnorm = 0.0, #ignored for ADAM 
                 maxiters = 6,
+                steadystate_solver = (
+                    solver = "SSRootfind",
+                    abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+                ),
+                dynamic_solver = (
+                    solver = "Rodas5",
+                    reltol = 1e-1,  #Only solves at lower tolerance. 
+                    abstol = 1e-1,
+                    maxiters = 1e5,
+                    force_tstops = true,
+                ),
                 lb_loss = 0.0,
                 curriculum = "simultaneous",
                 curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
@@ -1189,9 +1186,8 @@ end
         output_mode_skip = 1,
     )
     try
-        generate_and_train_test(p)
-        #=                  @test generate_summary(p.output_data_path)["train_instance_1"]["timing_stats"][1]["time"] <
-                              11.0 #should pass after precompilation run  =#
+        dataset_loss = generate_and_train_test(p)
+        @test dataset_loss["max_error_ir"] == [0.0021414167152631336]
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
