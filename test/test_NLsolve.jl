@@ -40,13 +40,31 @@
             ),
             system_path = joinpath(pwd(), "test", "system_data", "test.json"),
             rng_seed = 4,
-            dynamic_solver = (
-                solver = "Rodas5",
-                reltol = 1e-6,
-                abstol = 1e-6,
-                maxiters = 1e5,
-                force_tstops = true,
-            ),
+            optimizer = [
+                (
+                    sensealg = "Zygote",
+                    algorithm = "Adam",
+                    log_η = -6.0,
+                    initial_stepnorm = 0.01,
+                    maxiters = 15,
+                    steadystate_solver = (solver = "SSRootfind", abstol = 1e-4),
+                    dynamic_solver = (
+                        solver = "Rodas5",
+                        reltol = 1e-6,
+                        abstol = 1e-6,
+                        maxiters = Int64(1e5),
+                        force_tstops = true,
+                    ),
+                    lb_loss = 0.0,
+                    curriculum = "individual faults",
+                    curriculum_timespans = [(
+                        tspan = (0.0, 1.0),
+                        batching_sample_factor = 1.0,
+                    )],
+                    fix_params = Symbol[],
+                    loss_function = (α = 0.5, β = 1.0, residual_penalty = 1.0e9),
+                ),
+            ],
         )
 
         Random.seed!(p.rng_seed) #Seed call usually happens at start of train()
@@ -82,13 +100,15 @@
         Q0 = imag(S)
         ex = t -> [Vr0, Vi0]
 
-        dynamic_reltol = p.dynamic_solver.reltol
-        dynamic_abstol = p.dynamic_solver.abstol
-        dynamic_maxiters = p.dynamic_solver.maxiters
-        steadystate_abstol = p.steady_state_solver.abstol
-        steadystate_solver =
-            PowerSimulationNODE.instantiate_steadystate_solver(p.steady_state_solver)
-        dynamic_solver = PowerSimulationNODE.instantiate_solver(p.dynamic_solver)
+        dynamic_reltol = p.optimizer[1].dynamic_solver.reltol
+        dynamic_abstol = p.optimizer[1].dynamic_solver.abstol
+        dynamic_maxiters = p.optimizer[1].dynamic_solver.maxiters
+        steadystate_abstol = p.optimizer[1].steadystate_solver.abstol
+        steadystate_solver = PowerSimulationNODE.instantiate_steadystate_solver(
+            p.optimizer[1].steadystate_solver,
+        )
+        dynamic_solver =
+            PowerSimulationNODE.instantiate_solver(p.optimizer[1].dynamic_solver)
         surrogate_sol = train_surrogate(
             ex,
             [Vr0, Vi0],

@@ -739,9 +739,9 @@ function _inner_loss_function(
     loss_initialization =
         (1 - α) * ((1 - β) * mae(r0_pred, r0) + β * sqrt(mse(r0_pred, r0)))
     #Note: A loss of 0.0 makes the NLsolve equations non-finite during training. Instead, set the loss to the tolerance of the NLsolve. 
-    #if loss_initialization < params.steady_state_solver.abstol
+    #if loss_initialization < params.optimizer[opt_ix].steadystate_solver.abstol
     if loss_initialization == 0.0
-        loss_initialization = params.steady_state_solver.abstol
+        loss_initialization = params.optimizer[opt_ix].steadystate_solver.abstol
     end
     if size(ground_truth_subset) == size(i_series)
         loss_dynamic =
@@ -861,7 +861,7 @@ function _outer_loss_function(
         ii0 = train_dataset[fault_index].imag_current[1]
 
         tsteps = train_dataset[fault_index].tsteps
-        if params.dynamic_solver.force_tstops == true
+        if params.optimizer[opt_ix].dynamic_solver.force_tstops == true
             tstops = train_dataset[fault_index].tstops
         else
             tstops = []

@@ -869,13 +869,15 @@ function train(params::TrainParams)
 
         #INSTANTIATE 
         surrogate = instantiate_surrogate_flux(params, params.model_params, train_dataset)
-        dynamic_reltol = params.dynamic_solver.reltol
-        dynamic_abstol = params.dynamic_solver.abstol
-        dynamic_maxiters = params.dynamic_solver.maxiters
-        steadystate_abstol = params.steady_state_solver.abstol
-        steadystate_solver =
-            PowerSimulationNODE.instantiate_steadystate_solver(params.steady_state_solver)
-        dynamic_solver = PowerSimulationNODE.instantiate_solver(params.dynamic_solver)
+        dynamic_reltol = params.optimizer[1].dynamic_solver.reltol
+        dynamic_abstol = params.optimizer[1].dynamic_solver.abstol
+        dynamic_maxiters = params.optimizer[1].dynamic_solver.maxiters
+        steadystate_abstol = params.optimizer[1].steadystate_solver.abstol
+        steadystate_solver = PowerSimulationNODE.instantiate_steadystate_solver(
+            params.optimizer[1].steadystate_solver,
+        )
+        dynamic_solver =
+            PowerSimulationNODE.instantiate_solver(params.optimizer[1].dynamic_solver)
 
         for i in 1:ATTEMPTS_TO_FIND_CONVERGENT_SURROGATE
             if _check_surrogate_convergence(
@@ -941,15 +943,15 @@ function train(params::TrainParams)
                 @info "optimizer $(opt.algorithm)"
                 @info "\n curriculum: $(opt.curriculum) \n # of solves: $n_trains \n # of epochs per training (based on maxiters parameter): $per_solve_max_epochs \n # of iterations per epoch $(length(train_groups[1])) \n # of samples per iteration $(length(train_groups[1][1])) "
 
-                dynamic_reltol = params.dynamic_solver.reltol   #TODO - get this from the opt, not the general TrainParams (need to redefine TrainParams())
-                dynamic_abstol = params.dynamic_solver.abstol
-                dynamic_maxiters = params.dynamic_solver.maxiters
-                steadystate_abstol = params.steady_state_solver.abstol
+                dynamic_reltol = opt.dynamic_solver.reltol
+                dynamic_abstol = opt.dynamic_solver.abstol
+                dynamic_maxiters = opt.dynamic_solver.maxiters
+                steadystate_abstol = opt.steadystate_solver.abstol
                 steadystate_solver = PowerSimulationNODE.instantiate_steadystate_solver(
-                    params.steady_state_solver,
+                    opt.steadystate_solver,
                 )
                 dynamic_solver =
-                    PowerSimulationNODE.instantiate_solver(params.dynamic_solver)
+                    PowerSimulationNODE.instantiate_solver(opt.dynamic_solver)
 
                 for group in train_groups
                     p_train, output = _train(

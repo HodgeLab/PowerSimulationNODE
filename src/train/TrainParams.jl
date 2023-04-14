@@ -21,21 +21,21 @@
     - `perturbations::Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}}`:  
     - `params::PSIDS.GenerateDataParams`: 
 - `model_params::Union{PSIDS.SteadyStateNODEParams, PSIDS.SteadyStateNODEObsParams, PSIDS.ClassicGenParams, PSIDS.GFLParams, PSIDS.GFMParams, PSIDS.ZIPParams, PSIDS.MultiDeviceParams}`: The type of surrogate model to train. Could be data-driven, physics-based, or a combination.
-- `steady_state_solver::NamedTuple{(:solver, :abstol)}`: Solver for finding initial conditions.
-    - `solver::String`: the solver name from DifferentialEquations.jl
-    - `abstol::Float64`: absolute tolerance of the solve. 
-- `dynamic_solver::NamedTuple{(:solver, :reltol, :abstol, :maxiters, :force_tstops)}`:  Solver for dynamic trajectories.
-    - `solver::String`: the solver name from DifferentialEquations.jl
-    - `reltol::Float64`: relative tolearnce of the solve. 
-    - `abstol::Float64`: absolute tolearnce of the solve. 
-    - `maxiters::Int64`: maximum iterations of the solve. 
-    - `force_tstops::Bool`: if `true`, force the solver to stop at tstops from the train dataset. If `false`, do not explicitly force any steps. 
-- `optimizer::Vector{NamedTuple{(:sensealg, :algorithm, :log_η, :adjust, :initial_stepnorm, :maxiters, :lb_loss, :curriculum, :curriculum_timespans, :fix_params, :loss_function)}}`: Details of the optimization
+- `optimizer::Vector{NamedTuple{(:sensealg, :algorithm, :log_η, :adjust, :initial_stepnorm, :maxiters, :steadystate_solver, :dynamic_solver, :lb_loss, :curriculum, :curriculum_timespans, :fix_params, :loss_function)}}`: Details of the optimization
     - `sensealg::String`: Valid options: `"Zygote"` or `"ForwardDiff"` 
     - `algorithm::String`: Valid options: `"Adam"`, `"Bfgs"`, `"LBfgs"`. Typical choice is to start with Adam and then use BFGS. 
     - `log_η::Float64`: Log of Adam step size (ignored for other algorithms) 
     - `initial_stepnorm::Float64`: Bfgs initial step norm (ignored for other algorithms)
     - `maxiters::Int64`: Maximum number of  training iterations. 
+    - `steadystate_solver::NamedTuple{(:solver, :abstol)}`: Solver for finding initial conditions.
+        - `solver::String`: the solver name from DifferentialEquations.jl
+        - `abstol::Float64`: absolute tolerance of the solve. 
+    - `dynamic_solver::NamedTuple{(:solver, :reltol, :abstol, :maxiters, :force_tstops)}`:  Solver for dynamic trajectories.
+        - `solver::String`: the solver name from DifferentialEquations.jl
+        - `reltol::Float64`: relative tolearnce of the solve. 
+        - `abstol::Float64`: absolute tolearnce of the solve. 
+    - `maxiters::Int64`: maximum iterations of the solve. 
+    - `force_tstops::Bool`: if `true`, force the solver to stop at tstops from the train dataset. If `false`, do not explicitly force any steps. 
     - `lb_loss::Float64`:  If the value of the loss on the validation set moves below lb_loss during training, the current optimization ends (current range).
     - `curriculum::String`: `"simultaneous"`: train on all of the data for each iteration of the optimizer.  `"individual faults"` cycle through the train dataset faults with one fault per iteration.  `"individual faults x2"` will run two distinct solves with the same dataset (restart the optimizer half way through) 
     - `curriculum_timespans::Vector{NamedTuple{(:tspan, :batching_sample_factor)}`: If more than one entry in `curriculum_timespans`, each fault from the input data is paired with each value of `curriculum_timespans`
@@ -94,11 +94,6 @@ mutable struct TrainParams
         },
     }
     model_params::PSIDS.SurrogateModelParams
-    steady_state_solver::NamedTuple{(:solver, :abstol), Tuple{String, Float64}}
-    dynamic_solver::NamedTuple{
-        (:solver, :reltol, :abstol, :maxiters, :force_tstops),
-        Tuple{String, Float64, Float64, Int, Bool},
-    }
     optimizer::Vector{
         NamedTuple{
             (
@@ -107,6 +102,8 @@ mutable struct TrainParams
                 :log_η,
                 :initial_stepnorm,
                 :maxiters,
+                :steadystate_solver,
+                :dynamic_solver,
                 :lb_loss,
                 :curriculum,
                 :curriculum_timespans,
@@ -119,6 +116,11 @@ mutable struct TrainParams
                 Float64,
                 Float64,
                 Int64,
+                NamedTuple{(:solver, :abstol), Tuple{String, Float64}},
+                NamedTuple{
+                    (:solver, :reltol, :abstol, :maxiters, :force_tstops),
+                    Tuple{String, Float64, Float64, Int, Bool},
+                },
                 Float64,
                 String,
                 Vector{
@@ -214,17 +216,6 @@ function TrainParams(;
         params = PSIDS.GenerateDataParams(),
     ),
     model_params = PSIDS.SteadyStateNODEObsParams(),
-    steady_state_solver = (
-        solver = "SSRootfind",
-        abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
-    ),
-    dynamic_solver = (
-        solver = "Rodas5",
-        reltol = 1e-6,
-        abstol = 1e-6,
-        maxiters = 1000,
-        force_tstops = true,
-    ),
     optimizer = [
         (
             sensealg = "Zygote",
@@ -232,6 +223,17 @@ function TrainParams(;
             log_η = -6.0,
             initial_stepnorm = 0.01,
             maxiters = 15,
+            steadystate_solver = (
+                solver = "SSRootfind",
+                abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+            ),
+            dynamic_solver = (
+                solver = "Rodas5",
+                reltol = 1e-6,
+                abstol = 1e-6,
+                maxiters = 1000,
+                force_tstops = true,
+            ),
             lb_loss = 0.0,
             curriculum = "individual faults",
             curriculum_timespans = [(tspan = (0.0, 1.0), batching_sample_factor = 1.0)],
@@ -295,8 +297,6 @@ function TrainParams(;
         validation_data,
         test_data,
         model_params,
-        steady_state_solver,
-        dynamic_solver,
         optimizer,
         p_start,
         check_validation_loss_iterations,
