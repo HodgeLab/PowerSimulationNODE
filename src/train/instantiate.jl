@@ -374,6 +374,44 @@ function instantiate_surrogate_flux(
     model_observation =
         _instantiate_model_observation(model_params, n_ports, scaling_extrema, flux = true)
 
+    input_min = scaling_extrema["input_min"]
+    input_max = scaling_extrema["input_max"]
+    target_min = scaling_extrema["target_min"]
+    target_max = scaling_extrema["target_max"]
+    input_normalization =
+        (x) -> PowerSimulationsDynamicsSurrogates.min_max_normalization(
+            x,
+            input_min,
+            input_max,
+            NN_INPUT_LIMITS.max,
+            NN_INPUT_LIMITS.min,
+        )  #https://www.baeldung.com/cs/normalizing-inputs-artificial-neural-network
+    target_normalization =
+        (x) -> PowerSimulationsDynamicsSurrogates.min_max_normalization(
+            x,
+            target_min,
+            target_max,
+            NN_TARGET_LIMITS.max,
+            NN_TARGET_LIMITS.min,
+        )
+    target_normalization_inverse =
+        (x) -> PowerSimulationsDynamicsSurrogates.min_max_normalization_inverse(
+            x,
+            target_min,
+            target_max,
+            NN_TARGET_LIMITS.max,
+            NN_TARGET_LIMITS.min,
+        )
+    ref_frame = function (u0, x)
+        θ = atan(u0[2], u0[1])
+        dq_ri = [sin(θ) -cos(θ); cos(θ) sin(θ)]     #note: equivalent to PSID.dq_ri(θ)
+        return dq_ri * x
+    end
+    ref_frame_inverse = function (u0, x)
+        θ = atan(u0[2], u0[1])
+        ri_dq = [sin(θ) cos(θ); -cos(θ) sin(θ)]     #note: equivalent to PSID.ri_dq(θ)
+        return ri_dq * x
+    end
     display(model_initializer)
     display(model_dynamic)
     display(model_observation)
@@ -384,7 +422,16 @@ function instantiate_surrogate_flux(
     @info "Observation structure: $(model_observation)\n"
     @info "number of parameters: $(length(Flux.destructure(model_observation)[1]))\n"
 
-    return SteadyStateNeuralODE(model_initializer, model_dynamic, model_observation)
+    return SteadyStateNeuralODE(
+        model_initializer,
+        model_dynamic,
+        model_observation,
+        input_normalization,
+        target_normalization,
+        target_normalization_inverse,
+        ref_frame,
+        ref_frame_inverse,
+    )
 end
 
 function instantiate_surrogate_flux(
@@ -435,10 +482,6 @@ function _instantiate_model_initializer(m, n_ports, scaling_extrema; flux = true
     input_dim = SURROGATE_SS_INPUT_DIM * n_ports
     hidden_dim = input_dim + width_layers_relative_input
     output_dim = hidden_states + SURROGATE_N_REFS
-    input_min = scaling_extrema["input_min"]
-    input_max = scaling_extrema["input_max"]
-    target_min = scaling_extrema["target_min"]
-    target_max = scaling_extrema["target_max"]
     if flux == true
         activation = activation_map(m.initializer_activation)
     else
@@ -446,23 +489,6 @@ function _instantiate_model_initializer(m, n_ports, scaling_extrema; flux = true
     end
     vector_layers = []
     if type == "dense"
-        if flux == true
-            push!(
-                vector_layers,
-                Parallel(
-                    vcat,
-                    (x) -> (
-                        (x - input_min[2]) / (input_max[2] - input_min[2]) *
-                        (NN_INPUT_LIMITS[2] - NN_INPUT_LIMITS[1]) + NN_INPUT_LIMITS[1]
-                    ),    #Only pass Vq (Vd=0 by definition)
-                    (x) -> (
-                        (x .- target_min) ./ (target_max .- target_min) .*
-                        (NN_TARGET_LIMITS[2] .- NN_TARGET_LIMITS[1]) .+
-                        NN_TARGET_LIMITS[1]
-                    ),        #same as PSIDS.min_max_normalization
-                ),
-            )
-        end
         if n_layer == 0
             if flux == true
                 push!(vector_layers, Dense(input_dim, output_dim))
@@ -518,21 +544,6 @@ function _instantiate_model_dynamic(m, n_ports, scaling_extrema; flux = true)
     end
     vector_layers = []
     if type == "dense"
-        if flux == true
-            push!(
-                vector_layers,
-                Parallel(
-                    vcat,
-                    (x) -> x,
-                    (x) -> (
-                        (x .- input_min) ./ (input_max .- input_min) .*
-                        (NN_INPUT_LIMITS[2] .- NN_INPUT_LIMITS[1]) .+
-                        NN_INPUT_LIMITS[1]
-                    ),
-                    (x) -> x,
-                ),
-            )
-        end
         if n_layer == 0
             if flux == true
                 if σ2_initialization == 0.0
@@ -637,13 +648,6 @@ function _instantiate_model_observation(m, n_ports, scaling_extrema; flux = true
     if typeof(m) == PSIDS.SteadyStateNODEParams
         if flux == true
             push!(vector_layers, (x) -> (x[1:(n_ports * SURROGATE_OUTPUT_DIM), :]))
-            push!(
-                vector_layers,
-                (x) -> (
-                    (x .- NN_TARGET_LIMITS[1]) .* (target_max .- target_min) ./
-                    (NN_TARGET_LIMITS[2] .- NN_TARGET_LIMITS[1]) .+ target_min
-                ),
-            )
         else
             @error "DirectObservation incompatible with instantiating observation for PSID"
             @assert false
@@ -666,13 +670,6 @@ function _instantiate_model_observation(m, n_ports, scaling_extrema; flux = true
                 push!(
                     vector_layers,
                     Dense(input_dim, output_dim),  #identity activation for output layer
-                )
-                push!(
-                    vector_layers,
-                    (x) -> (
-                        (x .- NN_TARGET_LIMITS[1]) .* (target_max .- target_min) ./
-                        (NN_TARGET_LIMITS[2] .- NN_TARGET_LIMITS[1]) .+ target_min
-                    ),
                 )
             else
                 push!(
@@ -697,13 +694,6 @@ function _instantiate_model_observation(m, n_ports, scaling_extrema; flux = true
                 push!(
                     vector_layers,
                     Dense(hidden_dim, output_dim),    #identity activation for output layer
-                )
-                push!(
-                    vector_layers,
-                    (x) -> (
-                        (x .- NN_TARGET_LIMITS[1]) .* (target_max .- target_min) ./
-                        (NN_TARGET_LIMITS[2] .- NN_TARGET_LIMITS[1]) .+ target_min
-                    ),
                 )
             else
                 push!(vector_layers, (hidden_dim, output_dim, true, "identity"))

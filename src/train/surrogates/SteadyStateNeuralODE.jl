@@ -28,7 +28,7 @@ Arguments:
   [Common Solver Arguments](https://diffeq.sciml.ai/dev/basics/common_solver_opts/)
   documentation for more details.
 """
-struct SteadyStateNeuralODE{PT, PF, M, RE, M2, RE2, M3, RE3, PM} <:
+struct SteadyStateNeuralODE{PT, PF, M, RE, M2, RE2, M3, RE3, IN, TN, TNI, RF, RFI, PM} <:
        SteadyStateNeuralODELayer
     p_train::PT
     p_fixed::PF
@@ -40,9 +40,24 @@ struct SteadyStateNeuralODE{PT, PF, M, RE, M2, RE2, M3, RE3, PM} <:
     re2::RE2
     model3::M3      #Observation model 
     re3::RE3
+    input_normalization::IN
+    target_normalization::TN
+    target_normalization_inverse::TNI
+    ref_frame::RF
+    ref_frame_inverse::RFI
     p_map::PM
 
-    function SteadyStateNeuralODE(model1, model2, model3; p = nothing)           #This is an inner constructor 
+    function SteadyStateNeuralODE(
+        model1,
+        model2,
+        model3,
+        input_normalization,
+        target_normalization,
+        target_normalization_inverse,
+        ref_frame,
+        ref_frame_inverse;
+        p = nothing,
+    )           #This is an inner constructor 
         p1, re1 = Flux.destructure(model1)
         p2, re2 = Flux.destructure(model2)
         p3, re3 = Flux.destructure(model3)
@@ -58,6 +73,11 @@ struct SteadyStateNeuralODE{PT, PF, M, RE, M2, RE2, M3, RE3, PM} <:
             typeof(re2),
             typeof(model3),
             typeof(re3),      #The type of len and len2 (Int) is automatically derived: https://docs.julialang.org/en/v1/manual/constructors/
+            typeof(input_normalization),
+            typeof(target_normalization),
+            typeof(target_normalization_inverse),
+            typeof(ref_frame),
+            typeof(ref_frame_inverse),
             Vector{Int64},
         }(
             p,
@@ -70,6 +90,11 @@ struct SteadyStateNeuralODE{PT, PF, M, RE, M2, RE2, M3, RE3, PM} <:
             re2,
             model3,
             re3,
+            input_normalization,
+            target_normalization,
+            target_normalization_inverse,
+            ref_frame,
+            ref_frame_inverse,
             1:length(p),
         )
     end
@@ -93,38 +118,40 @@ function (s::SteadyStateNeuralODE)(
     kwargs...,
 )
     p = vcat(p_fixed, p_train)
-    θ = atan(v0[2], v0[1])
-    dq_ri = [sin(θ) -cos(θ); cos(θ) sin(θ)]     #note: equivalent to PSID.dq_ri(θ)
-    ri_dq = [sin(θ) cos(θ); -cos(θ) sin(θ)]     #note: equivalent to PSID.ri_dq(θ)
-    _, Vq0 = dq_ri * [v0[1]; v0[2]]             #note: Vd0 is zero by definition 
-    Id0, Iq0 = dq_ri * [i0[1]; i0[2]]
+    Vd0, Vq0 = s.ref_frame([v0[1]; v0[2]], [v0[1]; v0[2]])    #first argument defines the angle for the transformation. Second argument is the input.
+    Id0, Iq0 = s.ref_frame([v0[1]; v0[2]], [i0[1]; i0[2]])
+
     #u[1:(end-2)] = surrogate states 
     #u[end-1:end] = refs 
     function dudt_ss(u, p, t)
-        Vd, Vq = dq_ri * V(0.0)
+        Vd, Vq = s.ref_frame([v0[1]; v0[2]], V(0.0))
+        dyn_input = vcat(
+            u[1:(end - SURROGATE_N_REFS)],
+            s.input_normalization([Vd, Vq]),
+            u[(end - (SURROGATE_N_REFS - 1)):end],
+        )
         return vcat(
-            s.re2(p[p_map[(s.len + 1):(s.len + s.len2)]])((
-                u[1:(end - SURROGATE_N_REFS)],
-                [Vd, Vq], #u[3:4],
-                u[(end - (SURROGATE_N_REFS - 1)):end],
-            )),
-            s.re3(p[p_map[(s.len + s.len2 + 1):end]])(u[1:(end - SURROGATE_N_REFS)])[1] .-
-            Id0,
-            s.re3(p[p_map[(s.len + s.len2 + 1):end]])(u[1:(end - SURROGATE_N_REFS)])[2] .-
-            Iq0,
-            zeros(SURROGATE_N_REFS - 2),
+            s.re2(p[p_map[(s.len + 1):(s.len + s.len2)]])(dyn_input),
+            s.target_normalization_inverse(
+                s.re3(p[p_map[(s.len + s.len2 + 1):end]])(u[1:(end - SURROGATE_N_REFS)]),
+            )[1] .- Id0,
+            s.target_normalization_inverse(
+                s.re3(p[p_map[(s.len + s.len2 + 1):end]])(u[1:(end - SURROGATE_N_REFS)]),
+            )[2] .- Iq0,
+            #  zeros(SURROGATE_N_REFS - 2),
         )
     end
 
     #u[1:end] = surrogate states 
     function dudt_dyn(u, p, t)
-        Vd, Vq = dq_ri * V(t)
-        return vcat(
-            s.re2(p[p_map[(s.len + 1):(s.len + s.len2)]])((u[1:end], [Vd, Vq], refs)),
-        )
+        Vd, Vq = s.ref_frame([v0[1]; v0[2]], V(t))
+        dyn_input = vcat(u[1:end], s.input_normalization([Vd, Vq]), refs)
+        return vcat(s.re2(p[p_map[(s.len + 1):(s.len + s.len2)]])(dyn_input))
     end
     #PREDICTOR 
-    u0_pred = s.re1(p[p_map[1:(s.len)]])((Vq0, [Id0, Iq0]))
+    ss_input =
+        vcat([s.input_normalization([Vd0, Vq0])[2]], s.target_normalization([Id0, Iq0])) #how to deal with this in a more general way? When there is a ref frame transformation, one of the inputs is arbitrary shouldn't be included... 
+    u0_pred = s.re1(p[p_map[1:(s.len)]])(ss_input)
 
     #SOLVE PROBLEM TO STEADY STATE 
     ff_ss = OrdinaryDiffEq.ODEFunction{false}(dudt_ss)
@@ -167,7 +194,12 @@ function (s::SteadyStateNeuralODE)(
             ss_solution.original.iterations,
             tsteps,
             Array(sol[1:end, :]),
-            ri_dq * s.re3(p[p_map[(s.len + s.len2 + 1):end]])(sol[1:end, :]),
+            s.ref_frame_inverse(
+                [v0[1]; v0[2]],
+                s.target_normalization_inverse(
+                    s.re3(p[p_map[(s.len + s.len2 + 1):end]])(sol[1:end, :]),
+                ),
+            ),
             res,
             true,
         )
@@ -178,7 +210,12 @@ function (s::SteadyStateNeuralODE)(
             ss_solution.original.iterations,
             tsteps,
             Array(ss_solution.u),
-            s.re3(p[p_map[(s.len + s.len2 + 1):end]])(ss_solution.u[1:(end - 2)]),
+            s.ref_frame_inverse(
+                [v0[1]; v0[2]],
+                s.target_normalization_inverse(
+                    s.re3(p[p_map[(s.len + s.len2 + 1):end]])(ss_solution.u[1:(end - 2)]),
+                ),
+            ),
             res,
             false,
         )
