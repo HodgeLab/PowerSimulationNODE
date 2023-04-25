@@ -687,52 +687,6 @@ function parameterize_surrogate_psid!(
     end
 end
 
-#= function parameterize_surrogate_psid!(
-    sys::PSY.System,
-    θ::Vector{Float64},
-    model_params::PSIDS.MultiDeviceLineParams;
-    max_P = 1.0,
-    max_Q = 1.0,
-)
-    n_maxpowers_params =
-        2 * (length(model_params.static_devices) + length(model_params.dynamic_devices))
-    θ_maxpowers = θ[4:(3 + n_maxpowers_params)]
-    θ_line = θ[1:3] #θ[(n_maxpowers_params + 1):(n_maxpowers_params + 3)]
-    θ_devices = θ[(n_maxpowers_params + 4):end]
-
-    line = PSY.get_component(PSY.Component, sys, string(model_params.name, "-line"))
-    PSY.set_r!(line, θ_line[1])
-    PSY.set_x!(line, θ_line[2])
-    PSY.set_b!(line, (from = θ_line[3], to = θ_line[3]))
-
-    ix_maxpowers = 1
-    ix_devices_start = 1
-    for s in model_params.static_devices
-        ix_devices_end = ix_devices_start + n_params(s) - 1
-        parameterize_surrogate_psid!(
-            sys,
-            θ_devices[ix_devices_start:ix_devices_end],
-            s;
-            max_P = θ_maxpowers[ix_maxpowers],
-            max_Q = θ_maxpowers[ix_maxpowers + 1],
-        )
-        ix_maxpowers += 2
-        ix_devices_start = ix_devices_end + 1
-    end
-    for s in model_params.dynamic_devices
-        ix_devices_end = ix_devices_start + n_params(s) - 1
-        parameterize_surrogate_psid!(
-            sys,
-            θ_devices[ix_devices_start:ix_devices_end],
-            s;
-            max_P = θ_maxpowers[ix_maxpowers],
-            max_Q = θ_maxpowers[ix_maxpowers + 1],
-        )
-        ix_maxpowers += 2
-        ix_devices_start = ix_devices_end + 1
-    end
-end =#
-
 function _check_dimensionality(
     data_collection_location,
     model_params::PSIDS.ClassicGenParams,

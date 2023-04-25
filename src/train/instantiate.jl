@@ -182,51 +182,6 @@ function add_surrogate_psid!(
     end
 end
 
-#= function add_surrogate_psid!(
-    sys::PSY.System,
-    model_params::PSIDS.MultiDeviceLineParams,
-    ::Vector{PSIDS.SteadyStateNODEData},   #Won't be used in this dispatch 
-)
-    display(sys)
-    source = PSY.get_component(PSY.Source, sys, model_params.name) #Note: hardcoded for single port surrogate 
-    P_ref = PSY.get_active_power(source)
-    Q_ref = PSY.get_reactive_power(source)
-    b = PSY.get_bus(source)
-    PSY.remove_component!(sys, source)
-    b_new = PSY.Bus(
-        number = 0,
-        name = string(model_params.name, "-bus"),
-        bustype = PSY.BusTypes.PQ,
-        angle = 0.0,    #doesn't matter (PQ bus)
-        magnitude = 1.0, #doesn't matter (PQ bus)
-        voltage_limits = (0.0, 2.0),
-        base_voltage = 230,
-    )
-    PSY.add_component!(sys, b_new)
-    a_new = PSY.Arc(from = b_new, to = b)
-    PSY.add_component!(sys, a_new)
-    l_new = PSY.Line(
-        name = string(model_params.name, "-line"),
-        available = true,
-        active_power_flow = 0.0,
-        reactive_power_flow = 0.0,
-        arc = a_new,
-        r = 0.0, #parameterized later
-        x = 0.0, # parameterized later
-        b = (from = 0.0, to = 0.0), #parameterized later
-        rate = 0.0,
-        angle_limits = (min = -pi / 2, max = pi / 2),
-    )
-    PSY.add_component!(sys, l_new)
-    display(sys)
-    for s in model_params.static_devices
-        _add_physics_surrogate_device!(sys, b_new, P_ref, Q_ref, s)    #do we need to pass in P_ref, Q_ref here? - should happen in initialization
-    end
-    for s in model_params.dynamic_devices
-        _add_physics_surrogate_device!(sys, b_new, P_ref, Q_ref, s)     #do we need to pass in P_ref, Q_ref here? - should happen in initialization 
-    end
-end =#
-
 function _add_physics_surrogate_device!(
     sys,
     b,

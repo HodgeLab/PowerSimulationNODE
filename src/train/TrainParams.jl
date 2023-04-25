@@ -93,7 +93,7 @@ mutable struct TrainParams
             PSIDS.GenerateDataParams,
         },
     }
-    model_params::PSIDS.SurrogateModelParams
+    #model_params::PSIDS.SurrogateModelParams
     optimizer::Vector{
         NamedTuple{
             (
@@ -142,7 +142,8 @@ mutable struct TrainParams
     train_time_limit_seconds::Int64
     base_path::String
     system_path::String
-    surrogate_system_path::String
+    model_path::String 
+    surrogate_system_path::String               #might no longer need both surrogate_system_path and modified_surrogate_system_path. If we know the model at the start, can just make the modified system right away. 
     modified_surrogate_system_path::String
     train_system_path::String
     data_collection_location_path::String
@@ -183,7 +184,7 @@ StructTypes.subtypes(::Type{PSIDS.SurrogateOperatingPoint}) = (
     RandomOperatingPointXiao = PSIDS.RandomOperatingPointXiao,
 )
 
-StructTypes.subtypes(::Type{PSIDS.SurrogateModelParams}) = (
+#= StructTypes.subtypes(::Type{PSIDS.SurrogateModelParams}) = (
     SteadyStateNODEParams = PSIDS.SteadyStateNODEParams,
     SteadyStateNODEObsParams = PSIDS.SteadyStateNODEObsParams,
     ClassicGenParams = PSIDS.ClassicGenParams,
@@ -191,7 +192,7 @@ StructTypes.subtypes(::Type{PSIDS.SurrogateModelParams}) = (
     GFMParams = PSIDS.GFMParams,
     ZIPParams = PSIDS.ZIPParams,
     MultiDeviceParams = PSIDS.MultiDeviceParams,
-)
+) =#
 
 function TrainParams(;
     train_id = "train_instance_1",
@@ -215,7 +216,7 @@ function TrainParams(;
         perturbations = [[PSIDS.VStep(source_name = "InfBus")]],    #To do - make this a branch impedance double 
         params = PSIDS.GenerateDataParams(),
     ),
-    model_params = PSIDS.SteadyStateNODEObsParams(),
+    #model_params = PSIDS.SteadyStateNODEObsParams(),
     optimizer = [
         (
             sensealg = "Zygote",
@@ -252,6 +253,11 @@ function TrainParams(;
         base_path,
         PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
         "system.json",
+    ),
+    model_path = joinpath(
+        base_path,
+        PowerSimulationNODE.INPUT_SYSTEM_FOLDER_NAME,
+        "model_system.json",
     ),
     surrogate_system_path = joinpath(
         base_path,
@@ -306,6 +312,7 @@ function TrainParams(;
         train_time_limit_seconds,
         base_path,  #other paths derived from this one must come after 
         system_path,
+        model_path,
         surrogate_system_path,
         modified_surrogate_system_path,
         train_system_path,
