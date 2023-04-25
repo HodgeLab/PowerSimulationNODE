@@ -32,6 +32,7 @@ export generate_surrogate_dataset
 import Arrow
 import Dates
 import DataFrames
+import DiffEqBase
 import DiffEqCallbacks
 import Flux
 import Flux.Losses: mae, mse
