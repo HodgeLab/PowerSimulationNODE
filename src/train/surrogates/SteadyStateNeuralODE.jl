@@ -202,6 +202,7 @@ function (s::SteadyStateNeuralODE)(
             ),
             res,
             true,
+            sol.destats,
         )
     else
         return SteadyStateNeuralODE_solution(
@@ -218,6 +219,7 @@ function (s::SteadyStateNeuralODE)(
             ),
             res,
             false,
+            nothing,
         )
     end
 end

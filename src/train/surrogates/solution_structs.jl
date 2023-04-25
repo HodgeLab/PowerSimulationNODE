@@ -27,4 +27,5 @@ struct SteadyStateNeuralODE_solution{T}
     i_series::AbstractArray{T}
     res::AbstractArray{T}
     converged::Bool
+    destats::Union{DiffEqBase.DEStats, Nothing}
 end
