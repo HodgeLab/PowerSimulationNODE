@@ -209,10 +209,7 @@
     Vi0 = Vm0 * sin(θ0)
     Ir0, Ii0 = PowerSimulationNODE.PQV_to_I(-1.0, -0.1, [Vr0, Vi0])
     data_aux = SteadyStateNODEData(;
-        real_current = [Ir0],
-        imag_current = [Ii0],
-        surrogate_real_voltage = [Vr0],
-        surrogate_imag_voltage = [Vi0],
+        ic = Dict{Symbol, Float64}(:Ir0 => Ir0, :Ii0 => Ii0, :Vr0 => Vr0, :Vi0 => Vi0),
     )
     PSIDS.match_operating_point(sys_train, data_aux, p.model_params)
 
