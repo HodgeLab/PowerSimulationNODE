@@ -37,8 +37,10 @@ function (s::ZIP)(
 )
     p = vcat(p_fixed, p_train)
     p_ordered = p[p_map]
+    i0_device = i0 * 100.0 / p_ordered[1]     #i0 comes in system base, calculate in device base 
+
     refs = zeros(typeof(p_ordered[1]), n_refs(s))
-    initilize_static_device!(refs, p, v0, i0)
+    initilize_static_device!(refs, p, v0, i0_device)
     i_series = Array{Float64}(undef, 2, length(tsteps))
     for i in eachindex(tsteps)
         Vr, Vi = V(tsteps[i])
@@ -48,11 +50,12 @@ function (s::ZIP)(
 end
 
 function default_params(::PSIDS.ZIPParams)
-    return Float64[1 / 3, 1 / 3, 1 / 3, 1 / 3, 1 / 3, 1 / 3]
+    return Float64[100.0, 1 / 3, 1 / 3, 1 / 3, 1 / 3, 1 / 3, 1 / 3]
 end
 
 function ordered_param_symbols(::Union{ZIP, PSIDS.ZIPParams})
     return [
+        :base_power_zip,
         :max_active_power_Z,
         :max_active_power_I,
         :max_active_power_P,
@@ -67,17 +70,18 @@ function n_refs(::Union{ZIP, PSIDS.ZIPParams})
 end
 
 function n_params(::Union{ZIP, PSIDS.ZIPParams})
-    return 6
+    return 7
 end
 
 const zip_indices = Dict{Symbol, Dict{Symbol, Int64}}(
     :params => Dict{Symbol, Int64}(
-        :max_active_power_Z => 1,
-        :max_active_power_I => 2,
-        :max_active_power_P => 3,
-        :max_reactive_power_Z => 4,
-        :max_reactive_power_I => 5,
-        :max_reactive_power_P => 6,
+        :base_power_zip => 1,
+        :max_active_power_Z => 2,
+        :max_active_power_I => 3,
+        :max_active_power_P => 4,
+        :max_reactive_power_Z => 5,
+        :max_reactive_power_I => 6,
+        :max_reactive_power_P => 7,
     ),
     :states => Dict{Symbol, Int64}(),
     :references => Dict{Symbol, Int64}(),

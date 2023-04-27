@@ -486,11 +486,13 @@ function parameterize_surrogate_psid!(
     static = PSY.get_component(PSY.StaticInjection, sys, model_params.name)
     PSY.set_active_power_limits!(static, (min = -max_P, max = max_P))
     PSY.set_reactive_power_limits!(static, (min = -max_Q, max = max_Q))
+    PSY.set_base_power!(static, θ[1])
 
-    R, Xd_p, eq_p = θ[1:3]  #machine parameters 
-    H, D = θ[4:5]   #shaft parameters 
+    R, Xd_p, eq_p = θ[2:4]  #machine parameters 
+    H, D = θ[5:6]   #shaft parameters 
 
     surrogate = PSY.get_component(PSY.DynamicInjection, sys, model_params.name)
+    PSY.set_base_power!(surrogate, θ[1])
     machine = PSY.get_machine(surrogate)
     PSY.set_R!(machine, R)
     PSY.set_Xd_p!(machine, Xd_p)
@@ -511,9 +513,11 @@ function parameterize_surrogate_psid!(
     static = PSY.get_component(PSY.StaticInjection, sys, model_params.name)
     PSY.set_active_power_limits!(static, (min = -max_P, max = max_P))
     PSY.set_reactive_power_limits!(static, (min = -max_Q, max = max_Q))
+    PSY.set_base_power!(static, θ[gfl_indices[:params][:base_power_gfl]])
 
     #NOTE: references are set during initialization 
     surrogate = PSY.get_component(PSY.DynamicInjection, sys, model_params.name)
+    PSY.set_base_power!(surrogate, θ[gfl_indices[:params][:base_power_gfl]])
     converter = PSY.get_converter(surrogate)
     PSY.set_rated_voltage!(converter, θ[gfl_indices[:params][:rated_voltage_gfl]])
     PSY.set_rated_current!(converter, θ[gfl_indices[:params][:rated_current_gfl]])
@@ -562,9 +566,11 @@ function parameterize_surrogate_psid!(
     static = PSY.get_component(PSY.StaticInjection, sys, model_params.name)
     PSY.set_active_power_limits!(static, (min = -max_P, max = max_P))
     PSY.set_reactive_power_limits!(static, (min = -max_Q, max = max_Q))
+    PSY.set_base_power!(static, θ[gfm_indices[:params][:base_power_gfm]])
 
     #NOTE: references are set during initialization 
     surrogate = PSY.get_component(PSY.DynamicInjection, sys, model_params.name)
+    PSY.set_base_power!(surrogate, θ[gfm_indices[:params][:base_power_gfm]])
     converter = PSY.get_converter(surrogate)
     PSY.set_rated_voltage!(converter, θ[gfm_indices[:params][:rated_voltage_gfm]])
     PSY.set_rated_current!(converter, θ[gfm_indices[:params][:rated_current_gfm]])
@@ -621,6 +627,7 @@ function parameterize_surrogate_psid!(
         θ[zip_indices[:params][:max_reactive_power_I]] +
         θ[zip_indices[:params][:max_reactive_power_P]]
     load = PSY.get_component(PSY.StandardLoad, sys, model_params.name) # string(model_params.name, "_Z"))
+    PSY.set_base_power!(load, θ[zip_indices[:params][:base_power_zip]])
     PSY.set_max_impedance_active_power!(
         load,
         max_P * θ[zip_indices[:params][:max_active_power_Z]] / P_total,
@@ -686,52 +693,6 @@ function parameterize_surrogate_psid!(
         ix_devices_start = ix_devices_end + 1
     end
 end
-
-#= function parameterize_surrogate_psid!(
-    sys::PSY.System,
-    θ::Vector{Float64},
-    model_params::PSIDS.MultiDeviceLineParams;
-    max_P = 1.0,
-    max_Q = 1.0,
-)
-    n_maxpowers_params =
-        2 * (length(model_params.static_devices) + length(model_params.dynamic_devices))
-    θ_maxpowers = θ[4:(3 + n_maxpowers_params)]
-    θ_line = θ[1:3] #θ[(n_maxpowers_params + 1):(n_maxpowers_params + 3)]
-    θ_devices = θ[(n_maxpowers_params + 4):end]
-
-    line = PSY.get_component(PSY.Component, sys, string(model_params.name, "-line"))
-    PSY.set_r!(line, θ_line[1])
-    PSY.set_x!(line, θ_line[2])
-    PSY.set_b!(line, (from = θ_line[3], to = θ_line[3]))
-
-    ix_maxpowers = 1
-    ix_devices_start = 1
-    for s in model_params.static_devices
-        ix_devices_end = ix_devices_start + n_params(s) - 1
-        parameterize_surrogate_psid!(
-            sys,
-            θ_devices[ix_devices_start:ix_devices_end],
-            s;
-            max_P = θ_maxpowers[ix_maxpowers],
-            max_Q = θ_maxpowers[ix_maxpowers + 1],
-        )
-        ix_maxpowers += 2
-        ix_devices_start = ix_devices_end + 1
-    end
-    for s in model_params.dynamic_devices
-        ix_devices_end = ix_devices_start + n_params(s) - 1
-        parameterize_surrogate_psid!(
-            sys,
-            θ_devices[ix_devices_start:ix_devices_end],
-            s;
-            max_P = θ_maxpowers[ix_maxpowers],
-            max_Q = θ_maxpowers[ix_maxpowers + 1],
-        )
-        ix_maxpowers += 2
-        ix_devices_start = ix_devices_end + 1
-    end
-end =#
 
 function _check_dimensionality(
     data_collection_location,
@@ -1177,14 +1138,14 @@ function _initialize_params(
 end
 
 function _initialize_params(p_fixed::Vector{Symbol}, p_full, surrogate::ClassicGen)
-    @assert !(nothing in indexin(p_fixed, [:R, :Xd_p, :eq_p, :H, :D]))  #ensure given p_fixed is a valid parameter
+    @assert !(nothing in indexin(p_fixed, [:base_power_gen, :R, :Xd_p, :eq_p, :H, :D]))  #ensure given p_fixed is a valid parameter
     @info "original parameter vector: $p_full"
     p_fix = Float64[]
     p_train = Float64[]
     fixed_indices = []
     train_indices = []
     for i in 1:length(p_full)
-        if i in indexin(p_fixed, [:R, :Xd_p, :eq_p, :H, :D])
+        if i in indexin(p_fixed, [:base_power_gen, :R, :Xd_p, :eq_p, :H, :D])
             push!(p_fix, p_full[i])
             push!(fixed_indices, i)
         else
@@ -1192,7 +1153,7 @@ function _initialize_params(p_fixed::Vector{Symbol}, p_full, surrogate::ClassicG
             push!(train_indices, i)
         end
     end
-    p_map = Vector{Int64}(undef, 5)
+    p_map = Vector{Int64}(undef, 6)
     for (ix, i) in enumerate(fixed_indices)
         p_map[i] = ix
     end

@@ -133,6 +133,8 @@
         p.optimizer[1].steadystate_solver,
     )
     dynamic_solver = PowerSimulationNODE.instantiate_solver(p.optimizer[1].dynamic_solver)
+    p_default = PowerSimulationNODE.default_params(PSIDS.ZIPParams())
+    p_default[1] = 50.0  #non 100.0 base power to ensure scaling is working properly
     surrogate_sol = train_surrogate(
         exs[1],
         v0,
@@ -145,6 +147,7 @@
         reltol = dynamic_reltol,
         abstol = dynamic_abstol,
         maxiters = dynamic_maxiters,
+        p_train = p_default,
     )
 
     p1 = plot(
@@ -172,10 +175,8 @@
     )
     add_component!(sys_train, source_surrogate)
 
-    θ, _ = Flux.destructure(train_surrogate)
-
     PowerSimulationNODE.add_surrogate_psid!(sys_train, p.model_params, train_dataset)
-    PowerSimulationNODE.parameterize_surrogate_psid!(sys_train, θ, p.model_params)
+    PowerSimulationNODE.parameterize_surrogate_psid!(sys_train, p_default, p.model_params)
     display(sys_train)
 
     #Add the  Frequency Chirp

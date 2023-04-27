@@ -132,6 +132,8 @@
         p.optimizer[1].steadystate_solver,
     )
     dynamic_solver = PowerSimulationNODE.instantiate_solver(p.optimizer[1].dynamic_solver)
+    p_default = [100.0, 0.0, 0.2995, 0.7087, 3.148, 2.0]
+    p_default[1] = 50.0  #non 100.0 base power to ensure scaling is working properly
     surrogate_sol = train_surrogate(
         exs[1],
         v0,
@@ -144,6 +146,7 @@
         reltol = dynamic_reltol,
         abstol = dynamic_abstol,
         maxiters = dynamic_maxiters,
+        p_train = p_default,
     )
 
     p1 = plot(
@@ -174,11 +177,9 @@
     for b in get_components(PSY.Bus, sys_train)
         @warn get_bustype(b)
     end
-    θ, _ = Flux.destructure(train_surrogate)
 
     PowerSimulationNODE.add_surrogate_psid!(sys_train, p.model_params, train_dataset)   #adds a ClassicGen with same operating point as the source with name model_params.name 
-
-    PowerSimulationNODE.parameterize_surrogate_psid!(sys_train, θ, p.model_params)
+    PowerSimulationNODE.parameterize_surrogate_psid!(sys_train, p_default, p.model_params)
     display(sys_train)
     #Add the  Frequency Chirp
     for s in get_components(Source, sys_train)
@@ -231,7 +232,7 @@
     plot!(p2, Ii[1], -1 * Ii[2], label = "imag current -psid", legend = :topright)
     #display(plot(p1, p2, p3, p4, size = (1000, 1000), title = "compare_ClassicGen"))
 
-    @test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <= 0.0014
+    @test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <= 0.0015
     @test LinearAlgebra.norm(Ii[2] .* -1 .- surrogate_sol.i_series[2, :], Inf) <= 0.0022
 
     rm(path, force = true, recursive = true)

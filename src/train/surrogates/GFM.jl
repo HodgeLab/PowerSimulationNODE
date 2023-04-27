@@ -36,6 +36,7 @@ function (s::GFM)(
 )
     p = vcat(p_fixed, p_train)
     p_ordered = p[p_map]
+    i0_device = i0 * 100.0 / p_ordered[1]     #i0 comes in system base, calculate in device base 
 
     x0 = zeros(typeof(p_ordered[1]), n_states(s))
     inner_vars = repeat(PSID.ACCEPTED_REAL_TYPES[0.0], n_inner_vars(s))
@@ -47,7 +48,7 @@ function (s::GFM)(
         refs,
         p_ordered,
         v0,
-        i0,
+        i0_device,
         ss_solver,
         ss_tol,
         s,
@@ -70,7 +71,8 @@ function (s::GFM)(
         sol = OrdinaryDiffEq.solve(prob_dyn, dyn_solver; kwargs...)
         return PhysicalModel_solution(
             tsteps,
-            Array(sol[real_current_index(s):imag_current_index(s), :]),
+            Array(sol[real_current_index(s):imag_current_index(s), :]) .*
+            (p_ordered[gfm_indices[:params][:base_power_gfm]] / 100.0),
             [1.0],
             true,
         )
@@ -81,6 +83,7 @@ end
 
 function default_params(::PSIDS.GFMParams)
     return Float64[
+        100.0, #base power
         690.0,  #rated_voltage
         2.75,   #rated_current
         0.05,    #Rp 
@@ -108,6 +111,7 @@ end
 
 function ordered_param_symbols(::Union{GFM, PSIDS.GFMParams})
     return [
+        :base_power_gfm,
         :rated_voltage_gfm,
         :rated_current_gfm,
         :Rp,
@@ -146,7 +150,7 @@ function n_refs(::Union{GFM, PSIDS.GFMParams})
 end
 
 function n_params(::Union{GFM, PSIDS.GFMParams})
-    return 22
+    return 23
 end
 
 function real_current_index(::Union{GFM, PSIDS.GFMParams})
@@ -159,28 +163,29 @@ end
 
 const gfm_indices = Dict{Symbol, Dict{Symbol, Int64}}(
     :params => Dict{Symbol, Int64}(
-        :rated_voltage_gfm => 1,
-        :rated_current_gfm => 2,
-        :Rp => 3,
-        :ωz_gfm => 4,
-        :kq => 5,
-        :ωf_gfm => 6,
-        :kpv => 7,
-        :kiv => 8,
-        :kffv_gfm => 9,
-        :rv => 10,
-        :lv => 11,
-        :kpc_gfm => 12,
-        :kic_gfm => 13,
-        :kffi => 14,
-        :ωad => 15,
-        :kad => 16,
-        :voltage_gfm => 17,
-        :lf_gfm => 18,
-        :rf_gfm => 19,
-        :cf_gfm => 20,
-        :lg_gfm => 21,
-        :rg_gfm => 22,
+        :base_power_gfm => 1,
+        :rated_voltage_gfm => 2,
+        :rated_current_gfm => 3,
+        :Rp => 4,
+        :ωz_gfm => 5,
+        :kq => 6,
+        :ωf_gfm => 7,
+        :kpv => 8,
+        :kiv => 9,
+        :kffv_gfm => 10,
+        :rv => 11,
+        :lv => 12,
+        :kpc_gfm => 13,
+        :kic_gfm => 14,
+        :kffi => 15,
+        :ωad => 16,
+        :kad => 17,
+        :voltage_gfm => 18,
+        :lf_gfm => 19,
+        :rf_gfm => 20,
+        :cf_gfm => 21,
+        :lg_gfm => 22,
+        :rg_gfm => 23,
     ),
     :states => Dict{Symbol, Int64}(
         :θ_oc => 1,

@@ -127,6 +127,7 @@ end
 
 function ordered_param_symbols(::Union{GFL, PSIDS.GFLParams})
     return [
+        :base_power_gfl,
         :rated_voltage_gfl,
         :rated_current_gfl,
         :Kp_p,

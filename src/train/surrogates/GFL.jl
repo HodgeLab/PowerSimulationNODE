@@ -36,6 +36,7 @@ function (s::GFL)(
 )
     p = vcat(p_fixed, p_train)
     p_ordered = p[p_map]
+    i0_device = i0 * 100.0 / p_ordered[1]     #i0 comes in system base, calculate in device base 
 
     x0 = zeros(typeof(p_ordered[1]), n_states(s))
     inner_vars = repeat(PSID.ACCEPTED_REAL_TYPES[0.0], n_inner_vars(s))
@@ -47,7 +48,7 @@ function (s::GFL)(
         refs,
         p_ordered,
         v0,
-        i0,
+        i0_device,
         ss_solver,
         ss_tol,
         s,
@@ -70,7 +71,8 @@ function (s::GFL)(
         sol = OrdinaryDiffEq.solve(prob_dyn, dyn_solver; kwargs...)
         return PhysicalModel_solution(
             tsteps,
-            Array(sol[real_current_index(s):imag_current_index(s), :]),
+            Array(sol[real_current_index(s):imag_current_index(s), :]) .*
+            (p_ordered[gfl_indices[:params][:base_power_gfl]] / 100.0),
             [1.0],
             true,
         )
@@ -81,6 +83,7 @@ end
 
 function default_params(::PSIDS.GFLParams)
     return Float64[
+        100.0,  #base_power
         690.0,  #rated_voltage
         2.75,   #rated_current
         2.0,    #Kp_p 
@@ -106,6 +109,7 @@ end
 
 function ordered_param_symbols(::Union{GFL, PSIDS.GFLParams})
     return [
+        :base_power_gfl,
         :rated_voltage_gfl,
         :rated_current_gfl,
         :Kp_p,
@@ -142,7 +146,7 @@ function n_refs(::Union{GFL, PSIDS.GFLParams})
 end
 
 function n_params(::Union{GFL, PSIDS.GFLParams})
-    return 20
+    return 21
 end
 
 function real_current_index(::Union{GFL, PSIDS.GFLParams})
@@ -155,26 +159,27 @@ end
 
 const gfl_indices = Dict{Symbol, Dict{Symbol, Int64}}(
     :params => Dict{Symbol, Int64}(
-        :rated_voltage_gfl => 1,
-        :rated_current_gfl => 2,
-        :Kp_p => 3,
-        :Ki_p => 4,
-        :ωz_gfl => 5,
-        :Kp_q => 6,
-        :Ki_q => 7,
-        :ωf_gfl => 8,
-        :kpc_gfl => 9,
-        :kic_gfl => 10,
-        :kffv_gfl => 11,
-        :voltage_gfl => 12,
-        :ω_lp => 13,
-        :kp_pll => 14,
-        :ki_pll => 15,
-        :lf_gfl => 16,
-        :rf_gfl => 17,
-        :cf_gfl => 18,
-        :lg_gfl => 19,
-        :rg_gfl => 20,
+        :base_power_gfl => 1,
+        :rated_voltage_gfl => 2,
+        :rated_current_gfl => 3,
+        :Kp_p => 4,
+        :Ki_p => 5,
+        :ωz_gfl => 6,
+        :Kp_q => 7,
+        :Ki_q => 8,
+        :ωf_gfl => 9,
+        :kpc_gfl => 10,
+        :kic_gfl => 11,
+        :kffv_gfl => 12,
+        :voltage_gfl => 13,
+        :ω_lp => 14,
+        :kp_pll => 15,
+        :ki_pll => 16,
+        :lf_gfl => 17,
+        :rf_gfl => 18,
+        :cf_gfl => 19,
+        :lg_gfl => 20,
+        :rg_gfl => 21,
     ),
     :states => Dict{Symbol, Int64}(
         :σp_oc => 1,

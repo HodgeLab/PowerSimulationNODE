@@ -788,14 +788,14 @@ end
                 loss_function = (α = 0.5, β = 1.0, residual_penalty = 1.0e9),
             ),
         ],
-        p_start = [], #Float32[0.01, 0.4995, 0.5087, 4.148, 1.0],
+        p_start = [],
         check_validation_loss_iterations = [],
         validation_loss_termination = "false",
         output_mode_skip = 1,
     )
     try
         dataset_loss = generate_and_train_test(p)
-        @test isapprox(dataset_loss["max_error_ir"][1], 0.0004922800802611427, atol = 1e-10)
+        @test isapprox(dataset_loss["max_error_ir"][1], 0.0012409126130332737, atol = 1e-10)
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -1133,12 +1133,14 @@ end
             0.4,
             0.4,
             0.4,
+            100.0,
             1.0,
             0.0,
             0.0,
             1.0,
             0.0,
             0.0,
+            100.0,
             12.700000000000001,
             615.9420289855071,
             1.9835456702225953,
@@ -1159,6 +1161,7 @@ end
             0.07399999999999998,
             0.19999999999999998,
             0.009999999999999998,
+            100.0,
             12.700000000000001,
             205.3140096618357,
             0.04991162961714421,

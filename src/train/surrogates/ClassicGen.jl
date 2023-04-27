@@ -11,7 +11,7 @@ struct ClassicGen{PT, PF, PM} <: ClassicGenLayer
         p = nothing,
     )
         if p === nothing
-            p = Float64[0.0, 0.2995, 0.7087, 3.148, 2.0] #default starting parameters 
+            p = Float64[100.0, 0.0, 0.2995, 0.7087, 3.148, 2.0] #default starting parameters 
         end
         new{typeof(p), typeof(p), Vector{Int64}}(p, [], 1:length(p))
     end
@@ -36,13 +36,14 @@ function (s::ClassicGen)(
 )
     p = vcat(p_fixed, p_train)
     p_ordered = p[p_map]
+    i0_device = i0 * 100.0 / p_ordered[1]     #i0 comes in system base, calculate in device base 
 
-    P0 = v0[1] * i0[1] + v0[2] * i0[2]
-    Q0 = v0[2] * i0[1] - v0[1] * i0[2]
+    P0 = v0[1] * i0_device[1] + v0[2] * i0_device[2]
+    Q0 = v0[2] * i0_device[1] - v0[1] * i0_device[2]
 
-    R, Xd_p, eq_p, H, D = p_ordered
+    base_power, R, Xd_p, eq_p, H, D = p_ordered
     V_complex = v0[1] + v0[2] * 1im
-    I_complex = i0[1] + i0[2] * 1im
+    I_complex = i0_device[1] + i0_device[2] * 1im
     δ0 = angle(V_complex + (R + Xd_p * 1im) * I_complex)
     ω0 = 1.0
     τm0 = real(V_complex * conj(I_complex))
@@ -51,7 +52,7 @@ function (s::ClassicGen)(
     #TODO - organize like the GFL, the classical gen was just a proof of concept 
     #TODO - eq_p shouldn't be a parameter  
     function dudt_ss(u, p, t)
-        R, Xd_p, eq_p, H, D = p
+        _, R, Xd_p, eq_p, H, D = p
         δ, τm, Vf0 = u
 
         ri_dq = [sin(δ) -cos(δ); cos(δ) sin(δ)]
@@ -68,7 +69,7 @@ function (s::ClassicGen)(
 
     #This is the dynamics i.e. dx/dt = f(x)
     function dudt_dyn(u, p, t)
-        R, Xd_p, _, H, D = p
+        _, R, Xd_p, _, H, D = p
         δ, ω = u
 
         τm0 = refs[1]
@@ -121,14 +122,14 @@ function (s::ClassicGen)(
         )
 
         function f_saving(u, t, integrator)
-            R, Xd_p, _, _, _ = p
+            _, R, Xd_p, _, _, _ = p
             δ = u[1]
             eq_p = refs[2]
             ri_dq = [sin(δ) -cos(δ); cos(δ) sin(δ)]
             V_dq = ri_dq * V(t)
             i_d = (1.0 / (R^2 + Xd_p^2)) * (Xd_p * (eq_p - V_dq[2]) - R * V_dq[1])  #15.36
             i_q = (1.0 / (R^2 + Xd_p^2)) * (Xd_p * V_dq[1] + R * (eq_p - V_dq[2])) #15.36
-            ir, ii = [sin(δ) cos(δ); -cos(δ) sin(δ)] * [i_d; i_q]
+            ir, ii = [sin(δ) cos(δ); -cos(δ) sin(δ)] * [i_d; i_q] .* p_ordered[1] / 100.0
             return (ir, ii)
         end
 
