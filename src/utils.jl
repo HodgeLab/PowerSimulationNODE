@@ -128,6 +128,8 @@ function _set_value!(TP, key, value)
         :log_η,
         :initial_stepnorm,
         :maxiters,
+        :dynamic_solver,
+        :steadystate_solver,
         :lb_loss,
         :curriculum,
         :curriculum_timespans,
