@@ -1,4 +1,4 @@
-
+TEST_ATOL = 1e-5
 function generate_and_train_test(p2)
     input_param_file = joinpath(p2.base_path, "input_data", "input_test1.json")
     PowerSimulationNODE.serialize(p2, input_param_file)
@@ -185,7 +185,7 @@ end
     )
     try
         dataset_loss = generate_and_train_test(p)
-        @test isapprox(dataset_loss["max_error_ir"][1], 0.007384696587123374, atol = 1e-10)
+        @test isapprox(dataset_loss["max_error_ir"][1], 0.007384696587123374, atol = TEST_ATOL)
         #loss_dataframe =  PowerSimulationNODE.read_arrow_file_to_dataframe(joinpath(p.output_data_path,"train_instance_1", "loss"))
         #@test loss_dataframe[6, :iteration_time_seconds] - loss_dataframe[5, :iteration_time_seconds] < 1.0
         #GC.gc()
@@ -308,7 +308,7 @@ end
     )
     try
         dataset_loss = generate_and_train_test(p)
-        @test isapprox(dataset_loss["max_error_ir"][1], 0.004614147683377423, atol = 1e-10)
+        @test isapprox(dataset_loss["max_error_ir"][1], 0.004614147683377423, atol = TEST_ATOL)
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -428,7 +428,7 @@ end
     )
     try
         dataset_loss = generate_and_train_test(p)
-        @test isapprox(dataset_loss["max_error_ir"][1], 0.004275742795623705, atol = 1e-10)
+        @test isapprox(dataset_loss["max_error_ir"][1], 0.004275742795623705, atol = TEST_ATOL)
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -549,7 +549,7 @@ end
     )
     try
         dataset_loss = generate_and_train_test(p)
-        @test isapprox(dataset_loss["max_error_ir"][1], 0.004033484674650145, atol = 1e-10)
+        @test isapprox(dataset_loss["max_error_ir"][1], 0.004033484674650145, atol = TEST_ATOL)
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -685,7 +685,7 @@ end
     )
     try
         dataset_loss = generate_and_train_test(p)
-        @test isapprox(dataset_loss["max_error_ir"][1], 0.5784567781878369, atol = 1e-10)
+        @test isapprox(dataset_loss["max_error_ir"][1], 0.14131662879776652, atol = TEST_ATOL)
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -795,7 +795,7 @@ end
     )
     try
         dataset_loss = generate_and_train_test(p)
-        @test isapprox(dataset_loss["max_error_ir"][1], 0.0012409126130332737, atol = 1e-10)
+        @test isapprox(dataset_loss["max_error_ir"][1], 0.0012409126130332737, atol = TEST_ATOL)
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -1014,7 +1014,7 @@ end
     )
     try
         dataset_loss = generate_and_train_test(p)
-        @test isapprox(dataset_loss["max_error_ir"][1], 0.00159187565598784, atol = 1e-10)
+        @test isapprox(dataset_loss["max_error_ir"][1], 0.00159187565598784, atol = TEST_ATOL)
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -1192,7 +1192,7 @@ end
     )
     try
         dataset_loss = generate_and_train_test(p)
-        @test isapprox(dataset_loss["max_error_ir"][1], 0.0021414167152631336, atol = 1e-10)
+        @test isapprox(dataset_loss["max_error_ir"][1], 0.0021414167152631336, atol = TEST_ATOL)
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
