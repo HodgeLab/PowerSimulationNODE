@@ -1186,6 +1186,7 @@ end
             0.009999999999999998,
         ],
         check_validation_loss_iterations = [],
+        final_validation_loss = false, 
         validation_loss_termination = "false",
         output_mode_skip = 1,
     )

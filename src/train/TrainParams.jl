@@ -136,6 +136,8 @@ mutable struct TrainParams
     }
     p_start::AbstractArray
     check_validation_loss_iterations::Vector{Int64}
+    final_validation_loss::Bool
+    time_limit_buffer_seconds::Int64
     validation_loss_termination::String #"false", "single increase"
     rng_seed::Int64
     output_mode_skip::Int64
@@ -243,6 +245,8 @@ function TrainParams(;
     ],
     p_start = Float32[],
     check_validation_loss_iterations = [],
+    final_validation_loss = true, 
+    time_limit_buffer_seconds = 5400, 
     validation_loss_termination = "false",
     rng_seed = 123,
     output_mode_skip = 1,
@@ -300,6 +304,8 @@ function TrainParams(;
         optimizer,
         p_start,
         check_validation_loss_iterations,
+        final_validation_loss,
+        time_limit_buffer_seconds,
         validation_loss_termination,
         rng_seed,
         output_mode_skip,

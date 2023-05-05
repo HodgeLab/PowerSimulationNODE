@@ -793,7 +793,7 @@ Executes training according to params. Assumes the existence of the necessary in
 
 """
 function train(params::TrainParams)
-    params.train_time_limit_seconds += (floor(time()) - TIME_LIMIT_BUFFER_SECONDS)
+    params.train_time_limit_seconds += (floor(time()) - params.time_limit_buffer_seconds)
     Random.seed!(params.rng_seed)
 
     #READ DATASETS 
@@ -946,18 +946,18 @@ function train(params::TrainParams)
             end
         end
         output["total_time"] = total_time
-
-        surrogate_dataset = generate_surrogate_dataset(
-            sys_validation,
-            sys_validation_aux,
-            p_full,
-            validation_dataset,
-            params.validation_data,
-            data_collection_location_validation,
-            params.model_params,
-        )
-
-        output["final_loss"] = evaluate_loss(surrogate_dataset, validation_dataset)
+        if params.final_validation_loss
+            surrogate_dataset = generate_surrogate_dataset(
+                sys_validation,
+                sys_validation_aux,
+                p_full,
+                validation_dataset,
+                params.validation_data,
+                data_collection_location_validation,
+                params.model_params,
+            )
+            output["final_loss"] = evaluate_loss(surrogate_dataset, validation_dataset)
+        end 
         _capture_output(output, params.output_data_path, params.train_id)
         return true, p_full
     catch e
