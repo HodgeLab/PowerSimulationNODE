@@ -28,12 +28,13 @@ function (s::ZIP)(
     tsteps,
     tstops,
     ss_solver,
+    ss_solver_params,
     dyn_solver,
-    args...;
+    dyn_solver_params,
+    dyn_sensealg;
     p_fixed = s.p_fixed,
     p_train = s.p_train,
     p_map = s.p_map,
-    kwargs...,
 )
     p = vcat(p_fixed, p_train)
     p_ordered = p[p_map]

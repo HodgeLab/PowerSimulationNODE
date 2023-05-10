@@ -21,17 +21,20 @@
     - `perturbations::Vector{Vector{Union{PSIDS.SurrogatePerturbation, PSID.Perturbation}}}`:  
     - `params::PSIDS.GenerateDataParams`: 
 - `model_params::Union{PSIDS.SteadyStateNODEParams, PSIDS.SteadyStateNODEObsParams, PSIDS.ClassicGenParams, PSIDS.GFLParams, PSIDS.GFMParams, PSIDS.ZIPParams, PSIDS.MultiDeviceParams}`: The type of surrogate model to train. Could be data-driven, physics-based, or a combination.
-- `optimizer::Vector{NamedTuple{(:sensealg, :algorithm, :log_η, :adjust, :initial_stepnorm, :maxiters, :steadystate_solver, :dynamic_solver, :lb_loss, :curriculum, :curriculum_timespans, :fix_params, :loss_function)}}`: Details of the optimization
-    - `sensealg::String`: Valid options: `"Zygote"` or `"ForwardDiff"` 
+- `optimizer::Vector{NamedTuple{(:auto_sensealg, :algorithm, :log_η, :adjust, :initial_stepnorm, :maxiters, :steadystate_solver, :dynamic_solver, :lb_loss, :curriculum, :curriculum_timespans, :fix_params, :loss_function)}}`: Details of the optimization
+    - `auto_sensealg::String`: Valid options: `"Zygote"` or `"ForwardDiff"` 
     - `algorithm::String`: Valid options: `"Adam"`, `"Bfgs"`, `"LBfgs"`. Typical choice is to start with Adam and then use BFGS. 
     - `log_η::Float64`: Log of Adam step size (ignored for other algorithms) 
     - `initial_stepnorm::Float64`: Bfgs initial step norm (ignored for other algorithms)
     - `maxiters::Int64`: Maximum number of  training iterations. 
-    - `steadystate_solver::NamedTuple{(:solver, :abstol)}`: Solver for finding initial conditions.
+    - `steadystate_solver::NamedTuple{(:solver, :reltol, :abstol, :termination)},`: Solver for finding initial conditions.
         - `solver::String`: the solver name from DifferentialEquations.jl
-        - `abstol::Float64`: absolute tolerance of the solve. 
+        - `reltol::Float64`: relative tolerance of the solve AND used for determining termination. 
+        - `abstol::Float64`: absolute tolerance of the solve AND used for determining termination.
+        - `termination::String`: how to determine when to terminate the solve. Options include `"RelSafe"` and `"RelSafeBest"`
     - `dynamic_solver::NamedTuple{(:solver, :reltol, :abstol, :maxiters, :force_tstops)}`:  Solver for dynamic trajectories.
         - `solver::String`: the solver name from DifferentialEquations.jl
+        - `sensealg::String`: sensitivity algorithm for backpropogation through the dynamic solve.
         - `reltol::Float64`: relative tolearnce of the solve. 
         - `abstol::Float64`: absolute tolearnce of the solve. 
     - `maxiters::Int64`: maximum iterations of the solve. 
@@ -97,7 +100,7 @@ mutable struct TrainParams
     optimizer::Vector{
         NamedTuple{
             (
-                :sensealg,
+                :auto_sensealg,
                 :algorithm,
                 :log_η,
                 :initial_stepnorm,
@@ -116,10 +119,13 @@ mutable struct TrainParams
                 Float64,
                 Float64,
                 Int64,
-                NamedTuple{(:solver, :abstol), Tuple{String, Float64}},
                 NamedTuple{
-                    (:solver, :reltol, :abstol, :maxiters, :force_tstops),
-                    Tuple{String, Float64, Float64, Int, Bool},
+                    (:solver, :reltol, :abstol, :termination),
+                    Tuple{String, Float64, Float64, String},
+                },
+                NamedTuple{
+                    (:solver, :sensealg, :reltol, :abstol, :maxiters, :force_tstops),
+                    Tuple{String, String, Float64, Float64, Int, Bool},
                 },
                 Float64,
                 String,
@@ -220,17 +226,20 @@ function TrainParams(;
     model_params = PSIDS.SteadyStateNODEObsParams(),
     optimizer = [
         (
-            sensealg = "Zygote",
+            auto_sensealg = "Zygote",
             algorithm = "Adam",
             log_η = -6.0,
             initial_stepnorm = 0.01,
             maxiters = 15,
             steadystate_solver = (
-                solver = "SSRootfind",
-                abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+                solver = "NLSolveJL",
+                reltol = 1e-4,
+                abstol = 1e-4,
+                termination = "RelSafeBest",
             ),
             dynamic_solver = (
                 solver = "Rodas5",
+                sensealg = "QuadratureAdjoint",
                 reltol = 1e-6,
                 abstol = 1e-6,
                 maxiters = 1000,

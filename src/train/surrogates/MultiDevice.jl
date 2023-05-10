@@ -58,16 +58,16 @@ function (s::MultiDevice)(
     tsteps,
     tstops,
     ss_solver,
+    ss_solver_params,
     dyn_solver,
-    args...;
+    dyn_solver_params,
+    dyn_sensealg;
     p_fixed = s.p_fixed,
     p_train = s.p_train,
     p_map = s.p_map,
-    kwargs...,
 )
     p = vcat(p_fixed, p_train)
     p_ordered = p[p_map]
-    ss_tol = args[1]
 
     x0 = zeros(typeof(p_ordered[1]), sum([n_states(x) for x in s.dynamic_devices]))
     inner_vars = repeat(
@@ -125,7 +125,7 @@ function (s::MultiDevice)(
             v0,
             i0_dynamic[ix],
             ss_solver,
-            ss_tol,
+            ss_solver_params,
             s,
         )
         state_start_index = state_end_index + 1
@@ -225,7 +225,15 @@ function (s::MultiDevice)(
         )
         saved_values = DiffEqCallbacks.SavedValues(Any, Tuple{Any, Any})
         cb = DiffEqCallbacks.SavingCallback(f_saving, saved_values; saveat = tsteps)
-        sol = OrdinaryDiffEq.solve(prob_dyn, dyn_solver, callback = cb; kwargs...)
+        sol = OrdinaryDiffEq.solve(
+            prob_dyn,
+            dyn_solver,
+            callback = cb;
+            sensealg = dyn_sensealg,
+            reltol = dyn_solver_params.reltol,
+            abstol = dyn_solver_params.abstol,
+            maxiters = dyn_solver_params.maxiters,
+        )
         return PhysicalModel_solution(
             tsteps,
             vcat(

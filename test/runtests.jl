@@ -4,6 +4,7 @@ Pkg.activate("test")
 using Test
 using Revise
 #using PowerFlows
+using DataFrames
 using Random
 using OrdinaryDiffEq
 using JSON3
@@ -17,6 +18,7 @@ using Logging
 using LinearAlgebra
 import PowerSystems
 using Serialization
+import Zygote
 
 test_file_dir = isempty(dirname(@__FILE__)) ? "test" : dirname(@__FILE__)
 const TEST_FILES_DIR = test_file_dir
@@ -30,6 +32,7 @@ logger = PSY.configure_logging(;
 )
 with_logger(logger) do
     include("test_compare_ClassicGen.jl")
+    include("test_performance.jl")
     include("test_compare_SteadyStateNODE.jl")
     include("test_compare_SteadyStateNODEObs.jl")
     include("test_compare_GFL.jl")

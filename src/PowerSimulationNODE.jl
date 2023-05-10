@@ -41,7 +41,8 @@ import IterTools
 import JSON3
 import Logging
 import Mustache
-import NLsolve
+import NonlinearSolve
+import SciMLNLSolve
 import Optim
 import Optimization
 import OptimizationOptimisers
@@ -71,6 +72,7 @@ const PSIDS = PowerSimulationsDynamicsSurrogates
 # Split up code and use Requires strategically to improve load times? (especially the instantiate functions)
 include(joinpath("train", "surrogates", "common_control_overloads.jl"))
 include(joinpath("train", "surrogates", "solution_structs.jl"))
+include(joinpath("train", "surrogates", "NeuralODE.jl"))
 include(joinpath("train", "surrogates", "SteadyStateNeuralODE.jl"))
 include(joinpath("train", "surrogates", "ClassicGen.jl"))
 include(joinpath("train", "surrogates", "GFL.jl"))
