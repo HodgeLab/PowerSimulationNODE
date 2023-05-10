@@ -11,16 +11,68 @@ function NormalInitializer(μ = 0.0f0; σ² = 0.05f0)
     return (dims...) -> randn(Float32, dims...) .* Float32(σ²) .+ Float32(μ)
 end
 
-function steadystate_solver_map(solver, tols)
+function steadystate_solver_map(steadystate_solver)
     d = Dict(
-        "Rodas4" => SteadyStateDiffEq.DynamicSS(OrdinaryDiffEq.Rodas4()),
-        "Rodas5" => SteadyStateDiffEq.DynamicSS(OrdinaryDiffEq.Rodas5()),
-        "Rodas5P" => SteadyStateDiffEq.DynamicSS(OrdinaryDiffEq.Rodas5P()),
-        #"TRBDF2" => OrdinaryDiffEq.TRBDF2,
-        "Tsit5" => SteadyStateDiffEq.DynamicSS(OrdinaryDiffEq.Tsit5()),
-        "SSRootfind" => SteadyStateDiffEq.SSRootfind(),
+        "Tsit5" => SteadyStateDiffEq.DynamicSS(
+            OrdinaryDiffEq.Tsit5(),
+            reltol = steadystate_solver.reltol,
+            abstol = steadystate_solver.abstol,
+            termination_condition = DiffEqBase.NLSolveTerminationCondition(
+                termination_condition_map(steadystate_solver.termination);
+                reltol = steadystate_solver.reltol,
+                abstol = steadystate_solver.reltol,
+            ),
+        ),
+        "Rodas4" => SteadyStateDiffEq.DynamicSS(
+            OrdinaryDiffEq.Rodas4(),
+            reltol = steadystate_solver.reltol,
+            abstol = steadystate_solver.abstol,
+            termination_condition = DiffEqBase.NLSolveTerminationCondition(
+                termination_condition_map(steadystate_solver.termination);
+                reltol = steadystate_solver.reltol,
+                abstol = steadystate_solver.reltol,
+            ),
+        ),
+        "Rodas5" => SteadyStateDiffEq.DynamicSS(
+            OrdinaryDiffEq.Rodas5(),
+            reltol = steadystate_solver.reltol,
+            abstol = steadystate_solver.abstol,
+            termination_condition = DiffEqBase.NLSolveTerminationCondition(
+                termination_condition_map(steadystate_solver.termination);
+                reltol = steadystate_solver.reltol,
+                abstol = steadystate_solver.reltol,
+            ),
+        ),
+        "Rodas5P" => SteadyStateDiffEq.DynamicSS(
+            OrdinaryDiffEq.Rodas5P(),
+            reltol = steadystate_solver.reltol,
+            abstol = steadystate_solver.abstol,
+            termination_condition = DiffEqBase.NLSolveTerminationCondition(
+                termination_condition_map(steadystate_solver.termination);
+                reltol = steadystate_solver.reltol,
+                abstol = steadystate_solver.reltol,
+            ),
+        ),
+        "Broyden" => NonlinearSolve.Broyden(;
+            termination_condition = DiffEqBase.NLSolveTerminationCondition(
+                termination_condition_map(steadystate_solver.termination);
+                abstol = steadystate_solver.reltol,
+                reltol = steadystate_solver.reltol,
+            ),
+        ),
+        "NewtonRaphson" => NonlinearSolve.NewtonRaphson(),
+        "TrustRegion" => NonlinearSolve.TrustRegion(),
+        "NLSolveJL" => SciMLNLSolve.NLSolveJL(),
     )
-    return d[solver]
+    return d[steadystate_solver.solver]
+end
+
+function termination_condition_map(termination_condition)
+    d = Dict(
+        "RelSafeBest" => DiffEqBase.NLSolveTerminationMode.RelSafeBest,
+        "RelSafe" => DiffEqBase.NLSolveTerminationMode.RelSafe,
+    )
+    d[termination_condition]
 end
 
 function solver_map(key)
@@ -34,14 +86,23 @@ function solver_map(key)
     return d[key]
 end
 
-function instantiate_steadystate_solver(inputs)
-    return steadystate_solver_map(inputs.solver, inputs.abstol)
+function instantiate_steadystate_solver(solver)
+    return steadystate_solver_map(solver)
+end
+
+function auto_sensealg_map(key)
+    d = Dict(
+        "ForwardDiff" => Optimization.AutoForwardDiff,
+        "Zygote" => Optimization.AutoZygote,
+    )
+    return d[key]
 end
 
 function sensealg_map(key)
     d = Dict(
-        "ForwardDiff" => Optimization.AutoForwardDiff,
-        "Zygote" => Optimization.AutoZygote,
+        "InterpolatingAdjoint" => SciMLSensitivity.InterpolatingAdjoint,
+        "QuadratureAdjoint" => SciMLSensitivity.QuadratureAdjoint,
+        "ForwardDiffSensitivity" => SciMLSensitivity.ForwardDiffSensitivity,
     )
     return d[key]
 end
@@ -58,6 +119,10 @@ end
 
 function instantiate_solver(inputs)
     return solver_map(inputs.solver)()
+end
+
+function instantiate_auto_sensealg(inputs)
+    return auto_sensealg_map(inputs.auto_sensealg)()
 end
 
 function instantiate_sensealg(inputs)
@@ -358,6 +423,74 @@ function _add_physics_surrogate_device!(sys, b, P_ref, Q_ref, model_params::PSID
         max_current_reactive_power = 1.0,
     )
     PSY.add_component!(sys, load)
+end
+
+function instantiate_surrogate_flux(
+    params::TrainParams,
+    model_params::PSIDS.NODEParams,
+    train_dataset::Vector{PSIDS.SteadyStateNODEData},
+)
+    n_ports = model_params.n_ports
+    scaling_extrema = calculate_scaling_extrema(train_dataset)
+    model_initializer =
+        _instantiate_model_initializer(model_params, n_ports, scaling_extrema, flux = true)
+    model_dynamic =
+        _instantiate_model_dynamic(model_params, n_ports, scaling_extrema, flux = true)
+
+    input_min = scaling_extrema["input_min"]
+    input_max = scaling_extrema["input_max"]
+    target_min = scaling_extrema["target_min"]
+    target_max = scaling_extrema["target_max"]
+    input_normalization =
+        (x) -> PowerSimulationsDynamicsSurrogates.min_max_normalization(
+            x,
+            input_min,
+            input_max,
+            NN_INPUT_LIMITS.max,
+            NN_INPUT_LIMITS.min,
+        )  #https://www.baeldung.com/cs/normalizing-inputs-artificial-neural-network
+    target_normalization =
+        (x) -> PowerSimulationsDynamicsSurrogates.min_max_normalization(
+            x,
+            target_min,
+            target_max,
+            NN_TARGET_LIMITS.max,
+            NN_TARGET_LIMITS.min,
+        )
+    target_normalization_inverse =
+        (x) -> PowerSimulationsDynamicsSurrogates.min_max_normalization_inverse(
+            x,
+            target_min,
+            target_max,
+            NN_TARGET_LIMITS.max,
+            NN_TARGET_LIMITS.min,
+        )
+    ref_frame = function (u0, x)
+        θ = atan(u0[2], u0[1])
+        dq_ri = [sin(θ) -cos(θ); cos(θ) sin(θ)]     #note: equivalent to PSID.dq_ri(θ)
+        return dq_ri * x
+    end
+    ref_frame_inverse = function (u0, x)
+        θ = atan(u0[2], u0[1])
+        ri_dq = [sin(θ) cos(θ); -cos(θ) sin(θ)]     #note: equivalent to PSID.ri_dq(θ)
+        return ri_dq * x
+    end
+    display(model_initializer)
+    display(model_dynamic)
+    @info "Iniitalizer structure: $(model_initializer)\n"
+    @info "number of parameters: $(length(Flux.destructure(model_initializer)[1]))\n"
+    @info "NODE structure: $(model_dynamic)\n"
+    @info "number of parameters: $(length(Flux.destructure(model_dynamic)[1]))\n"
+
+    return NeuralODE(
+        model_initializer,
+        model_dynamic,
+        input_normalization,
+        target_normalization,
+        target_normalization_inverse,
+        ref_frame,
+        ref_frame_inverse,
+    )
 end
 
 function instantiate_surrogate_flux(
@@ -793,9 +926,10 @@ function instantiate_outer_loss_function(
     params::TrainParams,
     opt_ix::Int64,
     ss_solver,
+    ss_solver_params,
     dyn_solver,
-    args...;
-    kwargs...,
+    dyn_solver_params,
+    dyn_sensealg,
 )
     return (p_train, vector_fault_timespan_index) -> _outer_loss_function(
         p_train,
@@ -809,16 +943,25 @@ function instantiate_outer_loss_function(
         params,
         opt_ix,
         ss_solver,
+        ss_solver_params,
         dyn_solver,
-        args...;
-        kwargs...,
+        dyn_solver_params,
+        dyn_sensealg,
     )
 end
 
 function _outer_loss_function(
     p_train,
     vector_fault_timespan_index::Vector{Tuple{Int64, Int64}},
-    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL, GFM, ZIP, MultiDevice},
+    surrogate::Union{
+        NeuralODE,
+        SteadyStateNeuralODE,
+        ClassicGen,
+        GFL,
+        GFM,
+        ZIP,
+        MultiDevice,
+    },
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     exogenous_input_functions,
     train_details::Vector{
@@ -832,9 +975,10 @@ function _outer_loss_function(
     params::TrainParams,
     opt_ix::Int64,
     ss_solver,
+    ss_solver_params,
     dyn_solver,
-    args...;
-    kwargs...,
+    dyn_solver_params,
+    dyn_sensealg,
 )
     vector_fault_timespan_index
     surrogate_solution = 0.0    #Only return the surrogate_solution from the last fault of the iteration (cannot mutate arrays with Zygote)
@@ -869,12 +1013,13 @@ function _outer_loss_function(
             tsteps_subset,
             tstops,    #if entry in tstops is outside of tspan, will be ignored.
             ss_solver,
+            ss_solver_params,
             dyn_solver,
-            args...;
+            dyn_solver_params,
+            dyn_sensealg;
             p_fixed = p_fixed,
             p_train = p_train,
             p_map = p_map,
-            kwargs...,
         )
         loss_i, loss_d = _inner_loss_function(
             surrogate_solution,

@@ -27,12 +27,13 @@ function (s::GFL)(
     tsteps,
     tstops,
     ss_solver,
+    ss_solver_params,
     dyn_solver,
-    args...;
+    dyn_solver_params,
+    dyn_sensealg;
     p_fixed = s.p_fixed,
     p_train = s.p_train,
     p_map = s.p_map,
-    kwargs...,
 )
     p = vcat(p_fixed, p_train)
     p_ordered = p[p_map]
@@ -41,7 +42,7 @@ function (s::GFL)(
     x0 = zeros(typeof(p_ordered[1]), n_states(s))
     inner_vars = repeat(PSID.ACCEPTED_REAL_TYPES[0.0], n_inner_vars(s))
     refs = zeros(typeof(p_ordered[1]), n_refs(s))
-    ss_tol = args[1]
+
     converged = initialize_dynamic_device!(
         x0,
         inner_vars,
@@ -50,7 +51,7 @@ function (s::GFL)(
         v0,
         i0_device,
         ss_solver,
-        ss_tol,
+        ss_solver_params,
         s,
     )
 
@@ -68,7 +69,14 @@ function (s::GFL)(
             tstops = tstops,
             saveat = tsteps,
         )
-        sol = OrdinaryDiffEq.solve(prob_dyn, dyn_solver; kwargs...)
+        sol = OrdinaryDiffEq.solve(
+            prob_dyn,
+            dyn_solver;
+            sensealg = dyn_sensealg,
+            reltol = dyn_solver_params.reltol,
+            abstol = dyn_solver_params.abstol,
+            maxiters = dyn_solver_params.maxiters,
+        )
         return PhysicalModel_solution(
             tsteps,
             Array(sol[real_current_index(s):imag_current_index(s), :]) .*
@@ -210,7 +218,7 @@ function initialize_dynamic_device!(
     v0,
     i0,
     ss_solver,
-    ss_tol,
+    ss_solver_params,
     s::Union{GFL, PSIDS.GFLParams},
 )
     filter_converged = initialize_filter!(
@@ -221,7 +229,7 @@ function initialize_dynamic_device!(
         v0,
         i0,
         ss_solver,
-        ss_tol,
+        ss_solver_params,
         s,
     )
     frequency_estimator_converged = initialize_frequency_estimator!(
@@ -232,7 +240,7 @@ function initialize_dynamic_device!(
         v0,
         i0,
         ss_solver,
-        ss_tol,
+        ss_solver_params,
         s,
     )
     outer_converged = initialize_outer!(
@@ -243,7 +251,7 @@ function initialize_dynamic_device!(
         v0,
         i0,
         ss_solver,
-        ss_tol,
+        ss_solver_params,
         s,
     )
     DCside_converged = initialize_DCside!(
@@ -254,7 +262,7 @@ function initialize_dynamic_device!(
         v0,
         i0,
         ss_solver,
-        ss_tol,
+        ss_solver_params,
         s,
     )
     converter_converged = initialize_converter!(
@@ -265,7 +273,7 @@ function initialize_dynamic_device!(
         v0,
         i0,
         ss_solver,
-        ss_tol,
+        ss_solver_params,
         s,
     )
     inner_converged = initialize_inner!(
@@ -276,7 +284,7 @@ function initialize_dynamic_device!(
         v0,
         i0,
         ss_solver,
-        ss_tol,
+        ss_solver_params,
         s,
     )
 
@@ -296,7 +304,7 @@ function initialize_filter!(
     v0,
     i0,
     ss_solver,
-    ss_tol,
+    ss_solver_params,
     s::Union{GFL, PSIDS.GFLParams},
 )
     V_R = v0[1]
@@ -344,13 +352,13 @@ function initialize_filter!(
     prob_ss = SteadyStateDiffEq.SteadyStateProblem(
         OrdinaryDiffEq.ODEProblem{true}(ff_ss, x0, (zero(x0[1]), one(x0[1]) * 100), params),
     )
-    sol = SteadyStateDiffEq.solve(prob_ss, ss_solver; abstol = ss_tol).original
+    sol = SteadyStateDiffEq.solve(prob_ss, ss_solver; abstol = ss_solver_params.abstol)
 
-    if !NLsolve.converged(sol)
+    if !(sol.retcode == SciMLBase.ReturnCode.Success)
         @warn("Initialization in Filter failed")
         return false
     else
-        sol_x0 = sol.zero
+        sol_x0 = sol.u
         #Update terminal voltages
         inner_vars[PSID.Vr_inv_var] = V_R
         inner_vars[PSID.Vi_inv_var] = V_I
@@ -384,7 +392,7 @@ function initialize_converter!(
     v0,
     i0,
     ss_solver,
-    ss_tol,
+    ss_solver_params,
     s::Union{GFL, PSIDS.GFLParams},
 )
     return true
@@ -398,7 +406,7 @@ function initialize_frequency_estimator!(
     v0,
     i0,
     ss_solver,
-    ss_tol,
+    ss_solver_params,
     s::Union{GFL, PSIDS.GFLParams},
 )
     Vr_filter = inner_vars[PSID.Vr_filter_var]
@@ -435,13 +443,13 @@ function initialize_frequency_estimator!(
     prob_ss = SteadyStateDiffEq.SteadyStateProblem(
         OrdinaryDiffEq.ODEProblem{true}(ff_ss, x0, (zero(x0[1]), one(x0[1]) * 100), params),
     )
-    sol = SteadyStateDiffEq.solve(prob_ss, ss_solver; abstol = ss_tol).original
+    sol = SteadyStateDiffEq.solve(prob_ss, ss_solver; abstol = ss_solver_params.abstol)
 
-    if !NLsolve.converged(sol)
+    if !(sol.retcode == SciMLBase.ReturnCode.Success)
         @warn("Initialization in PLL failed")
         return false
     else
-        sol_x0 = sol.zero
+        sol_x0 = sol.u
 
         device_states[gfl_indices[:states][:vd_pll]] = sol_x0[1]
         device_states[gfl_indices[:states][:vq_pll]] = sol_x0[2]
@@ -463,7 +471,7 @@ function initialize_outer!(
     v0,
     i0,
     ss_solver,
-    ss_tol,
+    ss_solver_params,
     s::Union{GFL, PSIDS.GFLParams},
 )
     #Obtain external states inputs for component
@@ -513,7 +521,7 @@ function initialize_DCside!(
     v0,
     i0,
     ss_solver,
-    ss_tol,
+    ss_solver_params,
     s::Union{GFL, PSIDS.GFLParams},
 )
     inner_vars[PSID.Vdc_var] = params[gfl_indices[:params][:voltage_gfl]]
@@ -528,7 +536,7 @@ function initialize_inner!(
     v0,
     i0,
     ss_solver,
-    ss_tol,
+    ss_solver_params,
     s::Union{GFL, PSIDS.GFLParams},
 )
     #Obtain external states inputs for component
@@ -584,13 +592,15 @@ function initialize_inner!(
     prob_ss = SteadyStateDiffEq.SteadyStateProblem(
         OrdinaryDiffEq.ODEProblem{true}(ff_ss, x0, (zero(x0[1]), one(x0[1]) * 100), params),
     )
-    sol = SteadyStateDiffEq.solve(prob_ss, ss_solver; abstol = ss_tol).original
 
-    if !NLsolve.converged(sol)
-        @warn("Initialization in Inner Control failed")
+    sol = SteadyStateDiffEq.solve(prob_ss, ss_solver; abstol = ss_solver_params.abstol)
+
+    if !(sol.retcode == SciMLBase.ReturnCode.Success)
+        @warn("Initialization in inner control failed")
         return false
     else
-        sol_x0 = sol.zero
+        sol_x0 = sol.u
+
         #Update Converter modulation
         m0_dq = (PSID.ri_dq(θ0_oc + pi / 2) * [Vr_cnv0; Vi_cnv0]) ./ Vdc
         inner_vars[PSID.md_var] = m0_dq[PSID.d]

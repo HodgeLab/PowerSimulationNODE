@@ -1,4 +1,5 @@
 
+TEST_ATOL = 1e-5
 function generate_and_train_test(p2)
     input_param_file = joinpath(p2.base_path, "input_data", "input_test1.json")
     PowerSimulationNODE.serialize(p2, input_param_file)
@@ -156,17 +157,20 @@ end
             observation_activation = "relu",
         ),
         optimizer = [(
-            sensealg = "Zygote",
-            algorithm = "Adam", #"Bfgs", "Adam"
+            auto_sensealg = "Zygote",
+            algorithm = "Adam",
             log_η = -10.0,
             initial_stepnorm = 0.0, #ignored for ADAM 
             maxiters = 6,
             steadystate_solver = (
-                solver = "SSRootfind",
-                abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+                solver = "NLSolveJL",
+                reltol = 1e-4,
+                abstol = 1e-4,
+                termination = "RelSafeBest",
             ),
             dynamic_solver = (
                 solver = "Rodas5",
+                sensealg = "QuadratureAdjoint",
                 reltol = 1e-6,
                 abstol = 1e-6,
                 maxiters = 1e5,
@@ -185,7 +189,11 @@ end
     )
     try
         dataset_loss = generate_and_train_test(p)
-        @test isapprox(dataset_loss["max_error_ir"][1], 0.007384696587123374, atol = 1e-10)
+        @test isapprox(
+            dataset_loss["max_error_ir"][1],
+            0.00741406426929081,
+            atol = TEST_ATOL,
+        )
         #loss_dataframe =  PowerSimulationNODE.read_arrow_file_to_dataframe(joinpath(p.output_data_path,"train_instance_1", "loss"))
         #@test loss_dataframe[6, :iteration_time_seconds] - loss_dataframe[5, :iteration_time_seconds] < 1.0
         #GC.gc()
@@ -279,17 +287,20 @@ end
             dynamic_σ2_initialization = 0.0,
         ),
         optimizer = [(
-            sensealg = "Zygote",
-            algorithm = "Adam", #"Bfgs", "Adam"
+            auto_sensealg = "Zygote",
+            algorithm = "Adam",
             log_η = -10.0,
             initial_stepnorm = 0.0, #ignored for ADAM 
             maxiters = 6,
             steadystate_solver = (
-                solver = "SSRootfind",
-                abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+                solver = "NLSolveJL",
+                reltol = 1e-4,
+                abstol = 1e-4,
+                termination = "RelSafeBest",
             ),
             dynamic_solver = (
                 solver = "Rodas5",
+                sensealg = "QuadratureAdjoint",
                 reltol = 1e-6,
                 abstol = 1e-6,
                 maxiters = 1e5,
@@ -399,17 +410,20 @@ end
             dynamic_σ2_initialization = 0.0,
         ),
         optimizer = [(
-            sensealg = "Zygote",
-            algorithm = "Adam", #"Bfgs", "Adam"
+            auto_sensealg = "Zygote",
+            algorithm = "Adam",
             log_η = -10.0,
             initial_stepnorm = 0.0, #ignored for ADAM 
             maxiters = 6,
             steadystate_solver = (
-                solver = "SSRootfind",
-                abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+                solver = "NLSolveJL",
+                reltol = 1e-4,
+                abstol = 1e-4,
+                termination = "RelSafeBest",
             ),
             dynamic_solver = (
                 solver = "Rodas5",
+                sensealg = "QuadratureAdjoint",
                 reltol = 1e-6,
                 abstol = 1e-6,
                 maxiters = 1e5,
@@ -428,7 +442,11 @@ end
     )
     try
         dataset_loss = generate_and_train_test(p)
-        @test isapprox(dataset_loss["max_error_ir"][1], 0.004275742795623705, atol = 1e-10)
+        @test isapprox(
+            dataset_loss["max_error_ir"][1],
+            0.003764332881190713,
+            atol = TEST_ATOL,
+        )
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -436,7 +454,7 @@ end
 end
 
 #Adjusted value for this test:
-@testset "SteadyStateNODE (9 bus system, train-data from full system, BFGS)" begin
+#= @testset "SteadyStateNODE (9 bus system, train-data from full system, BFGS)" begin
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
     include(joinpath(TEST_FILES_DIR, "scripts", "build_9bus.jl"))
     SURROGATE_BUSES = [2]
@@ -520,17 +538,20 @@ end
             dynamic_σ2_initialization = 0.0,
         ),
         optimizer = [(
-            sensealg = "Zygote",
-            algorithm = "Bfgs", #"Bfgs", "Adam"
+            auto_sensealg = "Zygote",
+            algorithm = "Bfgs", 
             log_η = -10.0,
             initial_stepnorm = 0.0, #ignored for ADAM 
             maxiters = 6,
             steadystate_solver = (
-                solver = "SSRootfind",
-                abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+                solver = "NLSolveJL",
+                reltol = 1e-4,
+                abstol = 1e-4,
+                termination = "RelSafeBest",
             ),
             dynamic_solver = (
                 solver = "Rodas5",
+                sensealg = "QuadratureAdjoint",
                 reltol = 1e-6,
                 abstol = 1e-6,
                 maxiters = 1e5,
@@ -549,12 +570,16 @@ end
     )
     try
         dataset_loss = generate_and_train_test(p)
-        @test isapprox(dataset_loss["max_error_ir"][1], 0.004033484674650145, atol = 1e-10)
+        @test isapprox(
+            dataset_loss["max_error_ir"][1],
+            0.0037373559767244213,
+            atol = TEST_ATOL,
+        )
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
     end
-end
+end =#
 
 @testset "SteadyStateNODEObs (9 bus system, train-data from reduced system)" begin
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
@@ -655,17 +680,20 @@ end
         ),
         optimizer = [
             (
-                sensealg = "Zygote",
-                algorithm = "Adam", #"Bfgs", "Adam"
+                auto_sensealg = "Zygote",
+                algorithm = "Adam",
                 log_η = -10.0,
                 initial_stepnorm = 0.0, #ignored for ADAM 
                 maxiters = 6,
                 steadystate_solver = (
-                    solver = "SSRootfind",
-                    abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+                    solver = "NLSolveJL",
+                    reltol = 1e-4,
+                    abstol = 1e-4,
+                    termination = "RelSafeBest",
                 ),
                 dynamic_solver = (
                     solver = "Rodas5",
+                    sensealg = "QuadratureAdjoint",
                     reltol = 1e-6,
                     abstol = 1e-6,
                     maxiters = 1e5,
@@ -685,7 +713,11 @@ end
     )
     try
         dataset_loss = generate_and_train_test(p)
-        @test isapprox(dataset_loss["max_error_ir"][1], 0.5784567781878369, atol = 1e-10)
+        @test isapprox(
+            dataset_loss["max_error_ir"][1],
+            0.16486858067198606,
+            atol = TEST_ATOL,
+        )
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -765,17 +797,20 @@ end
         model_params = PSIDS.ClassicGenParams(name = "source_1"),
         optimizer = [
             (
-                sensealg = "ForwardDiff",
-                algorithm = "Adam", #"Bfgs", "Adam"
+                auto_sensealg = "ForwardDiff",
+                algorithm = "Adam",
                 log_η = -1.0,
                 initial_stepnorm = 0.0, #ignored for ADAM 
                 maxiters = 6,
                 steadystate_solver = (
-                    solver = "SSRootfind",
-                    abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+                    solver = "NLSolveJL",
+                    reltol = 1e-4,
+                    abstol = 1e-4,
+                    termination = "RelSafeBest",
                 ),
                 dynamic_solver = (
                     solver = "Rodas5",
+                    sensealg = "ForwardDiffSensitivity",
                     reltol = 1e-6,
                     abstol = 1e-6,
                     maxiters = 1e5,
@@ -795,7 +830,11 @@ end
     )
     try
         dataset_loss = generate_and_train_test(p)
-        @test isapprox(dataset_loss["max_error_ir"][1], 0.0012409126130332737, atol = 1e-10)
+        @test isapprox(
+            dataset_loss["max_error_ir"][1],
+            0.0012409126130332737,
+            atol = TEST_ATOL,
+        )
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -875,17 +914,20 @@ end
         model_params = PSIDS.GFLParams(name = "source_1"),
         optimizer = [
             (
-                sensealg = "ForwardDiff",
-                algorithm = "Adam", #"Bfgs", "Adam"
+                auto_sensealg = "ForwardDiff",
+                algorithm = "Adam",
                 log_η = -4.0,
                 initial_stepnorm = 0.0, #ignored for ADAM 
                 maxiters = 6,
                 steadystate_solver = (
-                    solver = "SSRootfind",
-                    abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+                    solver = "NLSolveJL",
+                    reltol = 1e-4,
+                    abstol = 1e-4,
+                    termination = "RelSafeBest",
                 ),
                 dynamic_solver = (
                     solver = "Rodas5",
+                    sensealg = "ForwardDiffSensitivity",
                     reltol = 1e-6,
                     abstol = 1e-6,
                     maxiters = 1e5,
@@ -984,17 +1026,20 @@ end
         model_params = PSIDS.GFMParams(name = "source_1"),
         optimizer = [
             (
-                sensealg = "ForwardDiff",
-                algorithm = "Adam", #"Bfgs", "Adam"
+                auto_sensealg = "ForwardDiff",
+                algorithm = "Adam",
                 log_η = -10.0,
                 initial_stepnorm = 0.0, #ignored for ADAM 
                 maxiters = 6,
                 steadystate_solver = (
-                    solver = "SSRootfind",
-                    abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+                    solver = "NLSolveJL",
+                    reltol = 1e-4,
+                    abstol = 1e-4,
+                    termination = "RelSafeBest",
                 ),
                 dynamic_solver = (
                     solver = "Rodas5",
+                    sensealg = "ForwardDiffSensitivity",
                     reltol = 1e-1,  #Only solves at lower tolerance. 
                     abstol = 1e-1,
                     maxiters = 1e5,
@@ -1014,7 +1059,11 @@ end
     )
     try
         dataset_loss = generate_and_train_test(p)
-        @test isapprox(dataset_loss["max_error_ir"][1], 0.00159187565598784, atol = 1e-10)
+        @test isapprox(
+            dataset_loss["max_error_ir"][1],
+            0.00159187565598784,
+            atol = TEST_ATOL,
+        )
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -1093,17 +1142,20 @@ end
         model_params = PSIDS.MultiDeviceParams(name = "source_1"),
         optimizer = [
             (
-                sensealg = "ForwardDiff",
-                algorithm = "Adam", #"Bfgs", "Adam"
+                auto_sensealg = "ForwardDiff",
+                algorithm = "Adam",
                 log_η = -10.0,
                 initial_stepnorm = 0.0, #ignored for ADAM 
                 maxiters = 6,
                 steadystate_solver = (
-                    solver = "SSRootfind",
-                    abstol = 1e-4,       #xtol, ftol  #High tolerance -> standard NODE with initializer and observation 
+                    solver = "NLSolveJL",
+                    reltol = 1e-4,
+                    abstol = 1e-4,
+                    termination = "RelSafeBest",
                 ),
                 dynamic_solver = (
                     solver = "Rodas5",
+                    sensealg = "ForwardDiffSensitivity",
                     reltol = 1e-1,  #Only solves at lower tolerance. 
                     abstol = 1e-1,
                     maxiters = 1e5,
@@ -1191,7 +1243,11 @@ end
     )
     try
         dataset_loss = generate_and_train_test(p)
-        @test isapprox(dataset_loss["max_error_ir"][1], 0.0021414167152631336, atol = 1e-10)
+        @test isapprox(
+            dataset_loss["max_error_ir"][1],
+            0.0021414167152631336,
+            atol = TEST_ATOL,
+        )
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)

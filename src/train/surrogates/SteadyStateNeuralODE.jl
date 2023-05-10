@@ -110,12 +110,13 @@ function (s::SteadyStateNeuralODE)(
     tsteps,
     tstops,
     ss_solver,
+    ss_solver_params,
     dyn_solver,
-    args...;
+    dyn_solver_params,
+    dyn_sensealg;
     p_fixed = s.p_fixed,
     p_train = s.p_train,
     p_map = s.p_map,
-    kwargs...,
 )
     p = vcat(p_fixed, p_train)
     Vd0, Vq0 = s.ref_frame([v0[1]; v0[2]], [v0[1]; v0[2]])    #first argument defines the angle for the transformation. Second argument is the input.
@@ -155,29 +156,14 @@ function (s::SteadyStateNeuralODE)(
 
     #SOLVE PROBLEM TO STEADY STATE 
     ff_ss = OrdinaryDiffEq.ODEFunction{false}(dudt_ss)
-    prob_ss = SteadyStateDiffEq.SteadyStateProblem(
-        OrdinaryDiffEq.ODEProblem{false}(
-            ff_ss,
-            u0_pred,
-            (zero(u0_pred[1]), one(u0_pred[1]) * 100),
-            p,
-        ),
-    )
-    ss_solution = SteadyStateDiffEq.solve(prob_ss, ss_solver; abstol = args[1])
-    #=     display(s.args[1])
-        display(ss_solution.original)
-        display(dudt_ss(u0_pred, p, 0.0))
-        display(ss_solution.u) =#
-
-    res = dudt_ss(u0_pred, p, 0.0)
-
+    ss_solution = _solve_steadystate_problem(ff_ss, u0_pred, p, ss_solver, ss_solver_params)
+    deq_iterations = _calculate_deq_iterations(ss_solution)
     #TODO - extra call (dummy) to propogate gradients needed after ss_solution is reached? Not sure if needed. 
     #https://github.com/SciML/DeepEquilibriumNetworks.jl/blob/9c2626d6080bbda3c06b81d2463744f5e395003f/src/layers/deq.jl#L41
-    #@error NLsolve.converged(ss_solution.original) #check if SS condition was foudn. 
-    if NLsolve.converged(ss_solution.original)
+    if ss_solution.retcode == SciMLBase.ReturnCode.Success
         #SOLVE DYNAMICS
         refs = ss_solution.u[(end - (SURROGATE_N_REFS - 1)):end] #NOTE: refs is used in dudt_dyn
-        ff = OrdinaryDiffEq.ODEFunction{false}(dudt_dyn) #,tgrad=basic_tgrad)    
+        ff = OrdinaryDiffEq.ODEFunction{false}(dudt_dyn)
         prob_dyn = OrdinaryDiffEq.ODEProblem{false}(
             ff,
             ss_solution.u[1:(end - SURROGATE_N_REFS)],
@@ -186,12 +172,20 @@ function (s::SteadyStateNeuralODE)(
             tstops = tstops,
             saveat = tsteps,
         )
-        sol = OrdinaryDiffEq.solve(prob_dyn, dyn_solver; kwargs...)
+        sol = OrdinaryDiffEq.solve(
+            prob_dyn,
+            dyn_solver;
+            sensealg = dyn_sensealg,
+            reltol = dyn_solver_params.reltol,
+            abstol = dyn_solver_params.abstol,
+            maxiters = dyn_solver_params.maxiters,
+        )
 
         return SteadyStateNeuralODE_solution(
             u0_pred,
             Array(ss_solution.u),
-            ss_solution.original.iterations,
+            deq_iterations,
+            ss_solution.stats,
             tsteps,
             Array(sol[1:end, :]),
             s.ref_frame_inverse(
@@ -200,7 +194,7 @@ function (s::SteadyStateNeuralODE)(
                     s.re3(p[p_map[(s.len + s.len2 + 1):end]])(sol[1:end, :]),
                 ),
             ),
-            res,
+            ss_solution.resid,
             true,
             sol.destats,
         )
@@ -208,7 +202,8 @@ function (s::SteadyStateNeuralODE)(
         return SteadyStateNeuralODE_solution(
             u0_pred,
             Array(ss_solution.u),
-            ss_solution.original.iterations,
+            deq_iterations,
+            ss_solution.stats,
             tsteps,
             Array(ss_solution.u),
             s.ref_frame_inverse(
@@ -217,11 +212,62 @@ function (s::SteadyStateNeuralODE)(
                     s.re3(p[p_map[(s.len + s.len2 + 1):end]])(ss_solution.u[1:(end - 2)]),
                 ),
             ),
-            res,
+            ss_solution.resid,
             false,
             nothing,
         )
     end
+end
+
+function _calculate_deq_iterations(ss_solution)
+    if ss_solution.original !== nothing
+        return ss_solution.original.iterations
+    else
+        return 0
+    end
+end
+
+function _solve_steadystate_problem(
+    ff_ss,
+    u0_pred,
+    p,
+    ss_solver::SS,
+    ss_solver_params,
+) where {SS <: SteadyStateDiffEq.SteadyStateDiffEqAlgorithm}
+    prob_ss = SteadyStateDiffEq.SteadyStateProblem(
+        OrdinaryDiffEq.ODEProblem{false}(
+            ff_ss,
+            u0_pred,
+            (zero(u0_pred[1]), one(u0_pred[1]) * 100),
+            p,
+        ),
+    )
+    ss_solution = SteadyStateDiffEq.solve(prob_ss, ss_solver)
+    return ss_solution
+end
+
+function _solve_steadystate_problem(
+    ff_ss,
+    u0_pred,
+    p,
+    ss_solver::SS,
+    ss_solver_params,
+) where {SS <: SciMLBase.AbstractNonlinearAlgorithm}
+    prob_nl = NonlinearSolve.NonlinearProblem(
+        OrdinaryDiffEq.ODEProblem{false}(
+            ff_ss,
+            u0_pred,
+            (zero(u0_pred[1]), one(u0_pred[1]) * 100),
+            p,
+        ),
+    )
+    ss_solution = SteadyStateDiffEq.solve(
+        prob_nl,
+        ss_solver;
+        abstol = ss_solver_params.abstol,
+        reltol = ss_solver_params.reltol,
+    )
+    return ss_solution
 end
 
 #This was for comparing the initializer network with learning the initial conditions directly.

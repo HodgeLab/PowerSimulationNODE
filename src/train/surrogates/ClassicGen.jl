@@ -27,12 +27,13 @@ function (s::ClassicGen)(
     tsteps,
     tstops,
     ss_solver,
+    ss_solver_params,
     dyn_solver,
-    args...;
+    dyn_solver_params,
+    dyn_sensealg;
     p_fixed = s.p_fixed,
     p_train = s.p_train,
     p_map = s.p_map,
-    kwargs...,
 )
     p = vcat(p_fixed, p_train)
     p_ordered = p[p_map]
@@ -90,26 +91,12 @@ function (s::ClassicGen)(
 
     #SOLVE PROBLEM TO STEADY STATE 
     ff_ss = OrdinaryDiffEq.ODEFunction{false}(dudt_ss)
-    prob_ss = SteadyStateDiffEq.SteadyStateProblem(
-        OrdinaryDiffEq.ODEProblem{false}(
-            ff_ss,
-            u0_pred,
-            (zero(u0_pred[1]), one(u0_pred[1]) * 100),
-            p_ordered,
-        ),
-    )
-    ss_solution = SteadyStateDiffEq.solve(prob_ss, ss_solver; abstol = args[1])
-    #=     display(s.args[1])
-        display(ss_solution.original)
-        display(dudt_ss(u0_pred, p, 0.0))
-        display(ss_solution.u) =#
-
-    res = dudt_ss(u0_pred, p, 0.0)
+    ss_solution = _solve_steadystate_problem(ff_ss, u0_pred, p, ss_solver, ss_solver_params)
 
     #TODO - extra call (dummy) to propogate gradients needed after ss_solution is reached? Not sure if needed. 
     #https://github.com/SciML/DeepEquilibriumNetworks.jl/blob/9c2626d6080bbda3c06b81d2463744f5e395003f/src/layers/deq.jl#L41
     #@error NLsolve.converged(ss_solution.original) #check if SS condition was foudn. 
-    if NLsolve.converged(ss_solution.original)
+    if ss_solution.retcode == SciMLBase.ReturnCode.Success
         #SOLVE DYNAMICS
         refs = ss_solution.u[(end - 1):end] #NOTE: refs is used in dudt_dyn
         ff = OrdinaryDiffEq.ODEFunction{false}(dudt_dyn) #,tgrad=basic_tgrad)    
@@ -138,7 +125,15 @@ function (s::ClassicGen)(
             Tuple{typeof(ss_solution.u[1]), typeof(ss_solution.u[1])},
         )
         cb = DiffEqCallbacks.SavingCallback(f_saving, saved_values; saveat = tsteps)
-        sol = OrdinaryDiffEq.solve(prob_dyn, dyn_solver, callback = cb; kwargs...)
+        sol = OrdinaryDiffEq.solve(
+            prob_dyn,
+            dyn_solver,
+            callback = cb;
+            sensealg = dyn_sensealg,
+            reltol = dyn_solver_params.reltol,
+            abstol = dyn_solver_params.abstol,
+            maxiters = dyn_solver_params.maxiters,
+        )
         return PhysicalModel_solution(
             tsteps,
             vcat(

@@ -738,9 +738,10 @@ function _check_surrogate_convergence(
     surrogate,
     train_dataset,
     steadystate_solver,
+    steadystate_solver_params,
     dynamic_solver,
-    args...;
-    kwargs...,
+    dynamic_solver_params,
+    dynamic_sensealg,
 )
     return true
 end
@@ -750,9 +751,10 @@ function _check_surrogate_convergence(
     surrogate::SteadyStateNeuralODELayer,
     train_dataset,
     steadystate_solver,
+    steadystate_solver_params,
     dynamic_solver,
-    args...;
-    kwargs...,
+    dynamic_solver_params,
+    dynamic_sensealg,
 )
     train_dataset_stable = filter(x -> x.stable, train_dataset)
     v0s = [
@@ -771,9 +773,10 @@ function _check_surrogate_convergence(
             [0.0, 1.0],
             [0.0, 1.0],
             steadystate_solver,
+            steadystate_solver_params,
             dynamic_solver,
-            args...;
-            kwargs...,
+            dynamic_solver_params,
+            dynamic_sensealg,
         )
         push!(converged, sol.converged)
         push!(iterations, sol.deq_iterations)
@@ -830,26 +833,23 @@ function train(params::TrainParams)
 
         #INSTANTIATE 
         surrogate = instantiate_surrogate_flux(params, params.model_params, train_dataset)
-        dynamic_reltol = params.optimizer[1].dynamic_solver.reltol
-        dynamic_abstol = params.optimizer[1].dynamic_solver.abstol
-        dynamic_maxiters = params.optimizer[1].dynamic_solver.maxiters
-        steadystate_abstol = params.optimizer[1].steadystate_solver.abstol
-        steadystate_solver = PowerSimulationNODE.instantiate_steadystate_solver(
-            params.optimizer[1].steadystate_solver,
-        )
-        dynamic_solver =
-            PowerSimulationNODE.instantiate_solver(params.optimizer[1].dynamic_solver)
+
+        steadystate_solver_params = params.optimizer[1].steadystate_solver
+        steadystate_solver =
+            PowerSimulationNODE.instantiate_steadystate_solver(steadystate_solver_params)
+        dynamic_solver_params = params.optimizer[1].dynamic_solver
+        dynamic_solver = PowerSimulationNODE.instantiate_solver(dynamic_solver_params)
+        dynamic_sensealg = PowerSimulationNODE.instantiate_sensealg(dynamic_solver_params)
 
         for i in 1:ATTEMPTS_TO_FIND_CONVERGENT_SURROGATE
             if _check_surrogate_convergence(
                 surrogate,
                 train_dataset,
                 steadystate_solver,
+                steadystate_solver_params,
                 dynamic_solver,
-                steadystate_abstol;
-                reltol = dynamic_reltol,
-                abstol = dynamic_abstol,
-                maxiters = dynamic_maxiters,
+                dynamic_solver_params,
+                dynamic_sensealg,
             ) == true
                 break
             elseif i == ATTEMPTS_TO_FIND_CONVERGENT_SURROGATE
@@ -897,23 +897,21 @@ function train(params::TrainParams)
                     n_trains,
                     length(train_groups[1]),
                 )
-                @warn opt
-                algorithm = instantiate_optimizer(opt)
-                sensealg = instantiate_sensealg(opt)
                 @info "Curriculum pairings (fault_index, timespan_index)", train_groups
                 @info "optimizer $(opt.algorithm)"
                 @info "\n curriculum: $(opt.curriculum) \n # of solves: $n_trains \n # of epochs per training (based on maxiters parameter): $per_solve_max_epochs \n # of iterations per epoch $(length(train_groups[1])) \n # of samples per iteration $(length(train_groups[1][1])) "
 
-                dynamic_reltol = opt.dynamic_solver.reltol
-                dynamic_abstol = opt.dynamic_solver.abstol
-                dynamic_maxiters = opt.dynamic_solver.maxiters
-                steadystate_abstol = opt.steadystate_solver.abstol
-                steadystate_solver = PowerSimulationNODE.instantiate_steadystate_solver(
-                    opt.steadystate_solver,
-                )
-                dynamic_solver =
-                    PowerSimulationNODE.instantiate_solver(opt.dynamic_solver)
+                algorithm = instantiate_optimizer(opt)
+                auto_sensealg = instantiate_auto_sensealg(opt)
 
+                dynamic_solver_params = opt.dynamic_solver
+                dynamic_sensealg = instantiate_sensealg(dynamic_solver_params)
+                dynamic_solver =
+                    PowerSimulationNODE.instantiate_solver(dynamic_solver_params)
+                steadystate_solver_params = opt.steadystate_solver
+                steadystate_solver = PowerSimulationNODE.instantiate_steadystate_solver(
+                    steadystate_solver_params,
+                )
                 for group in train_groups
                     p_train, output = _train(
                         p_train,
@@ -929,17 +927,16 @@ function train(params::TrainParams)
                         train_details,
                         params,
                         algorithm,
-                        sensealg,
+                        auto_sensealg,
                         group,
                         per_solve_max_epochs,
                         output,
                         opt_ix,
                         steadystate_solver,
+                        steadystate_solver_params,
                         dynamic_solver,
-                        steadystate_abstol;
-                        reltol = dynamic_reltol,
-                        abstol = dynamic_abstol,
-                        maxiters = dynamic_maxiters,
+                        dynamic_solver_params,
+                        dynamic_sensealg,
                     )
                 end
                 p_full = vcat(p_fixed, p_train)[p_map]
@@ -971,7 +968,15 @@ function _train(
     p_train::Union{Vector{Float32}, Vector{Float64}},
     p_fixed::Union{Vector{Float32}, Vector{Float64}},
     p_map::Vector{Int64},
-    surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL, GFM, ZIP, MultiDevice},
+    surrogate::Union{
+        NeuralODE,
+        SteadyStateNeuralODE,
+        ClassicGen,
+        GFL,
+        GFM,
+        ZIP,
+        MultiDevice,
+    },
     data_collection_location::Vector{Tuple{String, Symbol}},
     train_dataset::Vector{PSIDS.SteadyStateNODEData},
     validation_dataset::Vector{PSIDS.SteadyStateNODEData},
@@ -989,15 +994,16 @@ function _train(
         OptimizationOptimisers.Optimisers.Adam,
         OptimizationOptimJL.Optim.AbstractOptimizer,
     },
-    sensealg,
+    auto_sensealg,
     group::Vector{Vector{Tuple{Int64, Int64}}},
     per_solve_max_epochs::Int,
     output::Dict{String, Any},
     opt_ix::Int64,
-    ss_solver,  #add types 
+    ss_solver,
+    ss_solver_params,
     dyn_solver,
-    args...;
-    kwargs...,
+    dyn_solver_params,
+    dynamic_sensealg,
 )
     @warn "Starting value of trainable parameters: $p_train"
     @warn "Starting value of fixed parameters: $p_fixed"
@@ -1013,15 +1019,16 @@ function _train(
         params,
         opt_ix,
         ss_solver,
+        ss_solver_params,
         dyn_solver,
-        args...;
-        kwargs...,
+        dyn_solver_params,
+        dynamic_sensealg,
     )
 
     optfun = Optimization.OptimizationFunction(
         (p_train, P, vector_fault_timespan_index) ->
             outer_loss_function(p_train, vector_fault_timespan_index),
-        sensealg,
+        auto_sensealg,
     )
     optprob = Optimization.OptimizationProblem(optfun, p_train)
 
@@ -1099,12 +1106,31 @@ function _train(
     return chosen_trainable_parameters, output
 end
 
+function _initialize_params(p_fixed::Vector{Symbol}, p_full, surrogate::NeuralODE)
+    total_length = length(p_full)
+    initializer_length = surrogate.len
+
+    if (:initializer in p_fixed)
+        p_fix = Float32.(p_full[1:initializer_length])
+        p_train = Float32.(p_full[(initializer_length + 1):end])
+        p_map = collect(1:total_length)
+        return p_fix, p_train, p_map
+    elseif p_fixed == []
+        p_fix = Float32[]
+        p_train = Float32.(p_full)
+        p_map = collect(1:length(p_full))
+        return p_fix, p_train, p_map
+    else
+        @error "invalid entry for parameter p_fixed which indicates which types of parameters should be held constant"
+        return false
+    end
+end
+
 function _initialize_params(
     p_fixed::Vector{Symbol},
     p_full,
     surrogate::SteadyStateNeuralODE,
 )
-    @warn typeof(p_full)    #p_full comes as a typeo f any 
     total_length = length(p_full)
     initializer_length = surrogate.len
     node_length = surrogate.len2
