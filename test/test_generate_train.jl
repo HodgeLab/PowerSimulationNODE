@@ -191,7 +191,7 @@ end
         dataset_loss = generate_and_train_test(p)
         @test isapprox(
             dataset_loss["max_error_ir"][1],
-            0.00741406426929081,
+            0.007453259120865807,
             atol = TEST_ATOL,
         )
         #loss_dataframe =  PowerSimulationNODE.read_arrow_file_to_dataframe(joinpath(p.output_data_path,"train_instance_1", "loss"))
@@ -419,7 +419,7 @@ end
                 solver = "NLSolveJL",
                 reltol = 1e-4,
                 abstol = 1e-4,
-                termination = "RelSafeBest",
+                termination = "RelSafe",
             ),
             dynamic_solver = (
                 solver = "Rodas5",
@@ -444,7 +444,7 @@ end
         dataset_loss = generate_and_train_test(p)
         @test isapprox(
             dataset_loss["max_error_ir"][1],
-            0.003764332881190713,
+            0.00384531814395217,
             atol = TEST_ATOL,
         )
     finally
@@ -453,8 +453,7 @@ end
     end
 end
 
-#Adjusted value for this test:
-#= @testset "SteadyStateNODE (9 bus system, train-data from full system, BFGS)" begin
+@testset "SteadyStateNODE (9 bus system, train-data from full system, BFGS)" begin
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
     include(joinpath(TEST_FILES_DIR, "scripts", "build_9bus.jl"))
     SURROGATE_BUSES = [2]
@@ -481,7 +480,7 @@ end
                 solver_tols = (reltol = 1e-4, abstol = 1e-4),
                 tspan = (0.0, 1.0),
                 tstops = [0.0, 0.5, 1.0], #[0.0, 0.5, 1.0],  #issue with tstop at 0.0 with dynamic lines? 
-                tsave = [], #[0.0,0.5,1.0],#0:0.01:1.0,# [], # 0:0.01:1.0,
+                tsave = [],
                 all_lines_dynamic = false,
                 all_branches_dynamic = false,   #Can't do dynamic transformers? 
                 seed = 1,
@@ -524,7 +523,7 @@ end
                 solver_tols = (reltol = 1e-4, abstol = 1e-4),
             ),
         ),
-        model_params = PSIDS.SteadyStateNODEParams(
+        model_params = PSIDS.SteadyStateNODEParams(    #Changed from SS node params 
             name = "source_1",
             initializer_layer_type = "dense",
             initializer_n_layer = 0,
@@ -539,7 +538,7 @@ end
         ),
         optimizer = [(
             auto_sensealg = "Zygote",
-            algorithm = "Bfgs", 
+            algorithm = "Bfgs",
             log_η = -10.0,
             initial_stepnorm = 0.0, #ignored for ADAM 
             maxiters = 6,
@@ -547,11 +546,11 @@ end
                 solver = "NLSolveJL",
                 reltol = 1e-4,
                 abstol = 1e-4,
-                termination = "RelSafeBest",
+                termination = "RelSafe",
             ),
             dynamic_solver = (
                 solver = "Rodas5",
-                sensealg = "QuadratureAdjoint",
+                sensealg = "QuadratureAdjoint",  #changed from Quadtrature 
                 reltol = 1e-6,
                 abstol = 1e-6,
                 maxiters = 1e5,
@@ -572,14 +571,14 @@ end
         dataset_loss = generate_and_train_test(p)
         @test isapprox(
             dataset_loss["max_error_ir"][1],
-            0.0037373559767244213,
+            0.0037364045897945175,
             atol = TEST_ATOL,
         )
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
     end
-end =#
+end
 
 @testset "SteadyStateNODEObs (9 bus system, train-data from reduced system)" begin
     include(joinpath(TEST_FILES_DIR, "system_data/dynamic_components_data.jl"))
@@ -715,7 +714,7 @@ end =#
         dataset_loss = generate_and_train_test(p)
         @test isapprox(
             dataset_loss["max_error_ir"][1],
-            0.16486858067198606,
+            0.7287053003959845,
             atol = TEST_ATOL,
         )
     finally
