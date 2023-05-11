@@ -86,7 +86,7 @@
     tstops = train_dataset[1].tstops
 
     steadystate_solvers =
-        [(solver = "NewtonRaphson", reltol = 1e-4, abstol = 1e-4, termination = "RelSafe")]
+        [(solver = "NLSolveJL", reltol = 1e-4, abstol = 1e-4, termination = "RelSafe")]
     dynamic_solvers = [
         (
             solver = "Rodas5",

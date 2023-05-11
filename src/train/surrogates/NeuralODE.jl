@@ -110,13 +110,11 @@ function (s::NeuralODE)(
     Id0, Iq0 = s.ref_frame([v0[1]; v0[2]], [i0[1]; i0[2]])
 
     #u[1:end] = surrogate states 
-    function dudt_dyn(u, p, t)
+    function dudt_dyn(u, p_and_refs, t)
+        p = p_and_refs[1:(end - 2)]
+        refs = p_and_refs[(end - 1):end]
         Vd, Vq = s.ref_frame([v0[1]; v0[2]], V(t))
-        dyn_input = vcat(
-            u[1:end],
-            s.input_normalization([Vd, Vq]),
-            [-0.4114475768846225, 0.07107538723319279],
-        )
+        dyn_input = vcat(u[1:end], s.input_normalization([Vd, Vq]), refs)
         return vcat(s.re2(p[p_map[(s.len + 1):end]])(dyn_input))
     end
     #PREDICTOR 
@@ -125,14 +123,14 @@ function (s::NeuralODE)(
     u0_pred = s.re1(p[p_map[1:(s.len)]])(ss_input)
 
     #SOLVE DYNAMICS
-    #refs = u0_pred[(end - (SURROGATE_N_REFS - 1)):end] #NOTE: refs is used in dudt_dyn - possible performance issue here? 
+    refs = u0_pred[(end - (SURROGATE_N_REFS - 1)):end] #NOTE: refs is used in dudt_dyn - possible performance issue here? 
 
     ff = OrdinaryDiffEq.ODEFunction{false}(dudt_dyn)
     prob_dyn = OrdinaryDiffEq.ODEProblem{false}(
         ff,
         u0_pred[1:(end - SURROGATE_N_REFS)],
         (tsteps[1], tsteps[end]),
-        p;
+        vcat(p, refs);
         tstops = tstops,
         saveat = tsteps,
     )

@@ -142,13 +142,6 @@ function (s::SteadyStateNeuralODE)(
             #  zeros(SURROGATE_N_REFS - 2),
         )
     end
-
-    #u[1:end] = surrogate states 
-    function dudt_dyn(u, p, t)
-        Vd, Vq = s.ref_frame([v0[1]; v0[2]], V(t))
-        dyn_input = vcat(u[1:end], s.input_normalization([Vd, Vq]), refs)
-        return vcat(s.re2(p[p_map[(s.len + 1):(s.len + s.len2)]])(dyn_input))
-    end
     #PREDICTOR 
     ss_input =
         vcat([s.input_normalization([Vd0, Vq0])[2]], s.target_normalization([Id0, Iq0])) #how to deal with this in a more general way? When there is a ref frame transformation, one of the inputs is arbitrary shouldn't be included... 
@@ -157,18 +150,25 @@ function (s::SteadyStateNeuralODE)(
     #SOLVE PROBLEM TO STEADY STATE 
     ff_ss = OrdinaryDiffEq.ODEFunction{false}(dudt_ss)
     ss_solution = _solve_steadystate_problem(ff_ss, u0_pred, p, ss_solver, ss_solver_params)
+    res = dudt_ss(ss_solution.u, p, 0.0)
     deq_iterations = _calculate_deq_iterations(ss_solution)
-    #TODO - extra call (dummy) to propogate gradients needed after ss_solution is reached? Not sure if needed. 
-    #https://github.com/SciML/DeepEquilibriumNetworks.jl/blob/9c2626d6080bbda3c06b81d2463744f5e395003f/src/layers/deq.jl#L41
     if ss_solution.retcode == SciMLBase.ReturnCode.Success
         #SOLVE DYNAMICS
-        refs = ss_solution.u[(end - (SURROGATE_N_REFS - 1)):end] #NOTE: refs is used in dudt_dyn
+        refs = ss_solution.u[(end - (SURROGATE_N_REFS - 1)):end]
+        #u[1:end] = surrogate states 
+        function dudt_dyn(u, p_and_refs, t)
+            refs = p_and_refs[(end - 1):end]
+            p = p_and_refs[1:(end - 2)]
+            Vd, Vq = s.ref_frame([v0[1]; v0[2]], V(t))
+            dyn_input = vcat(u[1:end], s.input_normalization([Vd, Vq]), refs)
+            return vcat(s.re2(p[p_map[(s.len + 1):(s.len + s.len2)]])(dyn_input))
+        end
         ff = OrdinaryDiffEq.ODEFunction{false}(dudt_dyn)
         prob_dyn = OrdinaryDiffEq.ODEProblem{false}(
             ff,
             ss_solution.u[1:(end - SURROGATE_N_REFS)],
             (tsteps[1], tsteps[end]),
-            p;
+            vcat(p, refs);
             tstops = tstops,
             saveat = tsteps,
         )
@@ -194,7 +194,7 @@ function (s::SteadyStateNeuralODE)(
                     s.re3(p[p_map[(s.len + s.len2 + 1):end]])(sol[1:end, :]),
                 ),
             ),
-            ss_solution.resid,
+            res,
             true,
             sol.destats,
         )
@@ -212,7 +212,7 @@ function (s::SteadyStateNeuralODE)(
                     s.re3(p[p_map[(s.len + s.len2 + 1):end]])(ss_solution.u[1:(end - 2)]),
                 ),
             ),
-            ss_solution.resid,
+            res,
             false,
             nothing,
         )
@@ -261,7 +261,7 @@ function _solve_steadystate_problem(
             p,
         ),
     )
-    ss_solution = SteadyStateDiffEq.solve(
+    ss_solution = NonlinearSolve.solve(
         prob_nl,
         ss_solver;
         abstol = ss_solver_params.abstol,
