@@ -122,7 +122,7 @@
             steadystate_solver_params,
             dynamic_solver,
             dynamic_solver_params,
-            dynamic_sensealg;,
+            dynamic_sensealg,
         )
 
         sys = System(100.0)
