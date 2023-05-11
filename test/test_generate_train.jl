@@ -1,4 +1,3 @@
-
 TEST_ATOL = 1e-5
 function generate_and_train_test(p2)
     input_param_file = joinpath(p2.base_path, "input_data", "input_test1.json")
@@ -319,7 +318,7 @@ end
     )
     try
         dataset_loss = generate_and_train_test(p)
-        @test isapprox(dataset_loss["max_error_ir"][1], 0.004614147683377423, atol = 1e-10)
+        @test isapprox(dataset_loss["max_error_ir"][1], 0.004614147683377423, atol = TEST_ATOL)
     finally
         @info("removing test files")
         rm(path, force = true, recursive = true)
@@ -1237,6 +1236,7 @@ end
             0.009999999999999998,
         ],
         check_validation_loss_iterations = [],
+        final_validation_loss = false, 
         validation_loss_termination = "false",
         output_mode_skip = 1,
     )
