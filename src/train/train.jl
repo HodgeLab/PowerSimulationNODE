@@ -198,7 +198,10 @@ function generate_surrogate_dataset(
     model_params,
 )
     a = time()
+    settings_unit_cache = deepcopy(sys_main.units_settings.unit_system)
+    PSY.set_units_base_system!(sys_main, "DEVICE_BASE")
     parameterize_surrogate_psid!(sys_main, θ, model_params)
+    PSY.set_units_base_system!(sys_main, settings_unit_cache)
 
     operating_points = data_params.operating_points
     perturbations = data_params.perturbations
