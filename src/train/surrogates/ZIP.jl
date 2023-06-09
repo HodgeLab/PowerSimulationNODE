@@ -45,7 +45,9 @@ function (s::ZIP)(
     i_series = Array{Float64}(undef, 2, length(tsteps))
     for i in eachindex(tsteps)
         Vr, Vi = V(tsteps[i])
-        i_series[1, i], i_series[2, i] = device(p_ordered, refs, Vr, Vi, s)
+        i_series[1, i], i_series[2, i] =
+            device(p_ordered, refs, Vr, Vi, s) .*
+            (p_ordered[zip_indices[:params][:base_power_zip]] / 100.0) #convert back to system base
     end
     return PhysicalModel_solution(tsteps, i_series, [1.0], true)
 end
@@ -149,8 +151,8 @@ function mdl_zip_load(
     Ip_re = V_mag_sq_inv * (voltage_r * P_power + voltage_i * Q_power)
     Ip_im = V_mag_sq_inv * (voltage_i * P_power - voltage_r * Q_power)
 
-    current_r = -(Iz_re + Ii_re + Ip_re) #in system pu flowing out
-    current_i = -(Iz_im + Ii_im + Ip_im) #in system pu flowing out 
+    current_r = (Iz_re + Ii_re + Ip_re) #in system pu flowing out 
+    current_i = (Iz_im + Ii_im + Ip_im) #in system pu flowing out 
 
     return current_r, current_i
 end

@@ -16,15 +16,15 @@ struct MultiDevice{PT, PF, PM, SD, DD} <: MultiDeviceLayer
     )
         if p === nothing
             p = Float64[]
-            #p_static, q_static, p_gfl, q_gfl, p_gfm, q_gfm
-            p = vcat(p, [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]) #ones(2 * (length(static_devices) + length(dynamic_devices))))    #even distribution of P,Q across devices.
+            #p_static, p_gfl, p_gfm, q_static
+            p = vcat(p, [-2.8, 0.4, 0.4, -0.1])
             for d in static_devices
                 p = vcat(p, default_params(d))
             end
             for d in dynamic_devices
                 p = vcat(p, default_params(d))
             end
-        elseif length(p) == ones(2 * (length(static_devices) + length(dynamic_devices)))
+        elseif length(p) == 4
             for d in static_devices
                 p = vcat(p, default_params(d))
             end
@@ -86,9 +86,10 @@ function (s::MultiDevice)(
     p_start_index = 1
     #PARAMETERS (FIXED) FOR DISTRIBUTING P0,Q0 amongst devices
     p_end_index =
-        p_start_index + 2 * (length(s.static_devices) + length(s.dynamic_devices)) - 1
+        p_start_index + 2 * length(s.static_devices) + length(s.dynamic_devices) - 1
 
     i0_static, i0_dynamic = calculate_distributed_i0(
+        [p_ordered[5], p_ordered[12], p_ordered[33]],
         p_ordered[p_start_index:p_end_index],
         v0,
         i0,
@@ -123,7 +124,7 @@ function (s::MultiDevice)(
             view(refs, ref_start_index:ref_end_index),
             view(p_ordered, p_start_index:p_end_index),
             v0,
-            i0_dynamic[ix],
+            i0_dynamic[ix] .* 100.0 ./ view(p, p_start_index:p_end_index)[1], #needs to come in device base! 
             ss_solver,
             ss_solver_params,
             s,
@@ -142,7 +143,7 @@ function (s::MultiDevice)(
             inner_var_start_index = 1
             ref_start_index = 1
             state_start_index = 1
-            p_start_index = 7  # 6 power splitting parameters
+            p_start_index = 5  # 4 power splitting parameters
             for s in s.static_devices
                 ref_end_index = ref_start_index + n_refs(s) - 1
                 p_end_index = p_start_index + n_params(s) - 1
@@ -182,34 +183,41 @@ function (s::MultiDevice)(
             ii_device_total = 0.0
             ref_start_index = 1
             state_start_index = 1
-            p_start_index = 7   #6 power splitting parameters
+            p_start_index = 5   #4 power splitting parameters
             for s in s.static_devices
                 ref_end_index = ref_start_index + n_refs(s) - 1
                 p_end_index = p_start_index + n_params(s) - 1
-                ir_device_total -= device(
+                ir_device_total += device(
                     view(p, p_start_index:p_end_index),
                     view(refs, ref_start_index:ref_end_index),
                     Vr,
                     Vi,
                     s,
-                )[1]    #POLARITY OF LOAD 
-                ii_device_total -= device(
+                )[1]
+                ii_device_total += device(
                     view(p, p_start_index:p_end_index),
                     view(refs, ref_start_index:ref_end_index),
                     Vr,
                     Vi,
                     s,
                 )[2]
+                #@error "imag current from load in system ref frame", ii_device_total
                 ref_start_index = ref_end_index + 1
                 p_start_index = p_end_index + 1
             end
             for s in s.dynamic_devices
                 state_end_index = state_start_index + n_states(s) - 1
+                p_end_index = p_start_index + n_params(s) - 1
                 ir_device_total +=
-                    view(u, state_start_index:state_end_index)[real_current_index(s)]
+                    view(u, state_start_index:state_end_index)[real_current_index(s)] *
+                    view(p, p_start_index:p_end_index)[1] / 100.0    #first param is base power
+                #@error "real current from inverter in system ref frame", view(u, state_start_index:state_end_index)[real_current_index(s)]  * view(p, p_start_index:p_end_index)[1] / 100.0 
                 ii_device_total +=
-                    view(u, state_start_index:state_end_index)[imag_current_index(s)]
+                    view(u, state_start_index:state_end_index)[imag_current_index(s)] *
+                    view(p, p_start_index:p_end_index)[1] / 100.0    #first param is base power
+                #@error "imag current from inverter in system ref frame",  view(u, state_start_index:state_end_index)[imag_current_index(s)]  * view(p, p_start_index:p_end_index)[1] / 100.0 
                 state_start_index = state_end_index + 1
+                p_start_index = p_end_index + 1
             end
             return (ir_device_total, ii_device_total)
         end
@@ -249,6 +257,17 @@ function (s::MultiDevice)(
     end
 end
 
+function default_params(model_params::PSIDS.MultiDeviceParams)
+    p = [-1.0, 0.4, 0.4, -0.1]
+    for d in model_params.static_devices
+        p = vcat(p, default_params(d))
+    end
+    for d in model_params.dynamic_devices
+        p = vcat(p, default_params(d))
+    end
+    return p
+end
+
 #Helper function to go between VI/PQ. Need PQ to distribute powers among devices, and VI is how the devices are modeled. 
 function PQV_to_I(P, Q, V)
     ir = (P * V[1] + V[2] * Q) / (V[1]^2 + V[2]^2)
@@ -263,22 +282,35 @@ function VI_to_PQ(V, I)
 end
 
 #Takes V0, I0 for the entire device, and splits up current according to device based on parameter for proportion of P and Q. 
-function calculate_distributed_i0(p, v0, i0, static_devices, dynamic_devices)
+#TODO - Hardcoded for paper surrogate - needs reformulation to work generally
+function calculate_distributed_i0(base_powers, p, v0, i0, static_devices, dynamic_devices)
     param_index = 1
-    p_frac_devices = p[1:2:end]
-    q_frac_devices = p[2:2:end]
+    base_power_load = base_powers[1]
+    p_frac_devices = p[1:3]
+    p_frac_system_base = [base_powers[ix] * p_frac_devices[ix] / 100.0 for ix in 1:3]
+    q_load_device_base = p[4]
     i0_static = []
     i0_dynamic = []
     P0, Q0 = VI_to_PQ(v0, i0)
+    P0_static = []
+    Q0_static = []
+    P0_dynamic = []
+    Q0_dynamic = []
     for s in static_devices
-        P0_device = p_frac_devices[param_index] / sum(p_frac_devices) * P0
-        Q0_device = q_frac_devices[param_index] / sum(q_frac_devices) * Q0
+        P0_device = p_frac_system_base[param_index] / sum(p_frac_system_base) * P0
+        Q0_device = q_load_device_base * base_power_load / 100.0
+        Q0 -= Q0_device
+        push!(P0_static, P0_device)
+        push!(Q0_static, Q0_device)
         push!(i0_static, PQV_to_I(P0_device, Q0_device, v0))
         param_index += 1
     end
-    for s in dynamic_devices
-        P0_device = p_frac_devices[param_index] / sum(p_frac_devices) * P0
-        Q0_device = q_frac_devices[param_index] / sum(q_frac_devices) * Q0
+    dynamic_base_power_frac = base_powers[2:3] ./ sum(base_powers[2:3])
+    for (i, s) in enumerate(dynamic_devices)
+        P0_device = p_frac_system_base[param_index] / sum(p_frac_system_base) * P0
+        Q0_device = Q0 * dynamic_base_power_frac[i]
+        push!(P0_dynamic, P0_device)
+        push!(Q0_dynamic, Q0_device)
         push!(i0_dynamic, PQV_to_I(P0_device, Q0_device, v0))
         param_index += 1
     end

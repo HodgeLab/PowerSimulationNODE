@@ -198,10 +198,7 @@ function generate_surrogate_dataset(
     model_params,
 )
     a = time()
-    settings_unit_cache = deepcopy(sys_main.units_settings.unit_system)
-    PSY.set_units_base_system!(sys_main, "DEVICE_BASE")
     parameterize_surrogate_psid!(sys_main, θ, model_params)
-    PSY.set_units_base_system!(sys_main, settings_unit_cache)
 
     operating_points = data_params.operating_points
     perturbations = data_params.perturbations
@@ -445,6 +442,8 @@ function parameterize_surrogate_psid!(
     max_P = 1.0,
     max_Q = 1.0,
 )
+    settings_unit_cache = deepcopy(sys.units_settings.unit_system)
+    PSY.set_units_base_system!(sys, "DEVICE_BASE")
     surrogate = PSY.get_component(PSIDS.SteadyStateNODE, sys, model_params.name)
     n_params_initializer = _calculate_n_params(surrogate.initializer_structure)
     n_params_node = _calculate_n_params(surrogate.node_structure)
@@ -454,6 +453,7 @@ function parameterize_surrogate_psid!(
         surrogate,
         θ[(n_params_initializer + 1):(n_params_initializer + n_params_node)],
     )
+    PSY.set_units_base_system!(sys, settings_unit_cache)
 end
 
 function parameterize_surrogate_psid!(
@@ -463,6 +463,8 @@ function parameterize_surrogate_psid!(
     max_P = 1.0,
     max_Q = 1.0,
 )
+    settings_unit_cache = deepcopy(sys.units_settings.unit_system)
+    PSY.set_units_base_system!(sys, "DEVICE_BASE")
     surrogate = PSY.get_component(PSIDS.SteadyStateNODEObs, sys, model_params.name)
     n_params_initializer = _calculate_n_params(surrogate.initializer_structure)
     n_params_node = _calculate_n_params(surrogate.node_structure)
@@ -477,6 +479,7 @@ function parameterize_surrogate_psid!(
         surrogate,
         θ[(n_params_initializer + n_params_node + 1):(n_params_initializer + n_params_node + n_params_observation)],
     )
+    PSY.set_units_base_system!(sys, settings_unit_cache)
 end
 
 function parameterize_surrogate_psid!(
@@ -486,6 +489,8 @@ function parameterize_surrogate_psid!(
     max_P = 1.0,
     max_Q = 1.0,
 )
+    settings_unit_cache = deepcopy(sys.units_settings.unit_system)
+    PSY.set_units_base_system!(sys, "DEVICE_BASE")
     static = PSY.get_component(PSY.StaticInjection, sys, model_params.name)
     PSY.set_active_power_limits!(static, (min = -max_P, max = max_P))
     PSY.set_reactive_power_limits!(static, (min = -max_Q, max = max_Q))
@@ -504,6 +509,8 @@ function parameterize_surrogate_psid!(
     shaft = PSY.get_shaft(surrogate)
     PSY.set_H!(shaft, H)
     PSY.set_D!(shaft, D)
+
+    PSY.set_units_base_system!(sys, settings_unit_cache)
 end
 
 function parameterize_surrogate_psid!(
@@ -513,9 +520,11 @@ function parameterize_surrogate_psid!(
     max_P = 1.0,
     max_Q = 1.0,
 )
+    settings_unit_cache = deepcopy(sys.units_settings.unit_system)
+    PSY.set_units_base_system!(sys, "DEVICE_BASE")
     static = PSY.get_component(PSY.StaticInjection, sys, model_params.name)
     PSY.set_active_power_limits!(static, (min = -max_P, max = max_P))
-    PSY.set_reactive_power_limits!(static, (min = -max_Q, max = max_Q))
+    #PSY.set_reactive_power_limits!(static, (min = -max_Q, max = max_Q))
     PSY.set_base_power!(static, θ[gfl_indices[:params][:base_power_gfl]])
 
     #NOTE: references are set during initialization 
@@ -557,6 +566,8 @@ function parameterize_surrogate_psid!(
     PSY.set_cf!(filter, θ[gfl_indices[:params][:cf_gfl]])
     PSY.set_lg!(filter, θ[gfl_indices[:params][:lg_gfl]])
     PSY.set_rg!(filter, θ[gfl_indices[:params][:rg_gfl]])
+
+    PSY.set_units_base_system!(sys, settings_unit_cache)
 end
 
 function parameterize_surrogate_psid!(
@@ -566,9 +577,11 @@ function parameterize_surrogate_psid!(
     max_P = 1.0,
     max_Q = 1.0,
 )
+    settings_unit_cache = deepcopy(sys.units_settings.unit_system)
+    PSY.set_units_base_system!(sys, "DEVICE_BASE")
     static = PSY.get_component(PSY.StaticInjection, sys, model_params.name)
     PSY.set_active_power_limits!(static, (min = -max_P, max = max_P))
-    PSY.set_reactive_power_limits!(static, (min = -max_Q, max = max_Q))
+    #PSY.set_reactive_power_limits!(static, (min = -max_Q, max = max_Q))
     PSY.set_base_power!(static, θ[gfm_indices[:params][:base_power_gfm]])
 
     #NOTE: references are set during initialization 
@@ -611,6 +624,8 @@ function parameterize_surrogate_psid!(
     PSY.set_cf!(filter, θ[gfm_indices[:params][:cf_gfm]])
     PSY.set_lg!(filter, θ[gfm_indices[:params][:lg_gfm]])
     PSY.set_rg!(filter, θ[gfm_indices[:params][:rg_gfm]])
+
+    PSY.set_units_base_system!(sys, settings_unit_cache)
 end
 
 function parameterize_surrogate_psid!(
@@ -620,6 +635,8 @@ function parameterize_surrogate_psid!(
     max_P = 1.0,
     max_Q = 1.0,
 )
+    settings_unit_cache = deepcopy(sys.units_settings.unit_system)
+    PSY.set_units_base_system!(sys, "DEVICE_BASE")
     #Distributed max_P and max_Q according to the zip specific parameters. 
     P_total =
         θ[zip_indices[:params][:max_active_power_Z]] +
@@ -629,13 +646,13 @@ function parameterize_surrogate_psid!(
         θ[zip_indices[:params][:max_reactive_power_Z]] +
         θ[zip_indices[:params][:max_reactive_power_I]] +
         θ[zip_indices[:params][:max_reactive_power_P]]
-    load = PSY.get_component(PSY.StandardLoad, sys, model_params.name) # string(model_params.name, "_Z"))
+    load = PSY.get_component(PSY.StandardLoad, sys, model_params.name)
     PSY.set_base_power!(load, θ[zip_indices[:params][:base_power_zip]])
     PSY.set_max_impedance_active_power!(
         load,
         max_P * θ[zip_indices[:params][:max_active_power_Z]] / P_total,
     )
-    PSY.set_max_impedance_reactive_power!(
+    PSY.set_impedance_reactive_power!(
         load,
         max_Q * θ[zip_indices[:params][:max_reactive_power_Z]] / Q_total,
     )
@@ -643,7 +660,7 @@ function parameterize_surrogate_psid!(
         load,
         max_P * θ[zip_indices[:params][:max_active_power_I]] / P_total,
     )
-    PSY.set_max_current_reactive_power!(
+    PSY.set_current_reactive_power!(
         load,
         max_Q * θ[zip_indices[:params][:max_reactive_power_I]] / Q_total,
     )
@@ -651,12 +668,16 @@ function parameterize_surrogate_psid!(
         load,
         max_P * θ[zip_indices[:params][:max_active_power_P]] / P_total,
     )
-    PSY.set_max_constant_reactive_power!(
+    PSY.set_constant_reactive_power!(
         load,
         max_Q * θ[zip_indices[:params][:max_reactive_power_P]] / Q_total,
     )
+
+    PSY.set_units_base_system!(sys, settings_unit_cache)
 end
 
+# TODO - Assumes static devices are loads (fixed Q) and dynamic devices are generators
+# TODO - Hardcoded values for the paper surrogate, needs reformulation to work generally
 function parameterize_surrogate_psid!(
     sys::PSY.System,
     θ::Vector{Float64},
@@ -664,8 +685,10 @@ function parameterize_surrogate_psid!(
     max_P = 1.0,
     max_Q = 1.0,
 )
+    settings_unit_cache = deepcopy(sys.units_settings.unit_system)
+    PSY.set_units_base_system!(sys, "DEVICE_BASE")
     n_maxpowers_params =
-        2 * (length(model_params.static_devices) + length(model_params.dynamic_devices))
+        2 * length(model_params.static_devices) + length(model_params.dynamic_devices)
     θ_maxpowers = θ[1:n_maxpowers_params]
     θ_devices = θ[(n_maxpowers_params + 1):end]
 
@@ -677,10 +700,10 @@ function parameterize_surrogate_psid!(
             sys,
             θ_devices[ix_devices_start:ix_devices_end],
             s;
-            max_P = θ_maxpowers[ix_maxpowers],
-            max_Q = θ_maxpowers[ix_maxpowers + 1],
+            max_P = -1.0 * θ_maxpowers[ix_maxpowers],
+            max_Q = -1.0 * θ_maxpowers[4],
         )
-        ix_maxpowers += 2
+        ix_maxpowers += 1
         ix_devices_start = ix_devices_end + 1
     end
     for s in model_params.dynamic_devices
@@ -690,11 +713,13 @@ function parameterize_surrogate_psid!(
             θ_devices[ix_devices_start:ix_devices_end],
             s;
             max_P = θ_maxpowers[ix_maxpowers],
-            max_Q = θ_maxpowers[ix_maxpowers + 1],
+            max_Q = 1.0,
         )
-        ix_maxpowers += 2
+        ix_maxpowers += 1
         ix_devices_start = ix_devices_end + 1
     end
+
+    PSY.set_units_base_system!(sys, settings_unit_cache)
 end
 
 function _check_dimensionality(
@@ -957,7 +982,7 @@ function train(params::TrainParams)
                 params.model_params,
             )
             output["final_loss"] = evaluate_loss(surrogate_dataset, validation_dataset)
-        end 
+        end
         _capture_output(output, params.output_data_path, params.train_id)
         return true, p_full
     catch e
@@ -1281,6 +1306,8 @@ function _initialize_params(p_fixed::Vector{Symbol}, p_full, surrogate::MultiDev
     param_symbols = Symbol[]
     for (i, s) in enumerate(vcat(surrogate.static_devices, surrogate.dynamic_devices))
         push!(param_symbols, Symbol("P_fraction_", i))
+    end
+    for (i, s) in enumerate(surrogate.static_devices)
         push!(param_symbols, Symbol("Q_fraction_", i))
     end
     for s in surrogate.static_devices
