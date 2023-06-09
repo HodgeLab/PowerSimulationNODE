@@ -124,7 +124,7 @@ function (s::MultiDevice)(
             view(refs, ref_start_index:ref_end_index),
             view(p_ordered, p_start_index:p_end_index),
             v0,
-            i0_dynamic[ix] .* 100.0 ./ view(p, p_start_index:p_end_index)[1], #needs to come in device base! 
+            i0_dynamic[ix] .* 100.0 ./ view(p_ordered, p_start_index:p_end_index)[1], #needs to come in device base! 
             ss_solver,
             ss_solver_params,
             s,
