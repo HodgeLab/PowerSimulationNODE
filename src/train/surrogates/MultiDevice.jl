@@ -188,7 +188,7 @@ function (s::MultiDevice)(
                 ref_end_index = ref_start_index + n_refs(s) - 1
                 p_end_index = p_start_index + n_params(s) - 1
                 ir_device_total += device(
-                    view(p_ordered), p_start_index:p_end_index),
+                    view(p_ordered, p_start_index:p_end_index),
                     view(refs, ref_start_index:ref_end_index),
                     Vr,
                     Vi,
