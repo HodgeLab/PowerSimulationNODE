@@ -188,14 +188,14 @@ function (s::MultiDevice)(
                 ref_end_index = ref_start_index + n_refs(s) - 1
                 p_end_index = p_start_index + n_params(s) - 1
                 ir_device_total += device(
-                    view(p, p_start_index:p_end_index),
+                    view(p_ordered), p_start_index:p_end_index),
                     view(refs, ref_start_index:ref_end_index),
                     Vr,
                     Vi,
                     s,
                 )[1]
                 ii_device_total += device(
-                    view(p, p_start_index:p_end_index),
+                    view(p_ordered, p_start_index:p_end_index),
                     view(refs, ref_start_index:ref_end_index),
                     Vr,
                     Vi,
@@ -210,11 +210,11 @@ function (s::MultiDevice)(
                 p_end_index = p_start_index + n_params(s) - 1
                 ir_device_total +=
                     view(u, state_start_index:state_end_index)[real_current_index(s)] *
-                    view(p, p_start_index:p_end_index)[1] / 100.0    #first param is base power
+                    view(p_ordered, p_start_index:p_end_index)[1] / 100.0    #first param is base power
                 #@error "real current from inverter in system ref frame", view(u, state_start_index:state_end_index)[real_current_index(s)]  * view(p, p_start_index:p_end_index)[1] / 100.0 
                 ii_device_total +=
                     view(u, state_start_index:state_end_index)[imag_current_index(s)] *
-                    view(p, p_start_index:p_end_index)[1] / 100.0    #first param is base power
+                    view(p_ordered, p_start_index:p_end_index)[1] / 100.0    #first param is base power
                 #@error "imag current from inverter in system ref frame",  view(u, state_start_index:state_end_index)[imag_current_index(s)]  * view(p, p_start_index:p_end_index)[1] / 100.0 
                 state_start_index = state_end_index + 1
                 p_start_index = p_end_index + 1
