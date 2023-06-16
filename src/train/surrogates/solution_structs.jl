@@ -22,7 +22,7 @@ struct SteadyStateNeuralODE_solution{T}
     r0_pred::AbstractArray{T}
     r0::AbstractArray{T}
     deq_iterations::Int64
-    ssstats::Union{DiffEqBase.Stats, Nothing}
+    ssstats::Union{SciMLBase.NLStats, Nothing}
     t_series::AbstractArray{T}
     r_series::AbstractArray{T}
     i_series::AbstractArray{T}
