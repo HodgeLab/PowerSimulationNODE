@@ -170,6 +170,7 @@ StructTypes.StructType(::Type{PSIDS.ScaleSource}) = StructTypes.Struct()
 StructTypes.StructType(::Type{PSIDS.RandomBranchTrip}) = StructTypes.Struct()
 StructTypes.StructType(::Type{PSIDS.RandomLoadTrip}) = StructTypes.Struct()
 StructTypes.StructType(::Type{PSIDS.RandomLoadChange}) = StructTypes.Struct()
+StructTypes.StructType(::Type{PSIDS.BranchTrip}) = StructTypes.Struct()
 
 StructTypes.StructType(::Type{PSIDS.SurrogatePerturbation}) = StructTypes.AbstractType()
 StructTypes.StructType(::Type{PSIDS.SurrogateOperatingPoint}) = StructTypes.AbstractType()
@@ -184,6 +185,7 @@ StructTypes.subtypes(::Type{PSIDS.SurrogatePerturbation}) = (
     RandomBranchTrip = PSIDS.RandomBranchTrip,
     RandomLoadTrip = PSIDS.RandomLoadTrip,
     RandomLoadChange = PSIDS.RandomLoadChange,
+    BranchTrip = PSIDS.BranchTrip, 
 )
 StructTypes.subtypes(::Type{PSIDS.SurrogateOperatingPoint}) = (
     GenerationLoadScale = PSIDS.GenerationLoadScale,
