@@ -115,12 +115,16 @@ end
     Random.seed!(p.rng_seed) #Seed call usually happens at start of train()
 
     fake_train_dataset = [
-        PSIDS.SteadyStateNODEData(
-            real_current = [-1.0 1.0 0.0 0.0],
-            imag_current = [0.0 0.0 -1.0 1.0],
-            surrogate_real_voltage = [-1.0 1.0 0.0 0.0],
-            surrogate_imag_voltage = [0.0 0.0 -1.0 1.0],
+        PSIDS.TerminalData(;
             stable = true,
+            device_terminal_data = Dict{String, Dict{Symbol, AbstractArray}}(
+                "_" => Dict(
+                    :vr => [-1.0 1.0 0.0 0.0],
+                    :vi => [0.0 0.0 -1.0 1.0],
+                    :ir => [-1.0 1.0 0.0 0.0],
+                    :ii => [0.0 0.0 -1.0 1.0],
+                ),
+            ),
         ),
     ]
 
@@ -244,12 +248,16 @@ end
     Random.seed!(p.rng_seed) #Seed call usually happens at start of train()
 
     fake_train_dataset = [
-        PSIDS.SteadyStateNODEData(
-            real_current = [-1.0 1.0 0.0 0.0],
-            imag_current = [0.0 0.0 -1.0 1.0],
-            surrogate_real_voltage = [-1.0 1.0 0.0 0.0],
-            surrogate_imag_voltage = [0.0 0.0 -1.0 1.0],
+        PSIDS.TerminalData(;
             stable = true,
+            device_terminal_data = Dict{String, Dict{Symbol, AbstractArray}}(
+                "_" => Dict(
+                    :vr => [-1.0 1.0 0.0 0.0],
+                    :vi => [0.0 0.0 -1.0 1.0],
+                    :ir => [-1.0 1.0 0.0 0.0],
+                    :ii => [0.0 0.0 -1.0 1.0],
+                ),
+            ),
         ),
     ]
 

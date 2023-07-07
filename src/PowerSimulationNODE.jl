@@ -28,6 +28,7 @@ export generate_test_data
 export evaluate_loss
 export visualize_loss
 export generate_surrogate_dataset
+export get_device_terminal_data
 
 import Arrow
 import Dates

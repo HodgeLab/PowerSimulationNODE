@@ -144,7 +144,7 @@ end
 function add_surrogate_psid!(
     sys::PSY.System,
     model_params::PSIDS.SteadyStateNODEObsParams,
-    train_dataset::Vector{PSIDS.SteadyStateNODEData},
+    train_dataset::Vector{PSIDS.TerminalData},
 )
     n_ports = model_params.n_ports
     scaling_extrema = calculate_scaling_extrema(train_dataset)
@@ -181,7 +181,7 @@ end
 function add_surrogate_psid!(
     sys::PSY.System,
     model_params::PSIDS.SteadyStateNODEParams,
-    train_dataset::Vector{PSIDS.SteadyStateNODEData},
+    train_dataset::Vector{PSIDS.TerminalData},
 )
     n_ports = model_params.n_ports
     scaling_extrema = calculate_scaling_extrema(train_dataset)
@@ -219,7 +219,7 @@ function add_surrogate_psid!(
         PSIDS.GFMParams,
         PSIDS.ZIPParams,
     },
-    ::Vector{PSIDS.SteadyStateNODEData},   #Won't be used in this dispatch 
+    ::Vector{PSIDS.TerminalData},   #Won't be used in this dispatch 
 )
     source = PSY.get_component(PSY.Source, sys, model_params.name) #Note: hardcoded for single port surrogate 
     P_ref = PSY.get_active_power(source)
@@ -232,7 +232,7 @@ end
 function add_surrogate_psid!(
     sys::PSY.System,
     model_params::PSIDS.MultiDeviceParams,
-    ::Vector{PSIDS.SteadyStateNODEData},   #Won't be used in this dispatch 
+    ::Vector{PSIDS.TerminalData},   #Won't be used in this dispatch 
 )
     source = PSY.get_component(PSY.Source, sys, model_params.name) #Note: hardcoded for single port surrogate 
     P_ref = PSY.get_active_power(source)
@@ -250,7 +250,7 @@ end
 #= function add_surrogate_psid!(
     sys::PSY.System,
     model_params::PSIDS.MultiDeviceLineParams,
-    ::Vector{PSIDS.SteadyStateNODEData},   #Won't be used in this dispatch 
+    ::Vector{PSIDS.TerminalData},   #Won't be used in this dispatch 
 )
     display(sys)
     source = PSY.get_component(PSY.Source, sys, model_params.name) #Note: hardcoded for single port surrogate 
@@ -428,7 +428,7 @@ end
 function instantiate_surrogate_flux(
     params::TrainParams,
     model_params::PSIDS.NODEParams,
-    train_dataset::Vector{PSIDS.SteadyStateNODEData},
+    train_dataset::Vector{PSIDS.TerminalData},
 )
     n_ports = model_params.n_ports
     scaling_extrema = calculate_scaling_extrema(train_dataset)
@@ -496,7 +496,7 @@ end
 function instantiate_surrogate_flux(
     params::TrainParams,
     model_params::Union{PSIDS.SteadyStateNODEParams, PSIDS.SteadyStateNODEObsParams},
-    train_dataset::Vector{PSIDS.SteadyStateNODEData},
+    train_dataset::Vector{PSIDS.TerminalData},
 )
     n_ports = model_params.n_ports
     scaling_extrema = calculate_scaling_extrema(train_dataset)
@@ -570,7 +570,7 @@ end
 function instantiate_surrogate_flux(
     params::TrainParams,
     model_params::PSIDS.ClassicGenParams,
-    train_dataset::Vector{PSIDS.SteadyStateNODEData},
+    train_dataset::Vector{PSIDS.TerminalData},
 )
     return ClassicGen()
 end
@@ -578,7 +578,7 @@ end
 function instantiate_surrogate_flux(
     params::TrainParams,
     model_params::PSIDS.GFLParams,
-    train_dataset::Vector{PSIDS.SteadyStateNODEData},
+    train_dataset::Vector{PSIDS.TerminalData},
 )
     return GFL()
 end
@@ -586,7 +586,7 @@ end
 function instantiate_surrogate_flux(
     params::TrainParams,
     model_params::PSIDS.GFMParams,
-    train_dataset::Vector{PSIDS.SteadyStateNODEData},
+    train_dataset::Vector{PSIDS.TerminalData},
 )
     return GFM()
 end
@@ -594,7 +594,7 @@ end
 function instantiate_surrogate_flux(
     params::TrainParams,
     model_params::PSIDS.ZIPParams,
-    train_dataset::Vector{PSIDS.SteadyStateNODEData},
+    train_dataset::Vector{PSIDS.TerminalData},
 )
     return ZIP()
 end
@@ -602,7 +602,7 @@ end
 function instantiate_surrogate_flux(
     params::TrainParams,
     model_params::PSIDS.MultiDeviceParams,
-    train_dataset::Vector{PSIDS.SteadyStateNODEData},
+    train_dataset::Vector{PSIDS.TerminalData},
 )
     return MultiDevice(model_params.static_devices, model_params.dynamic_devices)
 end
@@ -851,7 +851,7 @@ function _inner_loss_function(
     params,
     opt_ix,
 )
-    ground_truth_subset = vcat(real_current_subset, imag_current_subset)
+    ground_truth_subset = vcat(real_current_subset', imag_current_subset')
     α = params.optimizer[opt_ix].loss_function.α
     β = params.optimizer[opt_ix].loss_function.β
     residual_penalty = params.optimizer[opt_ix].loss_function.residual_penalty
@@ -889,7 +889,7 @@ function _inner_loss_function(
     params,
     opt_ix,
 )
-    ground_truth_subset = vcat(real_current_subset, imag_current_subset)
+    ground_truth_subset = vcat(real_current_subset', imag_current_subset')
     α = params.optimizer[opt_ix].loss_function.α
     β = params.optimizer[opt_ix].loss_function.β
     residual_penalty = params.optimizer[opt_ix].loss_function.residual_penalty
@@ -913,7 +913,7 @@ end
 
 function instantiate_outer_loss_function(
     surrogate::Union{SteadyStateNeuralODE, ClassicGen, GFL, GFM, ZIP, MultiDevice},
-    train_dataset::Vector{PSIDS.SteadyStateNODEData},
+    train_dataset::Vector{PSIDS.TerminalData},
     exogenous_input_functions,
     train_details::Vector{
         NamedTuple{
@@ -962,7 +962,7 @@ function _outer_loss_function(
         ZIP,
         MultiDevice,
     },
-    train_dataset::Vector{PSIDS.SteadyStateNODEData},
+    train_dataset::Vector{PSIDS.TerminalData},
     exogenous_input_functions,
     train_details::Vector{
         NamedTuple{
@@ -989,11 +989,10 @@ function _outer_loss_function(
         timespan_index = fault_timespan_index[2]
         V = exogenous_input_functions[fault_index]
         #powerflow = train_dataset[fault_index].powerflow
-        vr0 = train_dataset[fault_index].surrogate_real_voltage[1]
-        vi0 = train_dataset[fault_index].surrogate_imag_voltage[1]
-        ir0 = train_dataset[fault_index].real_current[1]
-        ii0 = train_dataset[fault_index].imag_current[1]
-
+        vr0 = get_device_terminal_data(train_dataset[fault_index])[:vr][1]
+        vi0 = get_device_terminal_data(train_dataset[fault_index])[:vi][1]
+        ir0 = get_device_terminal_data(train_dataset[fault_index])[:ir][1]
+        ii0 = get_device_terminal_data(train_dataset[fault_index])[:ii][1]
         tsteps = train_dataset[fault_index].tsteps
         if params.optimizer[opt_ix].dynamic_solver.force_tstops == true
             tstops = train_dataset[fault_index].tstops
@@ -1001,10 +1000,10 @@ function _outer_loss_function(
             tstops = []
         end
         index_subset = _find_subset_batching(tsteps, train_details[timespan_index])
-        real_current = train_dataset[fault_index].real_current
-        real_current_subset = real_current[:, index_subset]
-        imag_current = train_dataset[fault_index].imag_current
-        imag_current_subset = imag_current[:, index_subset]
+        real_current = get_device_terminal_data(train_dataset[fault_index])[:ir]
+        real_current_subset = real_current[index_subset]
+        imag_current = get_device_terminal_data(train_dataset[fault_index])[:ii]
+        imag_current_subset = imag_current[index_subset]
         tsteps_subset = tsteps[index_subset]
         surrogate_solution = surrogate(
             V,

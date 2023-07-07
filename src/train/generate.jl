@@ -37,23 +37,29 @@ function generate_train_data(p::TrainParams)
 
     if p.train_data.system == "reduced"
         train_data = PSIDS.generate_surrogate_data(
+            PSIDS.TerminalData,
             sys_train,   #sys_main
             sys_validation,   #sys_aux
             p.train_data.perturbations,
             p.train_data.operating_points,
-            PSIDS.SteadyStateNODEDataParams(
-                location_of_data_collection = data_collection_location_train,
+            Dict{String, Dict{Symbol, Symbol}}(
+                data_collection_location_train[1][1] =>
+                    Dict{Symbol, Symbol}(:direction => :in),
             ),
             p.train_data.params,
         )
     elseif p.train_data.system == "full"
         train_data = PSIDS.generate_surrogate_data(
+            PSIDS.TerminalData,
             sys_full,   #sys_main
             sys_validation,   #sys_aux
             p.train_data.perturbations,
             p.train_data.operating_points,
-            PSIDS.SteadyStateNODEDataParams(
-                location_of_data_collection = data_collection_location_validation,
+            Dict{String, Dict{Symbol, Symbol}}(
+                data_collection_location_validation[1][1] => Dict{Symbol, Symbol}(
+                    :direction => :in,
+                    :side => data_collection_location_validation[1][2],
+                ),
             ),
             p.train_data.params,
         )
@@ -76,12 +82,16 @@ function generate_validation_data(p::TrainParams)   #generate the validation dat
         Serialization.deserialize(p.data_collection_location_path)
 
     validation_data = PSIDS.generate_surrogate_data(
+        PSIDS.TerminalData,
         sys_full,   #sys_main
         sys_validation,  #sys_aux
         p.validation_data.perturbations,
         p.validation_data.operating_points,
-        PSIDS.SteadyStateNODEDataParams(
-            location_of_data_collection = data_collection_location_validation,
+        Dict{String, Dict{Symbol, Symbol}}(
+            data_collection_location_validation[1][1] => Dict{Symbol, Symbol}(
+                :direction => :in,
+                :side => data_collection_location_validation[1][2],
+            ),
         ),
         p.validation_data.params,
     )
@@ -101,12 +111,16 @@ function generate_test_data(p::TrainParams)         #generate the test data and 
         Serialization.deserialize(p.data_collection_location_path)
 
     test_data = PSIDS.generate_surrogate_data(
+        PSIDS.TerminalData,
         sys_full,   #sys_main
         sys_validation,  #sys_aux
         p.test_data.perturbations,
         p.test_data.operating_points,
-        PSIDS.SteadyStateNODEDataParams(
-            location_of_data_collection = data_collection_location_validation,
+        Dict{String, Dict{Symbol, Symbol}}(
+            data_collection_location_validation[1][1] => Dict{Symbol, Symbol}(
+                :direction => :in,
+                :side => data_collection_location_validation[1][2],
+            ),
         ),
         p.test_data.params,
     )

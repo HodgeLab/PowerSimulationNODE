@@ -10,7 +10,7 @@ function _build_exogenous_input_functions(
             String,
         },
     },
-    train_dataset::Vector{PSIDS.SteadyStateNODEData},
+    train_dataset::Vector{PSIDS.TerminalData},
 )
     exogenous_input_functions = []
     n_perturbations = length(train_data_params.perturbations)
@@ -41,41 +41,39 @@ function _surrogate_perturbation_to_function_of_time(
     train_data_params,
 ) where {
     T <: Vector{Union{PSID.Perturbation, PSIDS.SurrogatePerturbation}},
-    D <: PSIDS.SteadyStateNODEData,
+    D <: PSIDS.TerminalData,
 }
     V_funcs = []
     #NOTE: Cannot write a closed form expression for V(t) for the Chirp source so instead just interpolate between data points like we do for real faults.
     if train_data_params.system == "full" || typeof(perturbation[1]) == PSIDS.Chirp
-        for i in 1:size(data.surrogate_real_voltage)[1]
-            function Vr(t)
-                ix_after = findfirst(x -> x > t, data.tsteps)
-                if ix_after === nothing  #correct behavior at end of timespan
-                    ix_after = length(data.tsteps)
-                end
-                t_before = data.tsteps[ix_after - 1]
-                t_after = data.tsteps[ix_after]
-                val_before = data.surrogate_real_voltage[i, ix_after - 1]
-                val_after = data.surrogate_real_voltage[i, ix_after]
-                frac = (t - t_before) / (t_after - t_before)
-                val = val_before + frac * (val_after - val_before)
-                return val
+        function Vr(t)
+            ix_after = findfirst(x -> x > t, data.tsteps)
+            if ix_after === nothing  #correct behavior at end of timespan
+                ix_after = length(data.tsteps)
             end
-            function Vi(t)
-                ix_after = findfirst(x -> x > t, data.tsteps)
-                if ix_after === nothing  #correct behavior at end of timespan
-                    ix_after = length(data.tsteps)
-                end
-                t_before = data.tsteps[ix_after - 1]
-                t_after = data.tsteps[ix_after]
-                val_before = data.surrogate_imag_voltage[i, ix_after - 1]
-                val_after = data.surrogate_imag_voltage[i, ix_after]
-                frac = (t - t_before) / (t_after - t_before)
-                val = val_before + frac * (val_after - val_before)
-                return val
-            end
-            push!(V_funcs, Vr)
-            push!(V_funcs, Vi)
+            t_before = data.tsteps[ix_after - 1]
+            t_after = data.tsteps[ix_after]
+            val_before = get_device_terminal_data(data)[:vr][ix_after - 1]
+            val_after = get_device_terminal_data(data)[:vr][ix_after]
+            frac = (t - t_before) / (t_after - t_before)
+            val = val_before + frac * (val_after - val_before)
+            return val
         end
+        function Vi(t)
+            ix_after = findfirst(x -> x > t, data.tsteps)
+            if ix_after === nothing  #correct behavior at end of timespan
+                ix_after = length(data.tsteps)
+            end
+            t_before = data.tsteps[ix_after - 1]
+            t_after = data.tsteps[ix_after]
+            val_before = get_device_terminal_data(data)[:vi][ix_after - 1]
+            val_after = get_device_terminal_data(data)[:vi][ix_after]
+            frac = (t - t_before) / (t_after - t_before)
+            val = val_before + frac * (val_after - val_before)
+            return val
+        end
+        push!(V_funcs, Vr)
+        push!(V_funcs, Vi)
 
     elseif train_data_params.system == "reduced"
         for (ix, p_single) in enumerate(perturbation)
@@ -92,7 +90,7 @@ end
 
 function _single_perturbation_to_function_of_time(
     single_perturbation::P,
-    data::PSIDS.SteadyStateNODEData,
+    data::PSIDS.TerminalData,
     port_ix::Int64,
 ) where {P <: Union{PSID.Perturbation, PSIDS.SurrogatePerturbation}}
     @error "Cannot convert the given perturbation to a function of time for training"
@@ -100,11 +98,11 @@ end
 
 function _single_perturbation_to_function_of_time(
     single_perturbation::PSIDS.PVS,
-    data::PSIDS.SteadyStateNODEData,
+    data::PSIDS.TerminalData,
     port_ix::Int64,
 )
-    Vr0_surrogate = data.surrogate_real_voltage[port_ix, 1]
-    Vi0_surrogate = data.surrogate_imag_voltage[port_ix, 1]
+    Vr0_surrogate = get_device_terminal_data(data)[:vr][1]
+    Vi0_surrogate = get_device_terminal_data(data)[:vi][1]
     Vm0_surrogate = sqrt(Vr0_surrogate^2 + Vi0_surrogate^2)
     θ0_surrogate = atan(Vi0_surrogate / Vr0_surrogate)
 
@@ -141,11 +139,11 @@ end
 
 function _single_perturbation_to_function_of_time(
     single_perturbation::PSIDS.VStep,
-    data::PSIDS.SteadyStateNODEData,
+    data::PSIDS.TerminalData,
     port_ix::Int64,
 )
-    Vr0_surrogate = data.surrogate_real_voltage[port_ix, 1]
-    Vi0_surrogate = data.surrogate_imag_voltage[port_ix, 1]
+    Vr0_surrogate = get_device_terminal_data(data)[:vr][1]
+    Vi0_surrogate = get_device_terminal_data(data)[:vi][1]
     Vm0_surrogate = sqrt(Vr0_surrogate^2 + Vi0_surrogate^2)
     θ0_surrogate = atan(Vi0_surrogate / Vr0_surrogate)
     function V(t)
@@ -204,12 +202,16 @@ function generate_surrogate_dataset(
     perturbations = data_params.perturbations
     generate_data_params = data_params.params
     surrogate_dataset = PSIDS.generate_surrogate_data(
+        PSIDS.TerminalData,
         sys_main,
         sys_aux,
         perturbations,
         operating_points,
-        PSIDS.SteadyStateNODEDataParams(
-            location_of_data_collection = data_collection_location,
+        Dict{String, Dict{Symbol, Symbol}}(
+            data_collection_location[1][1] => Dict{Symbol, Symbol}(
+                :direction => :in,
+                :side => data_collection_location[1][2],
+            ),     #IS THIS CORRECT KEY FOR SIDE?? - check what data_collection_location is 
         ),
         generate_data_params,
         dataset_aux = groundtruth_dataset,
@@ -242,32 +244,32 @@ function evaluate_loss(surrogate_dataset, groundtruth_dataset)
                 push!(
                     mae_ir,
                     mae(
-                        surrogate_dataset[ix].real_current,
-                        groundtruth_dataset[ix].real_current,
+                        get_device_terminal_data(surrogate_dataset[ix])[:ir],
+                        get_device_terminal_data(groundtruth_dataset[ix])[:ir],
                     ),
                 )
                 push!(
                     max_error_ir,
                     maximum(
                         abs.(
-                            surrogate_dataset[ix].real_current .-
-                            groundtruth_dataset[ix].real_current,
+                            get_device_terminal_data(surrogate_dataset[ix])[:ir] .-
+                            get_device_terminal_data(groundtruth_dataset[ix])[:ir],
                         ),
                     ),
                 )
                 push!(
                     mae_ii,
                     mae(
-                        surrogate_dataset[ix].imag_current,
-                        groundtruth_dataset[ix].imag_current,
+                        get_device_terminal_data(surrogate_dataset[ix])[:ii],
+                        get_device_terminal_data(groundtruth_dataset[ix])[:ii],
                     ),
                 )
                 push!(
                     max_error_ii,
                     maximum(
                         abs.(
-                            surrogate_dataset[ix].imag_current .-
-                            groundtruth_dataset[ix].imag_current,
+                            get_device_terminal_data(surrogate_dataset[ix])[:ii] .-
+                            get_device_terminal_data(groundtruth_dataset[ix])[:ii],
                         ),
                     ),
                 )
@@ -284,71 +286,81 @@ function evaluate_loss(surrogate_dataset, groundtruth_dataset)
     return dataset_loss
 end
 
-function calculate_scaling_extrema(train_dataset)
-    n_ports = size(train_dataset[1].real_current)[1]
+function get_device_terminal_data(d::PSIDS.TerminalData)
+    for (k, v) in d.device_terminal_data
+        return v
+    end
+end
 
-    d_current_min = fill(Inf, n_ports)
-    q_current_min = fill(Inf, n_ports)
-    d_voltage_min = fill(Inf, n_ports)
-    q_voltage_min = fill(Inf, n_ports)
+function calculate_scaling_extrema(train_dataset::Vector{PSIDS.TerminalData})
+    d_current_min = Inf
+    q_current_min = Inf
+    d_voltage_min = Inf
+    q_voltage_min = Inf
 
-    d_current_max = fill(-Inf, n_ports)
-    q_current_max = fill(-Inf, n_ports)
-    d_voltage_max = fill(-Inf, n_ports)
-    q_voltage_max = fill(-Inf, n_ports)
+    d_current_max = -Inf
+    q_current_max = -Inf
+    d_voltage_max = -Inf
+    q_voltage_max = -Inf
 
     for d in train_dataset
         if d.stable == true
-            θ0 = atan(d.surrogate_imag_voltage[1] / d.surrogate_real_voltage[1])
-            id_iq = PSID.ri_dq(θ0) * vcat(d.real_current, d.imag_current)
-            vd_vq =
-                PSID.ri_dq(θ0) * vcat(d.surrogate_real_voltage, d.surrogate_imag_voltage)
-            id_max = maximum(id_iq[1, :])
-            id_min = minimum(id_iq[1, :])
-            iq_max = maximum(id_iq[2, :])
-            iq_min = minimum(id_iq[2, :])
-            vd_max = maximum(vd_vq[1, :])
-            vd_min = minimum(vd_vq[1, :])
-            vq_max = maximum(vd_vq[2, :])
-            vq_min = minimum(vd_vq[2, :])
-            #display(Plots.plot(Plots.plot(id_iq[1,:]), Plots.plot(id_iq[2,:]), Plots.plot(vd_vq[1,:]), Plots.plot(vd_vq[2,:])  ))
-            for ix in 1:n_ports
-                #D CURRENT 
-                if id_max[ix] > d_current_max[ix]
-                    d_current_max[ix] = id_max[ix]
-                end
-                if id_min[ix] < d_current_min[ix]
-                    d_current_min[ix] = id_min[ix]
-                end
-                #Q CURRENT 
-                if iq_max[ix] > q_current_max[ix]
-                    q_current_max[ix] = iq_max[ix]
-                end
-                if iq_min[ix] < q_current_min[ix]
-                    q_current_min[ix] = iq_min[ix]
-                end
-                #D VOLTAGE 
-                if vd_max[ix] > d_voltage_max[ix]
-                    d_voltage_max[ix] = vd_max[ix]
-                end
-                if vd_min[ix] < d_voltage_min[ix]
-                    d_voltage_min[ix] = vd_min[ix]
-                end
-                #Q VOLTAGE 
-                if vq_max[ix] > q_voltage_max[ix]
-                    q_voltage_max[ix] = vq_max[ix]
-                end
-                if vq_min[ix] < q_voltage_min[ix]
-                    q_voltage_min[ix] = vq_min[ix]
-                end
+            @assert length(d.device_terminal_data) == 1
+            terminal_data_dict = get_device_terminal_data(d)
+            vr = terminal_data_dict[:vr]
+            vi = terminal_data_dict[:vi]
+            ir = terminal_data_dict[:ir]
+            ii = terminal_data_dict[:ii]
+            θ0 = atan(vi[1] / vr[1])
+            id = [(PSID.ri_dq(θ0) * vcat(x, y))[1] for (x, y) in zip(ir, ii)]
+            iq = [(PSID.ri_dq(θ0) * vcat(x, y))[2] for (x, y) in zip(ir, ii)]
+            vd = [(PSID.ri_dq(θ0) * vcat(x, y))[1] for (x, y) in zip(vr, vi)]
+            vq = [(PSID.ri_dq(θ0) * vcat(x, y))[2] for (x, y) in zip(vr, vi)]
+
+            id_max = maximum(id)
+            id_min = minimum(id)
+            iq_max = maximum(iq)
+            iq_min = minimum(iq)
+            vd_max = maximum(vd)
+            vd_min = minimum(vd)
+            vq_max = maximum(vq)
+            vq_min = minimum(vq)
+
+            #D CURRENT 
+            if id_max > d_current_max
+                d_current_max = id_max
+            end
+            if id_min < d_current_min
+                d_current_min = id_min
+            end
+            #Q CURRENT 
+            if iq_max > q_current_max
+                q_current_max = iq_max
+            end
+            if iq_min < q_current_min
+                q_current_min = iq_min
+            end
+            #D VOLTAGE 
+            if vd_max > d_voltage_max
+                d_voltage_max = vd_max
+            end
+            if vd_min < d_voltage_min
+                d_voltage_min = vd_min
+            end
+            #Q VOLTAGE 
+            if vq_max > q_voltage_max
+                q_voltage_max = vq_max
+            end
+            if vq_min < q_voltage_min
+                q_voltage_min = vq_min
             end
         end
     end
-    input_min = [d_voltage_min q_voltage_min]'[:]
-    target_min = [d_current_min q_current_min]'[:]
+    input_min = [d_voltage_min; q_voltage_min]
+    target_min = [d_current_min; q_current_min]
 
-    input_max = [d_voltage_max q_voltage_max]'[:]
-    target_max = [d_current_max q_current_max]'[:]
+    input_max = [d_voltage_max; q_voltage_max]
+    target_max = [d_current_max; q_current_max]
     scaling_parameters = Dict{}(
         "input_min" => input_min,
         "input_max" => input_max,
@@ -372,48 +384,57 @@ function visualize_loss(surrogate_dataset, groundtruth_dataset)
             if surrogate_dataset[ix].stable == false
                 @error "Groundtruth data is stable but surrogate is unstable for entry $ix of the dataset"
             elseif surrogate_dataset[ix].stable == true
+                vr_surrogate = get_device_terminal_data(surrogate_dataset[ix])[:vr]
+                vi_surrogate = get_device_terminal_data(surrogate_dataset[ix])[:vi]
+                ir_surrogate = get_device_terminal_data(surrogate_dataset[ix])[:ir]
+                ii_surrogate = get_device_terminal_data(surrogate_dataset[ix])[:ii]
+
+                vr_groundtruth = get_device_terminal_data(groundtruth_dataset[ix])[:vr]
+                vi_groundtruth = get_device_terminal_data(groundtruth_dataset[ix])[:vi]
+                ir_groundtruth = get_device_terminal_data(groundtruth_dataset[ix])[:ir]
+                ii_groundtruth = get_device_terminal_data(groundtruth_dataset[ix])[:ii]
                 p1 = Plots.plot(
                     surrogate_dataset[ix].tsteps,
-                    surrogate_dataset[ix].surrogate_real_voltage',
+                    vr_surrogate,
                     label = "Vr (surr)",
                 )
                 Plots.plot!(
                     p1,
                     groundtruth_dataset[ix].tsteps,
-                    groundtruth_dataset[ix].surrogate_real_voltage',
+                    vr_groundtruth,
                     label = "Vr (true)",
                 )
                 p2 = Plots.plot(
                     surrogate_dataset[ix].tsteps,
-                    surrogate_dataset[ix].surrogate_imag_voltage',
+                    vi_surrogate,
                     label = "Vi (surr)",
                 )
                 Plots.plot!(
                     p2,
                     groundtruth_dataset[ix].tsteps,
-                    groundtruth_dataset[ix].surrogate_imag_voltage',
+                    vi_groundtruth,
                     label = "Vi (true)",
                 )
                 p3 = Plots.plot(
                     surrogate_dataset[ix].tsteps,
-                    surrogate_dataset[ix].real_current',
+                    ir_surrogate,
                     label = "Ir (surr)",
                 )
                 Plots.plot!(
                     p3,
                     groundtruth_dataset[ix].tsteps,
-                    groundtruth_dataset[ix].real_current',
+                    ir_groundtruth,
                     label = "Ir (true)",
                 )
                 p4 = Plots.plot(
                     surrogate_dataset[ix].tsteps,
-                    surrogate_dataset[ix].imag_current',
+                    ii_surrogate,
                     label = "Ii (surr)",
                 )
                 Plots.plot!(
                     p4,
                     groundtruth_dataset[ix].tsteps,
-                    groundtruth_dataset[ix].imag_current',
+                    ii_groundtruth,
                     label = "Ii (true)",
                 )
                 push!(plots, Plots.plot(p1, p2, p3, p4))
@@ -777,7 +798,7 @@ end
 #Check all entries in dataset converge in under 10 iterations of DEQ layer. 
 function _check_surrogate_convergence(
     surrogate::SteadyStateNeuralODELayer,
-    train_dataset,
+    train_dataset::Vector{PSIDS.TerminalData},
     steadystate_solver,
     steadystate_solver_params,
     dynamic_solver,
@@ -786,10 +807,11 @@ function _check_surrogate_convergence(
 )
     train_dataset_stable = filter(x -> x.stable, train_dataset)
     v0s = [
-        [entry.surrogate_real_voltage[1], entry.surrogate_imag_voltage[1]] for
-        entry in train_dataset_stable
+        [get_device_terminal_data(entry)[:vr][1], get_device_terminal_data(entry)[:vi][1]] for entry in train_dataset_stable
     ]
-    i0s = [[entry.real_current[1], entry.imag_current[1]] for entry in train_dataset_stable]
+    i0s = [
+        [get_device_terminal_data(entry)[:ir][1], get_device_terminal_data(entry)[:ii][1]] for entry in train_dataset_stable
+    ]
     converged = []
     iterations = []
     for (i, v0) in enumerate(v0s)
@@ -1006,8 +1028,8 @@ function _train(
         MultiDevice,
     },
     data_collection_location::Vector{Tuple{String, Symbol}},
-    train_dataset::Vector{PSIDS.SteadyStateNODEData},
-    validation_dataset::Vector{PSIDS.SteadyStateNODEData},
+    train_dataset::Vector{PSIDS.TerminalData},
+    validation_dataset::Vector{PSIDS.TerminalData},
     sys_validation::PSY.System,
     sys_validation_aux::PSY.System,
     exogenous_input_functions,

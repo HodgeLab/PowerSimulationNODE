@@ -111,10 +111,13 @@
     sys_train = System(p.train_system_path)
     exs = PowerSimulationNODE._build_exogenous_input_functions(p.train_data, train_dataset)
     v0 = [
-        train_dataset[1].surrogate_real_voltage[1],
-        train_dataset[1].surrogate_imag_voltage[1],
+        get_device_terminal_data(train_dataset[1])[:vr][1],
+        get_device_terminal_data(train_dataset[1])[:vi][1],
     ]
-    i0 = [train_dataset[1].real_current[1], train_dataset[1].imag_current[1]]
+    i0 = [
+        get_device_terminal_data(train_dataset[1])[:ir][1],
+        get_device_terminal_data(train_dataset[1])[:ii][1],
+    ]
 
     tsteps = train_dataset[1].tsteps
     tstops = train_dataset[1].tstops
@@ -212,8 +215,10 @@
     Vr0 = Vm0 * cos(θ0)
     Vi0 = Vm0 * sin(θ0)
     Ir0, Ii0 = PowerSimulationNODE.PQV_to_I(-1.0, -0.1, [Vr0, Vi0])
-    data_aux = SteadyStateNODEData(;
-        ic = Dict{Symbol, Float64}(:Ir0 => Ir0, :Ii0 => Ii0, :Vr0 => Vr0, :Vi0 => Vi0),
+    data_aux = TerminalData(;
+        device_terminal_data = Dict{String, Dict{Symbol, AbstractArray}}(
+            "_" => Dict(:vr => [Vr0], :vi => [Vi0], :ir => [Ir0], :ii => [Ii0]),
+        ),
     )
     PSIDS.match_operating_point(sys_train, data_aux, p.model_params)
 

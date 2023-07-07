@@ -78,10 +78,13 @@
     train_dataset = Serialization.deserialize(p.train_data_path)
     exs = PowerSimulationNODE._build_exogenous_input_functions(p.train_data, train_dataset)
     v0 = [
-        train_dataset[1].surrogate_real_voltage[1],
-        train_dataset[1].surrogate_imag_voltage[1],
+        get_device_terminal_data(train_dataset[1])[:vr][1],
+        get_device_terminal_data(train_dataset[1])[:vi][1],
     ]
-    i0 = [train_dataset[1].real_current[1], train_dataset[1].imag_current[1]]
+    i0 = [
+        get_device_terminal_data(train_dataset[1])[:ir][1],
+        get_device_terminal_data(train_dataset[1])[:ii][1],
+    ]
     tsteps = train_dataset[1].tsteps
     tstops = train_dataset[1].tstops
 

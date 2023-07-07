@@ -19,8 +19,10 @@ function _plot_overview_physical(surrogate_prediction, fault_index, fault_data, 
     i_series = surrogate_prediction.i_series
     if surrogate_prediction.converged && length(i_series) != 2   #FAILS AT LINE 26 if the initialization converged but the run was unstable so there isn't data saved. 
         tsteps = fault_data[fault_index[end][1]].tsteps
-        ground_truth_real_current = fault_data[fault_index[end][1]].real_current
-        ground_truth_imag_current = fault_data[fault_index[end][1]].imag_current
+        ground_truth_real_current =
+            get_device_terminal_data(fault_data[fault_index[end][1]])[:ir]
+        ground_truth_imag_current =
+            get_device_terminal_data(fault_data[fault_index[end][1]])[:ii]
         t_series = surrogate_prediction.t_series
         i_series = reshape(i_series, (2, length(t_series)))       #Loses shape when serialized/deserialized to arrow  
         res = surrogate_prediction.res
@@ -70,8 +72,10 @@ end
 function _plot_overview_data(surrogate_prediction, fault_index, fault_data, exs)
     if size(surrogate_prediction.r0) != size(surrogate_prediction.r_series)
         tsteps = fault_data[fault_index[end][1]].tsteps
-        ground_truth_real_current = fault_data[fault_index[end][1]].real_current
-        ground_truth_imag_current = fault_data[fault_index[end][1]].imag_current
+        ground_truth_real_current =
+            get_device_terminal_data(fault_data[fault_index[end][1]])[:ir]
+        ground_truth_imag_current =
+            get_device_terminal_data(fault_data[fault_index[end][1]])[:ii]
         lay = Plots.@layout [a{0.3w} [b c; d e]]
         r0_pred = surrogate_prediction.r0_pred
         t_series = surrogate_prediction.t_series
@@ -217,7 +221,6 @@ function _visualize_validation_loss(path_to_output)
         p3 = Plots.plot(ii_mean_over_faults, label = "mae for ii (across all faults)")
         ii_max_over_faults = [maximum(x) for x in df_validation_loss[!, :max_error_ii]]
         p4 = Plots.plot(ii_max_over_faults, label = "max error for ii (across all faults)")
-
         return Plots.plot(
             p1,
             p2,

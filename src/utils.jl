@@ -30,7 +30,7 @@ function node_run_powerflow!(inputs...)
     )
     try
         Logging.with_logger(logger) do
-            PowerFlows.run_powerflow!(inputs...)
+            PowerFlows.solve_powerflow!(inputs...)
             return
         end
     finally

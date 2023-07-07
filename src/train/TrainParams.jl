@@ -185,7 +185,7 @@ StructTypes.subtypes(::Type{PSIDS.SurrogatePerturbation}) = (
     RandomBranchTrip = PSIDS.RandomBranchTrip,
     RandomLoadTrip = PSIDS.RandomLoadTrip,
     RandomLoadChange = PSIDS.RandomLoadChange,
-    LineTrip = PSIDS.LineTrip, 
+    LineTrip = PSIDS.LineTrip,
 )
 StructTypes.subtypes(::Type{PSIDS.SurrogateOperatingPoint}) = (
     GenerationLoadScale = PSIDS.GenerationLoadScale,
