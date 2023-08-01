@@ -117,6 +117,7 @@ end
     fake_train_dataset = [
         PSIDS.TerminalData(;
             stable = true,
+            built = true,
             device_terminal_data = Dict{String, Dict{Symbol, AbstractArray}}(
                 "_" => Dict(
                     :vr => [-1.0 1.0 0.0 0.0],
@@ -250,6 +251,7 @@ end
     fake_train_dataset = [
         PSIDS.TerminalData(;
             stable = true,
+            built = true,
             device_terminal_data = Dict{String, Dict{Symbol, AbstractArray}}(
                 "_" => Dict(
                     :vr => [-1.0 1.0 0.0 0.0],

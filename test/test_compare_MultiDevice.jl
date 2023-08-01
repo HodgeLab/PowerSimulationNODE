@@ -221,6 +221,7 @@
     Vi0 = Vm0 * sin(θ0)
     Ir0, Ii0 = PowerSimulationNODE.PQV_to_I(-1.0, -0.1, [Vr0, Vi0])
     data_aux = TerminalData(;
+        built = true,
         device_terminal_data = Dict{String, Dict{Symbol, AbstractArray}}(
             "_" => Dict(:vr => [Vr0], :vi => [Vi0], :ir => [Ir0], :ii => [Ii0]),
         ),
