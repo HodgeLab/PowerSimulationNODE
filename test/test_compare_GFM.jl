@@ -227,7 +227,6 @@
     set_reactive_power!(get_component(Source, sys_train, "source_1"), 0.1)
 
     #SIMULATE AND PLOT
-    display(sys_train)
     sim = Simulation!(
         MassMatrixModel,
         sys_train,
@@ -236,8 +235,7 @@
         frequency_reference = ConstantFrequency(),
     )
     show_states_initial_value(sim)
-    display(sys_train)
-   # @assert false 
+
     execute!(sim, Rodas5(), saveat = 0.0:0.001:1.0, abstol = 1e-9, reltol = 1e-9)
     results = read_results(sim)
     Vm2 = get_voltage_magnitude_series(results, 2)
