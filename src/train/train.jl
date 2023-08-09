@@ -458,7 +458,7 @@ end
 
 function parameterize_surrogate_psid!(
     sys::PSY.System,
-    θ::Vector{Float32},
+    θ,
     model_params::PSIDS.SteadyStateNODEParams;
     max_P = 1.0,
     max_Q = 1.0,
@@ -479,7 +479,7 @@ end
 
 function parameterize_surrogate_psid!(
     sys::PSY.System,
-    θ::Vector{Float32},
+    θ,
     model_params::PSIDS.SteadyStateNODEObsParams;
     max_P = 1.0,
     max_Q = 1.0,
@@ -505,7 +505,7 @@ end
 
 function parameterize_surrogate_psid!(
     sys::PSY.System,
-    θ::Vector{Float64},
+    θ,
     model_params::PSIDS.ClassicGenParams;
     max_P = 1.0,
     max_Q = 1.0,
@@ -536,7 +536,7 @@ end
 
 function parameterize_surrogate_psid!(
     sys::PSY.System,
-    θ::Vector{Float64},
+    θ,
     model_params::PSIDS.GFLParams;
     max_P = 1.0,
     max_Q = 1.0,
@@ -593,7 +593,7 @@ end
 
 function parameterize_surrogate_psid!(
     sys::PSY.System,
-    θ::Vector{Float64},
+    θ,
     model_params::PSIDS.GFMParams;
     max_P = 1.0,
     max_Q = 1.0,
@@ -651,7 +651,7 @@ end
 
 function parameterize_surrogate_psid!(
     sys::PSY.System,
-    θ::Vector{Float64},
+    θ,
     model_params::PSIDS.ZIPParams;
     max_P = 1.0,
     max_Q = 1.0,
@@ -701,7 +701,7 @@ end
 # TODO - Hardcoded values for the paper surrogate, needs reformulation to work generally
 function parameterize_surrogate_psid!(
     sys::PSY.System,
-    θ::Vector{Float64},
+    θ,
     model_params::PSIDS.MultiDeviceParams;
     max_P = 1.0,
     max_Q = 1.0,
