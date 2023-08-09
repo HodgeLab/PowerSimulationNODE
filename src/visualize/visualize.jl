@@ -37,7 +37,7 @@ function _plot_overview_physical(surrogate_prediction, fault_index, fault_data, 
             label = false,
             markersize = 1,
         )
-        Plots.plot!(tsteps, ground_truth_real_current[1, :], label = L"$y_1$")
+        Plots.plot!(tsteps, ground_truth_real_current, label = L"$y_1$")
 
         p2 = Plots.plot(t_series, i_series[2, :], label = L"$\hat{y}_2$")
         Plots.scatter!(p2, t_series, i_series[2, :], label = false, markersize = 1)
@@ -48,7 +48,7 @@ function _plot_overview_physical(surrogate_prediction, fault_index, fault_data, 
             label = false,
             markersize = 1,
         )
-        Plots.plot!(tsteps, ground_truth_imag_current[1, :], label = L"$y_2$")
+        Plots.plot!(tsteps, ground_truth_imag_current, label = L"$y_2$")
         V = apply_to_columns(ex, t_series)#, i_series)
         V_0 = apply_to_columns(ex, t_series)#, zero(i_series))
         p3 = Plots.plot(t_series, V[1, :], label = L"$u_1$")
@@ -96,7 +96,7 @@ function _plot_overview_data(surrogate_prediction, fault_index, fault_data, exs)
             label = false,
             markersize = 1,
         )
-        Plots.plot!(tsteps, ground_truth_real_current[1, :], label = L"$y_1$")
+        Plots.plot!(tsteps, ground_truth_real_current, label = L"$y_1$")
 
         p2 = Plots.plot(t_series, i_series[2, :], label = L"$\hat{y}_2$")
         Plots.scatter!(p2, t_series, i_series[2, :], label = false, markersize = 1)
@@ -107,7 +107,7 @@ function _plot_overview_data(surrogate_prediction, fault_index, fault_data, exs)
             label = false,
             markersize = 1,
         )
-        Plots.plot!(tsteps, ground_truth_imag_current[1, :], label = L"$y_2$")
+        Plots.plot!(tsteps, ground_truth_imag_current, label = L"$y_2$")
         V = apply_to_columns(ex, t_series)#, i_series)
         V_0 = apply_to_columns(ex, t_series)#, zero(i_series))
         p3 = Plots.plot(t_series, V[1, :], label = L"$u_1$")

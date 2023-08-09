@@ -282,6 +282,7 @@ function VI_to_PQ(V, I)
 end
 
 #Takes V0, I0 for the entire device, and splits up current according to device based on parameter for proportion of P and Q. 
+#Substracts the load Q (static device) and then redistributes remaining Q among generators (dynamic devices) -> matches the logic in PowerFlows.jl
 #TODO - Hardcoded for paper surrogate - needs reformulation to work generally
 function calculate_distributed_i0(base_powers, p, v0, i0, static_devices, dynamic_devices)
     param_index = 1
