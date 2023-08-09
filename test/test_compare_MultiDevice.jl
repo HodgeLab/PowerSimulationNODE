@@ -260,8 +260,8 @@
     plot!(p2, Ii[1], -1 * Ii[2], label = "imag current -psid", legend = :topright)
     #display(plot(p1, p2, p3, p4, size = (1000, 1000), title = "compare_MultiDevice"))
 
-    @test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <=  0.0003
-    @test LinearAlgebra.norm(Ii[2] .* -1 .- surrogate_sol.i_series[2, :], Inf) <=  0.0002
+    @test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <= 0.0003
+    @test LinearAlgebra.norm(Ii[2] .* -1 .- surrogate_sol.i_series[2, :], Inf) <= 0.0002
 
     rm(path, force = true, recursive = true)
     #See the distribution of the parameters

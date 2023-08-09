@@ -182,7 +182,12 @@
     add_component!(sys_train, source_surrogate)
 
     PowerSimulationNODE.add_surrogate_psid!(sys_train, p.model_params, train_dataset)
-    PowerSimulationNODE.parameterize_surrogate_psid!(sys_train, p_default, p.model_params; max_Q=0.2)   #0.2 is the Q needed from the load in device base (0.1 in system base)  
+    PowerSimulationNODE.parameterize_surrogate_psid!(
+        sys_train,
+        p_default,
+        p.model_params;
+        max_Q = 0.2,
+    )   #0.2 is the Q needed from the load in device base (0.1 in system base)  
     display(sys_train)
 
     #Add the  Frequency Chirp
