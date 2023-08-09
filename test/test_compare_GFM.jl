@@ -227,6 +227,7 @@
     set_reactive_power!(get_component(Source, sys_train, "source_1"), 0.1)
 
     #SIMULATE AND PLOT
+    display(sys_train)
     sim = Simulation!(
         MassMatrixModel,
         sys_train,
@@ -235,7 +236,8 @@
         frequency_reference = ConstantFrequency(),
     )
     show_states_initial_value(sim)
-
+    display(sys_train)
+   # @assert false 
     execute!(sim, Rodas5(), saveat = 0.0:0.001:1.0, abstol = 1e-9, reltol = 1e-9)
     results = read_results(sim)
     Vm2 = get_voltage_magnitude_series(results, 2)
@@ -251,8 +253,8 @@
     plot!(p2, Ii[1], -1 * Ii[2], label = "imag current -psid", legend = :topright)
     #display(plot(p1, p2, p3, p4, size = (1000, 1000), title = "compare_GFM"))
 
-    @test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <= 0.00026
-    @test LinearAlgebra.norm(Ii[2] .* -1 .- surrogate_sol.i_series[2, :], Inf) <= 0.00021
+    @test LinearAlgebra.norm(Ir[2] .* -1 .- surrogate_sol.i_series[1, :], Inf) <= 0.0001
+    @test LinearAlgebra.norm(Ii[2] .* -1 .- surrogate_sol.i_series[2, :], Inf) <= 0.0001
 
     rm(path, force = true, recursive = true)
     #See the distribution of the parameters
