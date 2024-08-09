@@ -153,6 +153,6 @@ function (s::NeuralODE)(
         s.ref_frame_inverse([v0[1]; v0[2]], s.target_normalization_inverse(sol[1:2, :])),
         s.ref_frame_inverse([v0[1]; v0[2]], s.target_normalization_inverse(sol[1:2, :])),
         true,
-        sol.destats,
+        sol.stats,
     )
 end
