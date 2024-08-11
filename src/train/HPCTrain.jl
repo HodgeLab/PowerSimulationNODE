@@ -193,7 +193,7 @@ function AlpineHPCTrain(;
     n_cpus_per_task = 1
     return HPCTrain(
         username,
-        "ucb340_asc1",
+        "ucb-general",  #ucb340_asc1 expired 3/2024
         QoS,
         partition,
         project_folder,
