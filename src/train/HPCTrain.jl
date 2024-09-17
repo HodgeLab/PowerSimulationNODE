@@ -28,11 +28,11 @@ const train_bash_file_template = """
 
 export TMPDIR={{{train_path}}}/tmp/
 # Check Dependencies
-julia --project={{{project_path}}} -e 'using Pkg; Pkg.instantiate()'
+julia-1.7 --project={{{project_path}}} -e 'using Pkg; Pkg.instantiate()'
 
 INFILE=\$(sed -n "\${SLURM_ARRAY_TASK_ID}p" {{{train_set_file}}})
 
-julia --project={{{project_path}}} {{{project_path}}}/scripts/hpc_train/train_node.jl \$INFILE 
+julia-1.7 --project={{{project_path}}} {{{project_path}}}/scripts/hpc_train/train_node.jl \$INFILE 
 """
 
 const generate_data_bash_file_template = """
@@ -65,12 +65,12 @@ const generate_data_bash_file_template = """
 
 export TMPDIR={{{train_path}}}/tmp/
 # Check Dependencies
-julia --project={{{project_path}}} -e 'using Pkg; Pkg.instantiate()'
-julia --project={{{project_path}}} {{{project_path}}}/scripts/hpc_train/build_subsystems.jl {{{first_parameter_path}}}
+julia-1.7 --project={{{project_path}}} -e 'using Pkg; Pkg.instantiate()'
+julia-1.7 --project={{{project_path}}} {{{project_path}}}/scripts/hpc_train/build_subsystems.jl {{{first_parameter_path}}}
 
 INFILE=\$(sed -n "\${SLURM_ARRAY_TASK_ID}p" {{{generate_data_set_file}}})
 
-julia --project={{{project_path}}} {{{project_path}}}/scripts/hpc_train/generate_data.jl \$INFILE 
+julia-1.7 --project={{{project_path}}} {{{project_path}}}/scripts/hpc_train/generate_data.jl \$INFILE 
 """
 
 struct HPCTrain
