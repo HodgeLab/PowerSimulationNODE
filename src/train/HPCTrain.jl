@@ -54,6 +54,7 @@ const generate_data_bash_file_template = """
 #
 # Memory per cpu
 #SBATCH --mem-per-cpu={{mb_per_cpu}}M
+#SBATCH --exclusive
 #
 # Processors per task (for future parallel training code):
 #SBATCH --cpus-per-task={{n_cpus_per_task}}
